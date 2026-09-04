@@ -18,6 +18,9 @@ function fitWindowToCard() {
 function showTeaching({ reflection, durationSeconds }) {
   currentSource = reflection.source;
   translationElement.textContent = reflection.translation;
+  const words = reflection.translation.split(/\s+/).length;
+  cardElement.classList.toggle("long", words > 60);
+  cardElement.classList.toggle("very-long", words > 90);
   meaningElement.textContent = reflection.meaning;
   meaningElement.hidden = !reflection.meaning;
   const compactReference = reflection.reference.replace("Bhagavad-gītā As It Is ", "BG ");

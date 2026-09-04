@@ -16,7 +16,7 @@ function purportExcerpt(purport) {
   const sentences = firstParagraph.match(/[^.!?]+[.!?]+["”’)]?(\s|$)/g) || [firstParagraph];
   let excerpt = "";
   for (const sentence of sentences) {
-    const candidate = (excerpt + sentence).trim();
+    const candidate = excerpt ? `${excerpt} ${sentence.trim()}` : sentence.trim();
     if (excerpt && candidate.length > EXCERPT_TARGET) break;
     excerpt = candidate;
     if (excerpt.length >= EXCERPT_TARGET * 0.6) break;

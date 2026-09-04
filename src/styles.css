@@ -69,6 +69,10 @@ button { font: inherit; }
   text-shadow: 0 2px 20px rgba(0, 0, 0, .38);
 }
 
+/* Long translations (grouped verses) read better slightly smaller; the window still grows to fit. */
+.card.long .translation { font-size: 18px; line-height: 1.26; }
+.card.very-long .translation { font-size: 16px; line-height: 1.3; }
+
 .translation::before { content: "“"; color: var(--gold); }
 .translation::after { content: "”"; color: var(--gold); }
 
