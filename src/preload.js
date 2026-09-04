@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("krishna", {
   dismiss: () => ipcRenderer.send("companion:dismiss"),
+  engage: () => ipcRenderer.send("companion:engage"),
   openSource: (url) => ipcRenderer.send("companion:open-source", url),
   resize: (height) => ipcRenderer.send("companion:resize", height),
   onShow: (callback) => {

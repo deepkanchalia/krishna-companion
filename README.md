@@ -2,7 +2,7 @@
 
 A quiet companion that lives alongside long terminal sessions. Start it once with `krshna`; a small, movable Kṛṣṇa figurine remains over the terminal. Every 30 minutes it expands in place into a compact grey-glass card with the next verse of *Bhagavad-gītā As It Is*: Śrīla Prabhupāda's translation, word for word, followed by the opening lines of his purport.
 
-Only the small area behind the card is blurred. The resting figurine has no window background. Drag Kṛṣṇa directly with the cursor to place Him anywhere; that position survives restarts. The widget does not cover the screen, steal focus, suspend your terminal, or stop any running process. After 28 seconds it returns to the resting figurine. The card grows to fit long verses, so nothing is ever cut.
+Only the small area behind the card is blurred. The resting figurine has no window background. Drag Kṛṣṇa directly with the cursor to place Him anywhere; that position survives restarts. The widget does not cover the screen, steal focus, suspend your terminal, or stop any running process. The teaching stays until you choose Continue; the card grows to fit long verses, so nothing is ever cut.
 
 The journey begins at Chapter 1, text 1 and moves through all 700 verses in order (verses that Śrīla Prabhupāda translated together, such as 1.16-18, appear together). Progress is saved locally, so restarting the companion continues with the next teaching instead of choosing a random quote.
 
@@ -62,11 +62,11 @@ npm start -- --interval=45 --duration=20
 ```
 
 - `--interval`: minutes between teachings (default: `30`)
-- `--duration`: seconds the expanded card remains visible (default: `28`)
+- `--duration`: optionally auto-close after this many seconds (default: off)
 - `--demo`: show a teaching just after launch
 - `--verse`: start from one verse, e.g. `--verse=2.47` (does not change saved progress)
 
-Click “Continue” to collapse the card early. The card opens without taking keyboard focus, so `Esc` and `Enter` only close it after you click into it.
+Click “Continue” to collapse the card. The card opens without taking keyboard focus, so `Esc` and `Enter` only close it after you click into it. If a scheduled interval arrives while a card is open, it is skipped without advancing the sequence.
 
 ## Source policy
 

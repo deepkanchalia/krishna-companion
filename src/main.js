@@ -15,6 +15,7 @@ const {
 const { readConfig } = require("./config");
 const { reflections } = require("./content");
 const { normalizeJourney, recordTeaching } = require("./journey");
+const { canShowTeaching } = require("./schedule");
 
 // Exactly 10% smaller than the previous 176 × 224 resting widget.
 const RESTING_SIZE = { width: 158, height: 202 };
@@ -234,7 +235,8 @@ function collapseCompanion() {
 }
 
 function showCompanion(force = false) {
-  if ((!force && paused) || !companionWindow || companionWindow.isDestroyed()) return;
+  if (!canShowTeaching({ paused, isExpanded, force })) return false;
+  if (!companionWindow || companionWindow.isDestroyed()) return false;
   isExpanded = true;
   readingHeight = READING_SIZE.height;
   setGlass(true);
@@ -249,7 +251,11 @@ function showCompanion(force = false) {
   });
 
   clearTimeout(dismissTimer);
-  dismissTimer = setTimeout(collapseCompanion, config.durationSeconds * 1000);
+  dismissTimer = undefined;
+  if (config.durationSeconds > 0) {
+    dismissTimer = setTimeout(collapseCompanion, config.durationSeconds * 1000);
+  }
+  return true;
 }
 
 function restartCadence(minutes = config.intervalMinutes) {
@@ -368,6 +374,11 @@ if (instanceLock) app.whenReady().then(() => {
 });
 
 ipcMain.on("companion:dismiss", collapseCompanion);
+ipcMain.on("companion:engage", () => {
+  if (!isExpanded || !companionWindow || companionWindow.isDestroyed()) return;
+  companionWindow.setFocusable(true);
+  companionWindow.focus();
+});
 ipcMain.on("companion:resize", (_event, height) => {
   if (!isExpanded || !companionWindow || companionWindow.isDestroyed()) return;
   if (!Number.isFinite(height)) return;
