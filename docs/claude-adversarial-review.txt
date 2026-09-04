@@ -1,0 +1,5 @@
+Act as an adversarial release reviewer for this Electron desktop companion before it goes public.
+
+Read the full repository. Do not modify files. Look for security and privacy risks, persistence and sequence corruption, multi-display and draggable-window bugs, focus or input disruption, cross-platform issues, installation hazards, accessibility problems, misleading ISKCON or BBT attribution and copyright claims, and gaps between README claims and actual behavior.
+
+Prioritize findings P0 through P3. For every finding cite the exact file and line, explain a realistic failure scenario, and propose a concrete fix. Also identify what is solid. Be skeptical and concise.
