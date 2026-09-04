@@ -20,7 +20,7 @@ const { canShowTeaching } = require("./schedule");
 // Exactly 10% smaller than the previous 176 × 224 resting widget.
 const RESTING_SIZE = { width: 158, height: 202 };
 // Reading height is a floor: the renderer reports how tall the verbatim text needs the card to be.
-const READING_SIZE = { width: 460, height: 300 };
+const READING_SIZE = { width: 510, height: 326 };
 const SCREEN_MARGIN = 14;
 // ⌘⌥K / Ctrl+Alt+K: ⌘⇧K is "Delete Line" in VS Code and would be stolen from every editor.
 const SHORTCUT = "CommandOrControl+Alt+K";
