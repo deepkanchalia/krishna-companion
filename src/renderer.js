@@ -9,6 +9,8 @@ const CARD_INSET_HEIGHT = 18;
 
 let currentSource;
 
+requestAnimationFrame(() => document.body.classList.add("ready"));
+
 // Verbatim translations run from one line to a paragraph; let the window grow to fit.
 function fitWindowToCard() {
   cardElement.scrollTop = 0;
