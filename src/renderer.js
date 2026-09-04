@@ -27,6 +27,7 @@ function showTeaching({ reflection, durationSeconds }) {
   sourceElement.textContent = `${compactReference} · Bhaktivedanta VedaBase ↗`;
   sourceElement.title = reflection.reference;
   document.documentElement.style.setProperty("--duration", `${durationSeconds}s`);
+  document.body.classList.toggle("timed", durationSeconds > 0);
 
   document.body.classList.remove("collapsing", "present");
   void document.body.offsetWidth;
@@ -45,6 +46,7 @@ function dismiss() {
 }
 
 dismissElement.addEventListener("click", dismiss);
+cardElement.addEventListener("pointerdown", () => window.krishna.engage(), { once: false });
 sourceElement.addEventListener("click", () => {
   if (currentSource) window.krishna.openSource(currentSource);
 });

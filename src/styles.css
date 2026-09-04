@@ -154,10 +154,13 @@ button { font: inherit; }
   left: 0;
   right: 0;
   bottom: 0;
+  display: none;
   height: 2px;
   overflow: hidden;
   background: rgba(255, 255, 255, .05);
 }
+
+.timed .timer { display: block; }
 
 .timer i {
   display: block;

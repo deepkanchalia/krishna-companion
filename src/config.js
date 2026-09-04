@@ -1,5 +1,6 @@
 const DEFAULT_INTERVAL_MINUTES = 30;
-const DEFAULT_DURATION_SECONDS = 28;
+// The reader closes the teaching. A positive --duration opts into auto-close.
+const DEFAULT_DURATION_SECONDS = 0;
 
 function numberArgument(argv, name, fallback, minimum, maximum) {
   const prefix = `--${name}=`;
@@ -24,7 +25,7 @@ function readConfig(argv = process.argv.slice(2)) {
     // A demo asks for a reflection right away, also when it reaches an instance that is already live.
     command: commandArgument?.slice("--command=".length) || (demo ? "now" : "live"),
     intervalMinutes: numberArgument(argv, "interval", DEFAULT_INTERVAL_MINUTES, 0.1, 1440),
-    durationSeconds: numberArgument(argv, "duration", DEFAULT_DURATION_SECONDS, 5, 120)
+    durationSeconds: numberArgument(argv, "duration", DEFAULT_DURATION_SECONDS, 0, 120)
   };
 }
 

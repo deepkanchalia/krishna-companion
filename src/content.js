@@ -7,7 +7,7 @@ const { readFileSync } = require("node:fs");
 const path = require("node:path");
 
 const DATA_FILE = path.join(__dirname, "..", "data", "gita.json");
-const EXCERPT_TARGET = 240;
+const EXCERPT_TARGET = 400;
 
 // Opening sentences of Prabhupāda's purport, verbatim, never cut mid-sentence.
 function purportExcerpt(purport) {
