@@ -74,7 +74,7 @@ Every word shown to the reader is copied as is from A. C. Bhaktivedanta Swami Pr
 
 `data/gita.json` is built by `npm run fetch`, which reads VedaBase at the crawl delay its `robots.txt` asks for (about two hours for the full text) and caches every page under `data/cache/`.
 
-The text of *Bhagavad-gītā As It Is* is © The Bhaktivedanta Book Trust International, Inc. This repository's MIT license covers the software code only, not the quoted text. The Krishna artwork was generated specifically for this project. This is an independent project and is not affiliated with or endorsed by ISKCON, the Bhaktivedanta Book Trust, or VedaBase. Obtain written permission from the BBT before distributing this repository publicly.
+The text of *Bhagavad-gītā As It Is* is © The Bhaktivedanta Book Trust International, Inc. This repository's MIT license covers the software code only, not the quoted text. The Krishna painting is another artist's work and requires the artist's permission before any public release. This is an independent project and is not affiliated with or endorsed by ISKCON, the Bhaktivedanta Book Trust, or VedaBase. Obtain written permission from the BBT before distributing this repository publicly.
 
 ## How context and sequence are saved
 
