@@ -13,11 +13,16 @@ function numberArgument(argv, name, fallback, minimum, maximum) {
 
 function readConfig(argv = process.argv.slice(2)) {
   const commandArgument = argv.find((argument) => argument.startsWith("--command="));
+  const demo = argv.includes("--demo");
+
+  const verseArgument = argv.find((argument) => argument.startsWith("--verse="));
 
   return {
-    demo: argv.includes("--demo"),
+    demo,
     screenshot: argv.includes("--screenshot"),
-    command: commandArgument?.slice("--command=".length) || "live",
+    verse: verseArgument?.slice("--verse=".length) || undefined,
+    // A demo asks for a reflection right away, also when it reaches an instance that is already live.
+    command: commandArgument?.slice("--command=".length) || (demo ? "now" : "live"),
     intervalMinutes: numberArgument(argv, "interval", DEFAULT_INTERVAL_MINUTES, 0.1, 1440),
     durationSeconds: numberArgument(argv, "duration", DEFAULT_DURATION_SECONDS, 5, 120)
   };

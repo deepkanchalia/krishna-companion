@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("krishna", {
   dismiss: () => ipcRenderer.send("companion:dismiss"),
   openSource: (url) => ipcRenderer.send("companion:open-source", url),
+  resize: (height) => ipcRenderer.send("companion:resize", height),
   onShow: (callback) => {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on("companion:show", listener);

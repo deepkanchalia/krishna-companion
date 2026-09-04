@@ -161,13 +161,19 @@ switch (command) {
   case "live":
   case "start":
   case "now":
+    launch(command);
+    if (command !== "now") {
+      console.log("🪶 Kṛṣṇa Companion is live. Your terminal work will continue normally.");
+    }
+    break;
   case "pause":
   case "resume":
   case "stop":
-    launch(command);
-    if (command === "live" || command === "start") {
-      console.log("🪶 Kṛṣṇa Companion is live. Your terminal work will continue normally.");
+    if (!readState().live) {
+      console.log("Kṛṣṇa Companion is not running. Start it with: krshna");
+      break;
     }
+    launch(command);
     break;
   default:
     console.error(`Unknown command: ${rawCommand}`);
