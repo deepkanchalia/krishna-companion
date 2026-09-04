@@ -4,8 +4,8 @@ const meaningElement = document.querySelector("#meaning");
 const sourceElement = document.querySelector("#source");
 const dismissElement = document.querySelector("#dismiss");
 
-// The card sits inside the window with 8px insets top and bottom (see .card in styles.css).
-const CARD_INSET_HEIGHT = 16;
+// The card sits inside the window with 9px insets top and bottom (see .card in styles.css).
+const CARD_INSET_HEIGHT = 18;
 
 let currentSource;
 
