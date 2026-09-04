@@ -18,6 +18,7 @@ function fitWindowToCard() {
 }
 
 function showTeaching({ reflection, durationSeconds }) {
+  document.body.classList.remove("listening");
   currentSource = reflection.source;
   translationElement.textContent = reflection.translation;
   const words = reflection.translation.split(/\s+/).length;
@@ -59,3 +60,4 @@ document.addEventListener("keydown", (event) => {
 
 window.krishna.onShow(showTeaching);
 window.krishna.onCollapse(collapse);
+window.krishna.onListening((active) => document.body.classList.toggle("listening", active));
