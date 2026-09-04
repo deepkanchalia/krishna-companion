@@ -1,28 +1,42 @@
 {
   "name": "krishna-companion",
-  "version": "0.1.0",
-  "description": "A gentle Bhagavad-gita companion for focused terminal sessions.",
+  "version": "0.2.0",
+  "description": "A quiet Bhagavad-gītā As It Is companion for long terminal sessions.",
   "main": "src/main.js",
   "bin": {
     "krshna": "bin/krshna.js",
     "krishna": "bin/krshna.js"
   },
+  "files": [
+    "bin",
+    "src",
+    "shell",
+    "assets",
+    "data/gita.json",
+    "scripts",
+    "docs"
+  ],
   "scripts": {
     "start": "electron .",
     "live": "node bin/krshna.js live",
     "demo": "electron . --demo",
     "preview": "electron . --demo --screenshot",
     "preview:resting": "electron . --screenshot",
+    "fetch": "node scripts/fetch-vedabase.js",
     "review:claude": "bash scripts/review-with-claude.sh",
     "test": "node --test"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "keywords": [
     "bhagavad-gita",
+    "bhaktivedanta",
     "focus",
     "desktop-companion",
     "electron"
   ],
-  "author": "",
+  "author": "Deep Kanchalia",
   "license": "MIT",
   "dependencies": {
     "electron": "^44.2.0"

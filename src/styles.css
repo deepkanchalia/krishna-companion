@@ -35,7 +35,7 @@ button { font: inherit; }
   z-index: 2;
   inset: 8px 6px 8px 6px;
   overflow: hidden;
-  padding: 24px 126px 50px 24px;
+  padding: 24px 126px 22px 24px;
   border: 1px solid rgba(255, 255, 255, .13);
   border-radius: 22px;
   background:
@@ -84,6 +84,14 @@ button { font: inherit; }
 .rule i { height: 1px; flex: 1; background: currentColor; opacity: .62; }
 .rule span { font-size: 6px; transform: rotate(45deg); }
 
+.meaning::before {
+  content: "Purport · ";
+  color: rgba(230, 185, 95, .78);
+  font-size: 8px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
 .meaning {
   min-height: 43px;
   margin: 0;
@@ -95,16 +103,19 @@ button { font: inherit; }
   white-space: pre-line;
 }
 
+/* In flow, so the card's scrollHeight tells the window how tall it needs to be. */
 .card footer {
-  position: absolute;
-  left: 24px;
-  right: 126px;
-  bottom: 22px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  margin-top: 18px;
 }
+
+[hidden] { display: none !important; }
+
+.present .card { overflow-y: auto; }
+.card::-webkit-scrollbar { width: 0; height: 0; }
 
 .source,
 .dismiss {

@@ -18,9 +18,13 @@ const { normalizeJourney, recordTeaching } = require("./journey");
 
 // Exactly 10% smaller than the previous 176 × 224 resting widget.
 const RESTING_SIZE = { width: 158, height: 202 };
+// Reading height is a floor: the renderer reports how tall the verbatim text needs the card to be.
 const READING_SIZE = { width: 460, height: 300 };
 const SCREEN_MARGIN = 14;
+// ⌘⌥K / Ctrl+Alt+K: ⌘⇧K is "Delete Line" in VS Code and would be stolen from every editor.
+const SHORTCUT = "CommandOrControl+Alt+K";
 const config = readConfig();
+let readingHeight = READING_SIZE.height;
 
 let companionWindow;
 let tray;
@@ -63,6 +67,11 @@ function readPersistentData() {
   journey = normalizeJourney(savedJourney, reflections.length, oldState.nextVerseIndex || 0);
 
   nextVerseIndex = journey.nextVerseIndex;
+  if (config.verse) {
+    // --verse=1.32-35 previews one specific teaching without touching the saved journey.
+    const requested = reflections.findIndex((item) => `${item.chapterNumber}.${item.verse}` === config.verse);
+    if (requested !== -1) nextVerseIndex = requested;
+  }
   if (Number.isFinite(settings?.restingPosition?.x) && Number.isFinite(settings?.restingPosition?.y)) {
     restingPosition = settings.restingPosition;
   }
@@ -124,17 +133,18 @@ function widgetBounds(expanded) {
   restingPosition = clampedRestingPosition();
   if (!expanded) return { ...restingPosition, ...RESTING_SIZE };
 
-  const desired = {
-    x: restingPosition.x - (READING_SIZE.width - RESTING_SIZE.width),
-    y: restingPosition.y - (READING_SIZE.height - RESTING_SIZE.height)
-  };
   const display = displayForPoint(restingPosition);
   const { workArea } = display;
+  const height = Math.min(readingHeight, workArea.height - SCREEN_MARGIN * 2);
+  const desired = {
+    x: restingPosition.x - (READING_SIZE.width - RESTING_SIZE.width),
+    y: restingPosition.y - (height - RESTING_SIZE.height)
+  };
   return {
     width: READING_SIZE.width,
-    height: READING_SIZE.height,
+    height,
     x: Math.min(Math.max(desired.x, workArea.x), workArea.x + workArea.width - READING_SIZE.width),
-    y: Math.min(Math.max(desired.y, workArea.y), workArea.y + workArea.height - READING_SIZE.height)
+    y: Math.min(Math.max(desired.y, workArea.y), workArea.y + workArea.height - height)
   };
 }
 
@@ -163,8 +173,9 @@ function nextReflection() {
 function rememberDraggedPosition() {
   if (programmaticMove || !companionWindow || companionWindow.isDestroyed()) return;
   const [x, y] = companionWindow.getPosition();
+  const [, height] = companionWindow.getSize();
   restingPosition = isExpanded
-    ? { x: x + READING_SIZE.width - RESTING_SIZE.width, y: y + READING_SIZE.height - RESTING_SIZE.height }
+    ? { x: x + READING_SIZE.width - RESTING_SIZE.width, y: y + height - RESTING_SIZE.height }
     : { x, y };
   restingPosition = clampedRestingPosition(restingPosition);
   saveSettings();
@@ -225,6 +236,7 @@ function collapseCompanion() {
 function showCompanion(force = false) {
   if ((!force && paused) || !companionWindow || companionWindow.isDestroyed()) return;
   isExpanded = true;
+  readingHeight = READING_SIZE.height;
   setGlass(true);
   companionWindow.setIgnoreMouseEvents(false);
   companionWindow.setFocusable(false);
@@ -313,9 +325,8 @@ function trayMenu() {
 }
 
 function createTray() {
-  const icon = nativeImage
-    .createFromPath(path.join(__dirname, "..", "assets", "trayTemplate.svg"))
-    .resize({ width: 18, height: 18 });
+  // PNG, not SVG: nativeImage decodes only PNG/JPEG; trayTemplate@2x.png is picked up automatically.
+  const icon = nativeImage.createFromPath(path.join(__dirname, "..", "assets", "trayTemplate.png"));
   if (process.platform === "darwin") icon.setTemplateImage(true);
   tray = new Tray(icon);
   tray.setToolTip("Krishna Companion");
@@ -338,7 +349,7 @@ if (instanceLock) app.whenReady().then(() => {
   createTray();
   restartCadence();
 
-  globalShortcut.register("CommandOrControl+Shift+K", () => showCompanion(true));
+  globalShortcut.register(SHORTCUT, () => showCompanion(true));
   companionWindow.webContents.once("did-finish-load", () => {
     showRestingCompanion();
     setTimeout(() => {
@@ -357,6 +368,12 @@ if (instanceLock) app.whenReady().then(() => {
 });
 
 ipcMain.on("companion:dismiss", collapseCompanion);
+ipcMain.on("companion:resize", (_event, height) => {
+  if (!isExpanded || !companionWindow || companionWindow.isDestroyed()) return;
+  if (!Number.isFinite(height)) return;
+  readingHeight = Math.max(READING_SIZE.height, Math.ceil(height));
+  setWidgetBounds(true);
+});
 ipcMain.on("companion:open-source", (_event, url) => {
   if (reflections.some((item) => item.source === url)) shell.openExternal(url);
 });

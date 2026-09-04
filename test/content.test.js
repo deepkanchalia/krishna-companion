@@ -1,17 +1,47 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { reflections } = require("../src/content");
+const { reflections, purportExcerpt } = require("../src/content");
 
-test("the shlokas are sequential, concise and point only to VedaBase", () => {
-  assert.ok(reflections.length >= 5);
+const VERSES_IN_GITA = 700;
 
-  for (const [index, reflection] of reflections.entries()) {
-    assert.equal(reflection.reference, `Bhagavad-gītā As It Is 1.${index + 1}`);
-    assert.match(reflection.reference, /^Bhagavad-gītā As It Is/);
-    assert.match(reflection.source, /^https:\/\/vedabase\.io\/en\/library\/bg\//);
-    assert.ok(reflection.shloka.length > 20);
-    assert.ok(reflection.transliteration.length > 20);
-    assert.ok(reflection.translation.split(/\s+/).length <= 25);
-    assert.ok(reflection.meaning.split("\n").length <= 2);
+function verseSpan(verse) {
+  const [from, to] = verse.split("-").map(Number);
+  return { from, to: to || from };
+}
+
+test("the corpus is the complete Bhagavad-gītā As It Is, in order, from VedaBase", () => {
+  let chapter = 0;
+  let expectedVerse = 1;
+  let verseCount = 0;
+
+  for (const reflection of reflections) {
+    if (reflection.chapterNumber !== chapter) {
+      assert.equal(reflection.chapterNumber, chapter + 1, "chapters must be consecutive");
+      chapter = reflection.chapterNumber;
+      expectedVerse = 1;
+    }
+    const { from, to } = verseSpan(reflection.verse);
+    assert.equal(from, expectedVerse, `${reflection.reference} breaks the sequence`);
+    expectedVerse = to + 1;
+    verseCount += to - from + 1;
+
+    assert.equal(reflection.reference, `Bhagavad-gītā As It Is ${chapter}.${reflection.verse}`);
+    assert.equal(reflection.source, `https://vedabase.io/en/library/bg/${chapter}/${reflection.verse}/`);
+    assert.match(reflection.chapter, /^Chapter \w+ · .+/);
+    assert.ok(reflection.shloka.length > 20, `${reflection.reference} has no Devanagari`);
+    assert.ok(reflection.transliteration.length > 20, `${reflection.reference} has no verse text`);
+    assert.ok(reflection.translation.length > 20, `${reflection.reference} has no translation`);
+    assert.ok(reflection.meaning.length <= 600, `${reflection.reference} purport excerpt too long`);
   }
+
+  assert.equal(chapter, 18, "all eighteen chapters present");
+  assert.equal(verseCount, VERSES_IN_GITA);
+});
+
+test("purport excerpts keep whole sentences and stop early", () => {
+  const purport = "First sentence here. Second one follows. Third is extra.\n\nNext paragraph is ignored.";
+  assert.equal(purportExcerpt(purport), "First sentence here. Second one follows. Third is extra.");
+  assert.equal(purportExcerpt(""), "");
+  const long = "A".repeat(300) + ". Short tail.";
+  assert.equal(purportExcerpt(long), "A".repeat(300) + ".");
 });
