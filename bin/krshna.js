@@ -122,7 +122,84 @@ function installZsh() {
     const prefix = existing.length && !existing.endsWith("\n") ? "\n" : "";
     fs.appendFileSync(zshrc, `${prefix}${start}\nsource ${JSON.stringify(sourcePath)}\n# <<< krshna companion <<<\n`);
   }
-  console.log("Installed the /krshna shortcut and terminal status. Open a new terminal to use them.");
+}
+
+function claudeSettingsFile() {
+  return path.join(os.homedir(), ".claude", "settings.json");
+}
+
+function claudeHookCommand() {
+  return `${JSON.stringify(process.execPath)} ${JSON.stringify(path.join(projectRoot, "scripts", "krshna-hook.js"))}`;
+}
+
+function readJsonFile(filePath, fallback) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch (error) {
+    if (error.code === "ENOENT") return fallback;
+    throw error;
+  }
+}
+
+function writeJsonFile(filePath, value) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const temporaryPath = `${filePath}.${process.pid}.tmp`;
+  fs.writeFileSync(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
+  fs.renameSync(temporaryPath, filePath);
+}
+
+function installClaudeHook() {
+  const settingsFile = claudeSettingsFile();
+  const backupFile = `${settingsFile}.krshna-backup`;
+  if (fs.existsSync(settingsFile) && !fs.existsSync(backupFile)) fs.copyFileSync(settingsFile, backupFile);
+
+  const settings = readJsonFile(settingsFile, {});
+  settings.hooks ||= {};
+  settings.hooks.UserPromptSubmit ||= [];
+  const command = claudeHookCommand();
+  const installed = settings.hooks.UserPromptSubmit.some((group) =>
+    Array.isArray(group?.hooks) && group.hooks.some((hook) => hook?.type === "command" && hook.command === command)
+  );
+  if (!installed) {
+    settings.hooks.UserPromptSubmit.push({
+      matcher: "",
+      hooks: [{ type: "command", command }]
+    });
+    writeJsonFile(settingsFile, settings);
+  }
+}
+
+function uninstallClaudeHook() {
+  const settingsFile = claudeSettingsFile();
+  const settings = readJsonFile(settingsFile, null);
+  if (!settings || !Array.isArray(settings.hooks?.UserPromptSubmit)) return;
+
+  const command = claudeHookCommand();
+  let changed = false;
+  settings.hooks.UserPromptSubmit = settings.hooks.UserPromptSubmit.flatMap((group) => {
+    if (!Array.isArray(group?.hooks)) return [group];
+    const hooks = group.hooks.filter((hook) => hook?.type !== "command" || hook.command !== command);
+    if (hooks.length === group.hooks.length) return [group];
+    changed = true;
+    return hooks.length ? [{ ...group, hooks }] : [];
+  });
+
+  if (!changed) return;
+  if (settings.hooks.UserPromptSubmit.length === 0) delete settings.hooks.UserPromptSubmit;
+  if (Object.keys(settings.hooks).length === 0) delete settings.hooks;
+  writeJsonFile(settingsFile, settings);
+}
+
+function install() {
+  installZsh();
+  installClaudeHook();
+  console.log("Installed the /krshna shortcut, terminal status, and Claude Code voice hook.");
+  console.log("Open a new terminal to use the shell integrations.");
+}
+
+function uninstall() {
+  uninstallClaudeHook();
+  console.log("Removed the Krishna Companion Claude Code voice hook.");
 }
 
 function help() {
@@ -136,7 +213,8 @@ Krishna Companion
   krshna status      Show its current state
   krshna context     Recall the last explanation and next verse
   krshna stop        Stop the companion
-  krshna install     Add /krshna and a status to zsh
+  krshna install     Add /krshna, terminal status, and the Claude Code voice hook
+  krshna uninstall   Remove the Claude Code voice hook
 `);
 }
 
@@ -151,7 +229,10 @@ switch (command) {
     printContext();
     break;
   case "install":
-    installZsh();
+    install();
+    break;
+  case "uninstall":
+    uninstall();
     break;
   case "help":
   case "--help":

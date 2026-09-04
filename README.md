@@ -38,6 +38,12 @@ krshna install
 
 Open a new terminal, then `/krshna` summons a teaching. `/krshna pause`, `/krshna resume`, and `/krshna stop` work as expected. The unprefixed `krshna` command remains the portable option across shells and terminal agents.
 
+## Voice with Claude Code
+
+Run `krshna install` to register the Claude Code prompt hook.
+Say or type “Hare Kṛṣṇa” as the whole prompt to open the next teaching.
+Claude does not receive or respond to the invocation.
+
 To see the experience immediately (this also works while the companion is already live):
 
 ```bash
