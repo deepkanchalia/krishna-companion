@@ -34,6 +34,7 @@ let dismissTimer;
 let paused = false;
 let nextReflectionAt;
 let nextVerseIndex = 0;
+let requestedVerseIndex;
 let statePath;
 let journeyPath;
 let settingsPath;
@@ -71,7 +72,7 @@ function readPersistentData() {
   if (config.verse) {
     // --verse=1.32-35 previews one specific teaching without touching the saved journey.
     const requested = reflections.findIndex((item) => `${item.chapterNumber}.${item.verse}` === config.verse);
-    if (requested !== -1) nextVerseIndex = requested;
+    if (requested !== -1) requestedVerseIndex = requested;
   }
   if (Number.isFinite(settings?.restingPosition?.x) && Number.isFinite(settings?.restingPosition?.y)) {
     restingPosition = settings.restingPosition;
@@ -165,9 +166,9 @@ function setGlass(active) {
 }
 
 function nextReflection() {
-  const index = nextVerseIndex;
+  const index = Number.isInteger(requestedVerseIndex) ? requestedVerseIndex : nextVerseIndex;
   const reflection = reflections[index];
-  if (!config.screenshot) saveJourney(index, reflection);
+  if (!config.screenshot && !Number.isInteger(requestedVerseIndex)) saveJourney(index, reflection);
   return { reflection, position: index + 1 };
 }
 
