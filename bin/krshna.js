@@ -5,6 +5,7 @@ const os = require("node:os");
 const fs = require("node:fs");
 const { spawn } = require("node:child_process");
 const { reflections } = require("../src/content");
+const { isValidHistoryEntry } = require("../src/journey");
 
 const projectRoot = path.resolve(__dirname, "..");
 const rawCommand = (process.argv[2] || "live").toLowerCase();
@@ -84,7 +85,14 @@ function printContext() {
     return;
   }
 
-  const last = savedJourney.history?.at(-1);
+  const history = Array.isArray(savedJourney.history) ? savedJourney.history : [];
+  const readable = history.filter(isValidHistoryEntry);
+  const unreadable = history.length - readable.length;
+  if (unreadable > 0) {
+    console.log(`Note: journey has ${unreadable} unreadable ${unreadable === 1 ? "entry" : "entries"}; skipping.`);
+  }
+
+  const last = readable.at(-1);
   if (!last) {
     console.log("No teaching has been shown yet. The journey will begin with Bhagavad-gītā As It Is 1.1.");
     return;

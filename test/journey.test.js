@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { normalizeJourney, recordTeaching } = require("../src/journey");
+const { normalizeJourney, recordTeaching, isValidHistoryEntry } = require("../src/journey");
 
 const reflection = {
   reference: "Bhagavad-gītā As It Is 1.1",
@@ -25,6 +25,25 @@ test("records exactly what was explained and advances in order", () => {
     source: reflection.source,
     shownAt: "2026-09-04T00:00:00.000Z"
   });
+});
+
+test("drops corrupt history entries while keeping readable ones", () => {
+  const saved = {
+    nextVerseIndex: 1,
+    history: [
+      { reference: "Bhagavad-gītā As It Is 1.1", explanation: "Readable.", translation: "t", source: "s" },
+      null,
+      "not an object",
+      { reference: 123, explanation: "non-string reference" },
+      { reference: "Bhagavad-gītā As It Is 1.2" }
+    ]
+  };
+  const normalized = normalizeJourney(saved, 8);
+  assert.equal(normalized.history.length, 1);
+  assert.equal(normalized.history[0].reference, "Bhagavad-gītā As It Is 1.1");
+  assert.equal(isValidHistoryEntry(saved.history[0]), true);
+  assert.equal(isValidHistoryEntry(null), false);
+  assert.equal(isValidHistoryEntry(saved.history[3]), false);
 });
 
 test("caps saved context at 100 teachings and counts completed cycles", () => {

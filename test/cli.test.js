@@ -17,6 +17,34 @@ test("CLI documents the universal terminal commands", () => {
   assert.match(output, /Add \/krshna/);
 });
 
+test("context survives a malformed journey and reports unreadable entries", (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-ctx-"));
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const dataDir = process.platform === "darwin"
+    ? path.join(home, "Library", "Application Support", "krishna-companion")
+    : path.join(home, ".config", "krishna-companion");
+  fs.mkdirSync(dataDir, { recursive: true });
+  const malformed = {
+    nextVerseIndex: 3,
+    history: [
+      { reference: "Bhagavad-gītā As It Is 1.1", explanation: "The readable one.", translation: "t", source: "s", shownAt: "x" },
+      null,
+      { reference: 123, explanation: "non-string reference" },
+      { reference: "Bhagavad-gītā As It Is 1.2" },
+      "not an object"
+    ]
+  };
+  fs.writeFileSync(path.join(dataDir, "journey.json"), JSON.stringify(malformed));
+
+  const output = execFileSync(process.execPath, [cli, "context"], {
+    encoding: "utf8",
+    env: { ...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, ".config") }
+  });
+  assert.match(output, /journey has 4 unreadable entries/);
+  assert.match(output, /Last explained: Bhagavad-gītā As It Is 1\.1/);
+  assert.match(output, /The readable one\./);
+});
+
 test("zsh prompt reads state without spawning Node", () => {
   const integration = fs.readFileSync(path.join(__dirname, "..", "shell", "krshna.zsh"), "utf8");
   assert.doesNotMatch(integration, /krshna prompt/);
