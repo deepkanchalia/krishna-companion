@@ -8,16 +8,23 @@ The journey begins at Chapter 1, text 1 and moves through all 700 verses in orde
 
 ## Make it live
 
-Requires Node.js 20 or newer.
+Requires Node.js 20 or newer. On macOS, the optional voice feature also needs the Xcode Command Line Tools (`xcode-select --install`).
 
 ```bash
+git clone https://github.com/deepkanchalia/krishna-companion.git
+cd krishna-companion
 npm install
 mkdir -p ~/.local/bin
 ln -s "$PWD/bin/krshna.js" ~/.local/bin/krshna
-krshna
+export PATH="$HOME/.local/bin:$PATH"                     # this shell
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc  # future shells
+krshna install   # adds /krshna, the terminal status, and the Claude Code voice hook
+krshna           # make the companion live
 ```
 
-The command returns immediately; the companion continues in the background while you use Codex, Claude, Gemini, a regular shell, or another terminal agent.
+If `krshna` is still not found, `~/.local/bin` is not on your `PATH`; open a new terminal after the two lines above, or add them to your shell's startup file.
+
+The `krshna` command returns immediately; the companion continues in the background while you use Codex, Claude, Gemini, a regular shell, or another terminal agent.
 
 ```bash
 krshna now       # invite a teaching now
@@ -30,13 +37,7 @@ krshna stop
 
 `pause`, `resume` and `stop` only act on a running companion; they do not start one.
 
-To add a literal `/krshna` command and a persistent `🪶 Kṛṣṇa · 30m` right-prompt to zsh:
-
-```bash
-krshna install
-```
-
-Open a new terminal, then `/krshna` summons a teaching. `/krshna pause`, `/krshna resume`, and `/krshna stop` work as expected. The unprefixed `krshna` command remains the portable option across shells and terminal agents.
+`krshna install` (run in the quickstart above) adds a literal `/krshna` command and a persistent `🪶 Kṛṣṇa · 30m` right-prompt to zsh. Open a new terminal, then `/krshna` summons a teaching. `/krshna pause`, `/krshna resume`, and `/krshna stop` work as expected. The unprefixed `krshna` command remains the portable option across shells and terminal agents. `krshna uninstall` removes the Claude Code hook again.
 
 ## Voice
 
@@ -53,7 +54,7 @@ krshna voice on
 
 The menu-bar checkbox **Voice (hold Space)** controls the same setting. Its default is `voice: { enabled: true, key: "Space", holdMs: 2000 }` in `settings.json`.
 
-For Claude Code's whole-prompt invocation, run `krshna install` to register the prompt hook. Saying or typing “Hare Kṛṣṇa” as the whole prompt opens the next teaching; Claude does not receive or respond to it.
+`krshna install` also registers Claude Code's whole-prompt hook. Saying or typing “Hare Kṛṣṇa” as the whole prompt opens the next teaching; Claude does not receive or respond to it.
 
 To see the experience immediately (this also works while the companion is already live):
 
