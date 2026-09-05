@@ -5,7 +5,7 @@ function '/krshna' {
 }
 
 function _krshna_prompt_segment {
-  local state_dir state_file line live pid paused next_at status
+  local state_dir state_file line live pid paused next_at seg
   case "$OSTYPE" in
     darwin*) state_dir="$HOME/Library/Application Support/krishna-companion" ;;
     *) state_dir="${XDG_CONFIG_HOME:-$HOME/.config}/krishna-companion" ;;
@@ -26,20 +26,20 @@ function _krshna_prompt_segment {
   [[ "$live" == true && "$pid" == <-> ]] || return
   kill -0 "$pid" 2>/dev/null || return
   if [[ "$paused" == true ]]; then
-    status="paused"
+    seg="paused"
   elif [[ "$next_at" == <-> ]]; then
     zmodload -F zsh/datetime b:EPOCHSECONDS 2>/dev/null
     local minutes=$(( (next_at - EPOCHSECONDS * 1000 + 59999) / 60000 ))
     (( minutes < 0 )) && minutes=0
     if (( minutes < 1 )); then
-      status="<1m"
+      seg="<1m"
     else
-      status="${minutes}m"
+      seg="${minutes}m"
     fi
   else
-    status="soon"
+    seg="soon"
   fi
-  print -n -- "%F{yellow}🪶 Kṛṣṇa · ${status}%f"
+  print -n -- "%F{yellow}🪶 Kṛṣṇa · ${seg}%f"
 }
 
 if [[ "$RPROMPT" != *"_krshna_prompt_segment"* ]]; then
