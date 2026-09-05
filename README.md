@@ -44,6 +44,11 @@ Run `krshna install` to register the Claude Code prompt hook.
 Say or type “Hare Kṛṣṇa” as the whole prompt to open the next teaching.
 Claude does not receive or respond to the invocation.
 
+### Voice (coming)
+
+The speech helper uses on-device recognition only.
+Build it with `npm run build:helper`.
+
 To see the experience immediately (this also works while the companion is already live):
 
 ```bash
