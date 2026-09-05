@@ -43,6 +43,7 @@
   ],
   "author": "Deep Kanchalia",
   "license": "MIT",
+  "licenseNotes": "MIT covers the software only. See LICENSE for text and artwork not covered by MIT.",
   "dependencies": {
     "electron": "^44.2.0",
     "uiohook-napi": "1.5.5"
