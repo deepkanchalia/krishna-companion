@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key>
+  <string>com.krishna-companion.listen</string>
+  <key>CFBundleName</key>
+  <string>Krishna Companion Voice Helper</string>
+  <key>CFBundleVersion</key>
+  <string>1</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Listen for a spoken Hare Kṛṣṇa invocation on this Mac.</string>
+  <key>NSSpeechRecognitionUsageDescription</key>
+  <string>Transcribe a spoken Hare Kṛṣṇa invocation entirely on this Mac.</string>
+</dict>
+</plist>

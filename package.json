@@ -12,6 +12,7 @@
     "src",
     "shell",
     "assets",
+    "helpers",
     "data/gita.json",
     "scripts",
     "docs"
@@ -24,6 +25,7 @@
     "preview:resting": "electron . --screenshot",
     "fetch": "node scripts/fetch-vedabase.js",
     "review:claude": "bash scripts/review-with-claude.sh",
+    "build:helper": "bash scripts/build-helper.sh",
     "test": "node --test"
   },
   "engines": {
