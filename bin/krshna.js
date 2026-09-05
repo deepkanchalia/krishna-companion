@@ -5,6 +5,7 @@ const os = require("node:os");
 const fs = require("node:fs");
 const { spawn } = require("node:child_process");
 const { reflections } = require("../src/content");
+const { isValidHistoryEntry } = require("../src/journey");
 
 const projectRoot = path.resolve(__dirname, "..");
 const rawCommand = (process.argv[2] || "live").toLowerCase();
@@ -84,7 +85,14 @@ function printContext() {
     return;
   }
 
-  const last = savedJourney.history?.at(-1);
+  const history = Array.isArray(savedJourney.history) ? savedJourney.history : [];
+  const readable = history.filter(isValidHistoryEntry);
+  const unreadable = history.length - readable.length;
+  if (unreadable > 0) {
+    console.log(`Note: journey has ${unreadable} unreadable ${unreadable === 1 ? "entry" : "entries"}; skipping.`);
+  }
+
+  const last = readable.at(-1);
   if (!last) {
     console.log("No teaching has been shown yet. The journey will begin with Bhagavad-gītā As It Is 1.1.");
     return;
@@ -129,8 +137,35 @@ function claudeSettingsFile() {
   return path.join(os.homedir(), ".claude", "settings.json");
 }
 
+// Marker carried by every hook entry we install, so we can find (and replace or
+// remove) our own entry regardless of which Node binary or checkout path produced
+// it. The command both contains krshna-hook.js and sets KRSHNA_HOOK=1.
+const CLAUDE_HOOK_MARKER = "KRSHNA_HOOK=1";
+
 function claudeHookCommand() {
-  return `${JSON.stringify(process.execPath)} ${JSON.stringify(path.join(projectRoot, "scripts", "krshna-hook.js"))}`;
+  const hookPath = path.join(projectRoot, "scripts", "krshna-hook.js");
+  return `${CLAUDE_HOOK_MARKER} ${JSON.stringify(process.execPath)} ${JSON.stringify(hookPath)}`;
+}
+
+function isKrshnaHook(hook) {
+  return hook?.type === "command"
+    && typeof hook.command === "string"
+    && hook.command.includes(CLAUDE_HOOK_MARKER)
+    && hook.command.includes("krshna-hook.js");
+}
+
+// Remove every marker-matching hook from a UserPromptSubmit list, dropping any
+// group left empty. Returns the rewritten list and whether anything changed.
+function stripKrshnaHooks(list) {
+  let changed = false;
+  const result = list.flatMap((group) => {
+    if (!Array.isArray(group?.hooks)) return [group];
+    const hooks = group.hooks.filter((hook) => !isKrshnaHook(hook));
+    if (hooks.length === group.hooks.length) return [group];
+    changed = true;
+    return hooks.length ? [{ ...group, hooks }] : [];
+  });
+  return { result, changed };
 }
 
 function readJsonFile(filePath, fallback) {
@@ -157,17 +192,15 @@ function installClaudeHook() {
   const settings = readJsonFile(settingsFile, {});
   settings.hooks ||= {};
   settings.hooks.UserPromptSubmit ||= [];
-  const command = claudeHookCommand();
-  const installed = settings.hooks.UserPromptSubmit.some((group) =>
-    Array.isArray(group?.hooks) && group.hooks.some((hook) => hook?.type === "command" && hook.command === command)
-  );
-  if (!installed) {
-    settings.hooks.UserPromptSubmit.push({
-      matcher: "",
-      hooks: [{ type: "command", command }]
-    });
-    writeJsonFile(settingsFile, settings);
-  }
+  // Replace any prior marker entry (e.g. from a different checkout or Node) so we
+  // never accumulate duplicates, then append exactly one fresh entry.
+  const { result } = stripKrshnaHooks(settings.hooks.UserPromptSubmit);
+  result.push({
+    matcher: "",
+    hooks: [{ type: "command", command: claudeHookCommand() }]
+  });
+  settings.hooks.UserPromptSubmit = result;
+  writeJsonFile(settingsFile, settings);
 }
 
 function uninstallClaudeHook() {
@@ -175,17 +208,10 @@ function uninstallClaudeHook() {
   const settings = readJsonFile(settingsFile, null);
   if (!settings || !Array.isArray(settings.hooks?.UserPromptSubmit)) return;
 
-  const command = claudeHookCommand();
-  let changed = false;
-  settings.hooks.UserPromptSubmit = settings.hooks.UserPromptSubmit.flatMap((group) => {
-    if (!Array.isArray(group?.hooks)) return [group];
-    const hooks = group.hooks.filter((hook) => hook?.type !== "command" || hook.command !== command);
-    if (hooks.length === group.hooks.length) return [group];
-    changed = true;
-    return hooks.length ? [{ ...group, hooks }] : [];
-  });
-
+  // Remove every marker match regardless of the Node or checkout path that wrote it.
+  const { result, changed } = stripKrshnaHooks(settings.hooks.UserPromptSubmit);
   if (!changed) return;
+  settings.hooks.UserPromptSubmit = result;
   if (settings.hooks.UserPromptSubmit.length === 0) delete settings.hooks.UserPromptSubmit;
   if (Object.keys(settings.hooks).length === 0) delete settings.hooks;
   writeJsonFile(settingsFile, settings);

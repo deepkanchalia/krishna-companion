@@ -1,0 +1,6 @@
+# Ship the Swift source (helpers/listen.swift) and build script, never the
+# prebuilt binary — it is rebuilt on demand from source at first voice use.
+helpers/listen
+
+# Design exploration art is not part of the shipped product.
+assets/candidates

@@ -28,7 +28,7 @@ function _krshna_prompt_segment {
   if [[ "$paused" == true ]]; then
     seg="paused"
   elif [[ "$next_at" == <-> ]]; then
-    zmodload -F zsh/datetime b:EPOCHSECONDS 2>/dev/null
+    zmodload -F zsh/datetime p:EPOCHSECONDS 2>/dev/null
     local minutes=$(( (next_at - EPOCHSECONDS * 1000 + 59999) / 60000 ))
     (( minutes < 0 )) && minutes=0
     if (( minutes < 1 )); then

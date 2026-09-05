@@ -12,7 +12,9 @@
     "src",
     "shell",
     "assets",
+    "!assets/candidates",
     "helpers",
+    "!helpers/listen",
     "data/gita.json",
     "scripts",
     "docs"
@@ -26,7 +28,7 @@
     "fetch": "node scripts/fetch-vedabase.js",
     "review:claude": "bash scripts/review-with-claude.sh",
     "build:helper": "bash scripts/build-helper.sh",
-    "postinstall": "electron-rebuild -f -w uiohook-napi",
+    "postinstall": "node -e \"try{require.resolve('@electron/rebuild')}catch{process.exit(0)};require('child_process').execFileSync('electron-rebuild',['-f','-w','uiohook-napi'],{stdio:'inherit'})\"",
     "test": "node --test"
   },
   "engines": {
@@ -41,6 +43,7 @@
   ],
   "author": "Deep Kanchalia",
   "license": "MIT",
+  "licenseNotes": "MIT covers the software only. See LICENSE for text and artwork not covered by MIT.",
   "dependencies": {
     "electron": "^44.2.0",
     "uiohook-napi": "1.5.5"
