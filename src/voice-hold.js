@@ -1,0 +1,158 @@
+const { execFileSync } = require("node:child_process");
+
+const DEFAULT_VOICE_SETTINGS = Object.freeze({
+  enabled: true,
+  key: "Space",
+  holdMs: 2_000
+});
+
+const FRONTMOST_BUNDLE_IDS = new Set([
+  "com.apple.Terminal",
+  "com.googlecode.iterm2",
+  "dev.warp.Warp",
+  "dev.warp.Warp-Stable",
+  "com.mitchellh.ghostty",
+  "org.alacritty",
+  "net.kovidgoyal.kitty",
+  "com.github.wez.wezterm",
+  "com.microsoft.VSCode",
+  "com.microsoft.VSCodeInsiders",
+  "com.todesktop.230313mzl4w4u92",
+  "dev.zed.Zed",
+  "com.apple.dt.Xcode",
+  "com.exafunction.windsurf"
+]);
+
+const FRONTMOST_SCRIPT = [
+  "tell application \"System Events\"",
+  "get bundle identifier of first application process whose frontmost is true",
+  "end tell"
+].join("\n");
+
+function isAllowedBundleId(bundleId) {
+  return typeof bundleId === "string"
+    && (FRONTMOST_BUNDLE_IDS.has(bundleId) || bundleId.startsWith("com.jetbrains."));
+}
+
+function createFrontmostAppGate({
+  now = Date.now,
+  readBundleId = () => execFileSync("/usr/bin/osascript", ["-e", FRONTMOST_SCRIPT], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+    timeout: 750
+  }).trim(),
+  cacheMs = 1_000
+} = {}) {
+  let cachedAt = -Infinity;
+  let cachedResult = false;
+
+  return function frontmostAppIsAllowed() {
+    const timestamp = now();
+    if (timestamp - cachedAt < cacheMs) return cachedResult;
+
+    cachedAt = timestamp;
+    try {
+      cachedResult = isAllowedBundleId(readBundleId());
+    } catch {
+      cachedResult = false;
+    }
+    return cachedResult;
+  };
+}
+
+function createHoldStateMachine({
+  triggerKey,
+  holdMs = DEFAULT_VOICE_SETTINGS.holdMs,
+  now = Date.now,
+  schedule = setTimeout,
+  cancelSchedule = clearTimeout,
+  isFrontmostAllowed = () => true,
+  onTrigger = () => {},
+  onRelease = () => {}
+}) {
+  let pressedAt;
+  let timer;
+  let cancelled = false;
+  let triggered = false;
+
+  function clearTimer() {
+    if (timer !== undefined) cancelSchedule(timer);
+    timer = undefined;
+  }
+
+  function advance(timestamp = now()) {
+    if (pressedAt === undefined || cancelled || triggered) return false;
+    if (timestamp - pressedAt < holdMs) return false;
+
+    clearTimer();
+    triggered = onTrigger() !== false;
+    return triggered;
+  }
+
+  function keydown(event) {
+    if (event.keycode !== triggerKey) {
+      if (pressedAt !== undefined && !triggered) {
+        cancelled = true;
+        clearTimer();
+      }
+      return false;
+    }
+
+    // A repeated keydown is the same physical hold; it must not restart the clock.
+    if (pressedAt !== undefined) return false;
+
+    pressedAt = now();
+    cancelled = !isFrontmostAllowed();
+    if (!cancelled) timer = schedule(() => advance(), holdMs);
+    return false;
+  }
+
+  function keyup(event) {
+    if (event.keycode !== triggerKey || pressedAt === undefined) return false;
+
+    clearTimer();
+    const shouldRelease = triggered;
+    pressedAt = undefined;
+    cancelled = false;
+    triggered = false;
+    if (shouldRelease) onRelease();
+    return shouldRelease;
+  }
+
+  function reset() {
+    clearTimer();
+    if (triggered) onRelease();
+    pressedAt = undefined;
+    cancelled = false;
+    triggered = false;
+  }
+
+  return { advance, keydown, keyup, reset };
+}
+
+function observeHold({ eventSource, ...options }) {
+  const machine = createHoldStateMachine(options);
+  const onKeydown = (event) => machine.keydown(event);
+  const onKeyup = (event) => machine.keyup(event);
+
+  eventSource.on("keydown", onKeydown);
+  eventSource.on("keyup", onKeyup);
+
+  return {
+    machine,
+    stop() {
+      eventSource.off("keydown", onKeydown);
+      eventSource.off("keyup", onKeyup);
+      machine.reset();
+    }
+  };
+}
+
+module.exports = {
+  DEFAULT_VOICE_SETTINGS,
+  FRONTMOST_BUNDLE_IDS,
+  createFrontmostAppGate,
+  createHoldStateMachine,
+  isAllowedBundleId,
+  observeHold
+};

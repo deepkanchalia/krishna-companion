@@ -38,16 +38,22 @@ krshna install
 
 Open a new terminal, then `/krshna` summons a teaching. `/krshna pause`, `/krshna resume`, and `/krshna stop` work as expected. The unprefixed `krshna` command remains the portable option across shells and terminal agents.
 
-## Voice with Claude Code
+## Voice
 
-Run `krshna install` to register the Claude Code prompt hook.
-Say or type “Hare Kṛṣṇa” as the whole prompt to open the next teaching.
-Claude does not receive or respond to the invocation.
+On macOS, keep Terminal or an editor frontmost and hold Space for two seconds. The figurine pulses while listening; say “Hare Kṛṣṇa” to open the next teaching, then release Space. The key is only observed, never swallowed, so the frontmost app still receives it normally. Supported apps are Terminal, iTerm2, Warp, Ghostty, Alacritty, kitty, WezTerm, VS Code, Cursor, Zed, JetBrains IDEs, Xcode, and Windsurf.
 
-### Voice (coming)
+The first use asks macOS for Microphone, Speech Recognition, and Input Monitoring or Accessibility access. Enable Krishna Companion (or Electron while running from this checkout) under **System Settings → Privacy & Security** for those services. Recognition is forced to Apple's on-device recognizer: audio and transcripts are never saved, logged, sent to Krishna Companion's renderer, or sent over the network. If the recognizer is unavailable or permission is denied, voice remains off until the next launch and a single notification explains what to allow.
 
-The speech helper uses on-device recognition only.
-Build it with `npm run build:helper`.
+The helper is built automatically at startup when voice is enabled and `helpers/listen` is missing. This requires Xcode Command Line Tools (`xcrun`); `npm run build:helper` remains available for a manual build. Windows and Linux continue to run the companion without voice.
+
+```bash
+krshna voice off
+krshna voice on
+```
+
+The menu-bar checkbox **Voice (hold Space)** controls the same setting. Its default is `voice: { enabled: true, key: "Space", holdMs: 2000 }` in `settings.json`.
+
+For Claude Code's whole-prompt invocation, run `krshna install` to register the prompt hook. Saying or typing “Hare Kṛṣṇa” as the whole prompt opens the next teaching; Claude does not receive or respond to it.
 
 To see the experience immediately (this also works while the companion is already live):
 
@@ -92,7 +98,7 @@ The text of *Bhagavad-gītā As It Is* is © The Bhaktivedanta Book Trust Intern
 The companion never reads or stores terminal output, prompts, source code, or conversations. Its “context” is limited to its own Gītā journey:
 
 - `journey.json` atomically stores the next verse index and up to 100 previously shown references, translations, purport excerpts, source links, and timestamps.
-- `settings.json` stores only the resting figurine position.
+- `settings.json` stores the resting figurine position and local voice settings.
 - `state.json` stores runtime information such as whether the app is live, the timer, and the next reference.
 
 On macOS these files live in `~/Library/Application Support/krishna-companion/`. Linux uses the standard config directory and Windows uses AppData. Run `krshna context` to see the last teaching and what comes next.

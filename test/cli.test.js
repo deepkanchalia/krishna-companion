@@ -11,6 +11,8 @@ test("CLI documents the universal terminal commands", () => {
   assert.match(output, /krshna\s+Make the companion live/);
   assert.match(output, /krshna now/);
   assert.match(output, /krshna context/);
+  assert.match(output, /krshna voice on/);
+  assert.match(output, /krshna voice off/);
   assert.match(output, /Add \/krshna/);
 });
 

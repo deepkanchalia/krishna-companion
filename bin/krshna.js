@@ -8,7 +8,8 @@ const { reflections } = require("../src/content");
 
 const projectRoot = path.resolve(__dirname, "..");
 const rawCommand = (process.argv[2] || "live").toLowerCase();
-const command = rawCommand.replace(/^\//, "");
+const voiceAction = (process.argv[3] || "").toLowerCase();
+const command = rawCommand === "voice" ? `voice-${voiceAction}` : rawCommand.replace(/^\//, "");
 
 function appDataDirectory() {
   const appDirectory = "krishna-companion";
@@ -212,6 +213,8 @@ Krishna Companion
   krshna resume      Resume the companion
   krshna status      Show its current state
   krshna context     Recall the last explanation and next verse
+  krshna voice on    Enable hold-Space voice
+  krshna voice off   Disable hold-Space voice
   krshna stop        Stop the companion
   krshna install     Add /krshna, terminal status, and the Claude Code voice hook
   krshna uninstall   Remove the Claude Code voice hook
@@ -249,12 +252,18 @@ switch (command) {
     break;
   case "pause":
   case "resume":
+  case "voice-on":
+  case "voice-off":
   case "stop":
     if (!readState().live) {
       console.log("Kṛṣṇa Companion is not running. Start it with: krshna");
       break;
     }
     launch(command);
+    break;
+  case "voice-":
+    console.error("Usage: krshna voice on|off");
+    process.exitCode = 1;
     break;
   default:
     console.error(`Unknown command: ${rawCommand}`);

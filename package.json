@@ -26,6 +26,7 @@
     "fetch": "node scripts/fetch-vedabase.js",
     "review:claude": "bash scripts/review-with-claude.sh",
     "build:helper": "bash scripts/build-helper.sh",
+    "postinstall": "electron-rebuild -f -w uiohook-napi",
     "test": "node --test"
   },
   "engines": {
@@ -41,6 +42,10 @@
   "author": "Deep Kanchalia",
   "license": "MIT",
   "dependencies": {
-    "electron": "^44.2.0"
+    "electron": "^44.2.0",
+    "uiohook-napi": "1.5.5"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "3.7.2"
   }
 }
