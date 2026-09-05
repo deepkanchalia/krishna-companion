@@ -1,21 +1,30 @@
 const path = require("node:path");
-const { mkdirSync, readFileSync, renameSync, writeFileSync } = require("node:fs");
+const { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } = require("node:fs");
 const { writeFile } = require("node:fs/promises");
+const { spawn } = require("node:child_process");
 const {
   app,
   BrowserWindow,
   Menu,
+  Notification,
   Tray,
   globalShortcut,
   ipcMain,
   nativeImage,
   screen,
-  shell
+  shell,
+  systemPreferences
 } = require("electron");
 const { readConfig } = require("./config");
 const { reflections } = require("./content");
 const { normalizeJourney, recordTeaching } = require("./journey");
 const { canShowTeaching } = require("./schedule");
+const { containsInvocation } = require("./voice");
+const {
+  DEFAULT_VOICE_SETTINGS,
+  createFrontmostAppGate,
+  observeHold
+} = require("./voice-hold");
 
 // Exactly 10% smaller than the previous 176 × 224 resting widget.
 const RESTING_SIZE = { width: 158, height: 202 };
@@ -24,6 +33,10 @@ const READING_SIZE = { width: 510, height: 326 };
 const SCREEN_MARGIN = 14;
 // ⌘⌥K / Ctrl+Alt+K: ⌘⇧K is "Delete Line" in VS Code and would be stolen from every editor.
 const SHORTCUT = "CommandOrControl+Alt+K";
+const LISTEN_TIMEOUT_MS = 6_000;
+const projectRoot = path.join(__dirname, "..");
+const helperPath = path.join(projectRoot, "helpers", "listen");
+const helperBuildPath = path.join(projectRoot, "scripts", "build-helper.sh");
 const config = readConfig();
 let readingHeight = READING_SIZE.height;
 
@@ -39,9 +52,16 @@ let statePath;
 let journeyPath;
 let settingsPath;
 let journey = { version: 1, nextVerseIndex: 0, history: [] };
+let settings = { version: 1, voice: { ...DEFAULT_VOICE_SETTINGS } };
 let restingPosition;
 let isExpanded = false;
 let programmaticMove = false;
+let voiceHook;
+let voiceObserver;
+let listeningSession;
+let voiceDisabledForLaunch = false;
+let voiceNoticeShown = false;
+let helperBuildStarted = false;
 
 const instanceLock = app.requestSingleInstanceLock({ command: config.command });
 if (!instanceLock) app.quit();
@@ -64,7 +84,21 @@ function writeJson(filePath, value) {
 function readPersistentData() {
   const oldState = readJson(statePath, {});
   const savedJourney = readJson(journeyPath, null);
-  const settings = readJson(settingsPath, {});
+  const savedSettings = readJson(settingsPath, {});
+
+  settings = {
+    ...savedSettings,
+    version: 1,
+    voice: {
+      ...DEFAULT_VOICE_SETTINGS,
+      ...(savedSettings.voice || {})
+    }
+  };
+  settings.voice.enabled = settings.voice.enabled !== false;
+  settings.voice.key = typeof settings.voice.key === "string" ? settings.voice.key : DEFAULT_VOICE_SETTINGS.key;
+  settings.voice.holdMs = Number.isFinite(settings.voice.holdMs) && settings.voice.holdMs >= 250
+    ? settings.voice.holdMs
+    : DEFAULT_VOICE_SETTINGS.holdMs;
 
   journey = normalizeJourney(savedJourney, reflections.length, oldState.nextVerseIndex || 0);
 
@@ -74,9 +108,10 @@ function readPersistentData() {
     const requested = reflections.findIndex((item) => `${item.chapterNumber}.${item.verse}` === config.verse);
     if (requested !== -1) requestedVerseIndex = requested;
   }
-  if (Number.isFinite(settings?.restingPosition?.x) && Number.isFinite(settings?.restingPosition?.y)) {
+  if (Number.isFinite(settings.restingPosition?.x) && Number.isFinite(settings.restingPosition?.y)) {
     restingPosition = settings.restingPosition;
   }
+  saveSettings();
 }
 
 function saveState(live = true) {
@@ -103,8 +138,14 @@ function saveJourney(index, reflection) {
 }
 
 function saveSettings() {
-  if (!settingsPath || !restingPosition) return;
-  writeJson(settingsPath, { version: 1, restingPosition });
+  if (!settingsPath) return;
+  settings = {
+    ...settings,
+    version: 1,
+    voice: { ...settings.voice }
+  };
+  if (restingPosition) settings.restingPosition = restingPosition;
+  writeJson(settingsPath, settings);
 }
 
 function displayForPoint(point) {
@@ -259,6 +300,182 @@ function showCompanion(force = false) {
   return true;
 }
 
+function setListening(active) {
+  if (!companionWindow || companionWindow.isDestroyed()) return;
+  companionWindow.webContents.send("companion:listening", active);
+}
+
+function showVoiceNotice(body) {
+  if (voiceNoticeShown) return;
+  voiceNoticeShown = true;
+  if (tray) tray.setToolTip(`Krishna Companion — ${body}`);
+  try {
+    if (Notification.isSupported()) {
+      new Notification({ title: "Krishna Companion voice", body }).show();
+    }
+  } catch {
+    // The tray tooltip remains as the once-per-launch notice.
+  }
+}
+
+function stopListening(session = listeningSession, { kill = true } = {}) {
+  if (!session || session !== listeningSession) return;
+  listeningSession = undefined;
+  clearTimeout(session.timeout);
+  setListening(false);
+  if (kill && session.child.exitCode === null && session.child.signalCode === null) {
+    session.child.kill();
+  }
+}
+
+function stopVoiceHook() {
+  stopListening();
+  voiceObserver?.stop();
+  voiceObserver = undefined;
+  if (voiceHook) {
+    try {
+      voiceHook.stop();
+    } catch {
+      // A partially loaded native hook is still allowed to fail closed.
+    }
+  }
+  voiceHook = undefined;
+}
+
+function disableVoiceForLaunch(message, { log = false } = {}) {
+  if (voiceDisabledForLaunch) return;
+  voiceDisabledForLaunch = true;
+  stopVoiceHook();
+  if (log) console.error(message);
+  showVoiceNotice(message);
+}
+
+function startListening() {
+  if (listeningSession || isExpanded || voiceDisabledForLaunch || !settings.voice.enabled) return false;
+
+  // This presents macOS's Accessibility prompt; uiohook itself presents Input Monitoring when needed.
+  try {
+    systemPreferences.isTrustedAccessibilityClient(true);
+  } catch {
+    // Input Monitoring may already be sufficient for this hook.
+  }
+
+  let child;
+  try {
+    child = spawn(helperPath, [`--timeout=${LISTEN_TIMEOUT_MS}`], {
+      stdio: ["pipe", "pipe", "ignore"]
+    });
+  } catch {
+    disableVoiceForLaunch("Krishna Companion voice is unavailable for this launch.", { log: true });
+    return false;
+  }
+
+  const session = { child, buffer: "", timeout: undefined };
+  listeningSession = session;
+  setListening(true);
+  session.timeout = setTimeout(() => stopListening(session), LISTEN_TIMEOUT_MS);
+
+  child.stdout.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => {
+    if (listeningSession !== session) return;
+    session.buffer += chunk;
+    let newline = session.buffer.indexOf("\n");
+    while (newline !== -1) {
+      const line = session.buffer.slice(0, newline).replace(/\r$/, "");
+      session.buffer = session.buffer.slice(newline + 1);
+      if (containsInvocation(line)) {
+        stopListening(session);
+        showCompanion(true);
+        return;
+      }
+      newline = session.buffer.indexOf("\n");
+    }
+  });
+
+  child.once("error", () => {
+    if (listeningSession !== session) return;
+    stopListening(session, { kill: false });
+    disableVoiceForLaunch("Krishna Companion voice is unavailable for this launch.", { log: true });
+  });
+  child.once("close", (code) => {
+    if (listeningSession === session) stopListening(session, { kill: false });
+    if ([2, 3, 4].includes(code)) {
+      disableVoiceForLaunch(
+        "Allow Microphone and Speech Recognition for Krishna Companion in System Settings"
+      );
+    }
+  });
+  return true;
+}
+
+function startVoiceHook() {
+  if (process.platform !== "darwin" || voiceHook || voiceDisabledForLaunch || !settings.voice.enabled) return;
+
+  let nativeHook;
+  let keyCodes;
+  try {
+    ({ uIOhook: nativeHook, UiohookKey: keyCodes } = require("uiohook-napi"));
+  } catch {
+    disableVoiceForLaunch("Krishna Companion voice unavailable: global key hook could not load.", { log: true });
+    return;
+  }
+
+  const triggerKey = keyCodes[settings.voice.key];
+  if (!Number.isInteger(triggerKey)) {
+    disableVoiceForLaunch(`Krishna Companion voice unavailable: unknown key ${settings.voice.key}.`, { log: true });
+    return;
+  }
+
+  voiceHook = nativeHook;
+  voiceObserver = observeHold({
+    eventSource: nativeHook,
+    triggerKey,
+    holdMs: settings.voice.holdMs,
+    isFrontmostAllowed: createFrontmostAppGate(),
+    onTrigger: startListening,
+    onRelease: () => stopListening()
+  });
+
+  try {
+    nativeHook.start();
+  } catch {
+    disableVoiceForLaunch("Krishna Companion voice unavailable: global key hook could not start.", { log: true });
+  }
+}
+
+function initializeVoice() {
+  if (process.platform !== "darwin" || !settings.voice.enabled || voiceDisabledForLaunch) return;
+  if (existsSync(helperPath)) {
+    startVoiceHook();
+    return;
+  }
+  if (helperBuildStarted) return;
+  helperBuildStarted = true;
+
+  const build = spawn("/bin/bash", [helperBuildPath], {
+    cwd: projectRoot,
+    stdio: "ignore"
+  });
+  build.once("error", () => {
+    disableVoiceForLaunch("Krishna Companion voice unavailable: Xcode Command Line Tools are required.", { log: true });
+  });
+  build.once("close", (code) => {
+    if (code === 0 && existsSync(helperPath)) startVoiceHook();
+    else disableVoiceForLaunch(
+      "Krishna Companion voice unavailable: Xcode Command Line Tools are required.",
+      { log: true }
+    );
+  });
+}
+
+function setVoiceEnabled(enabled) {
+  settings.voice.enabled = enabled;
+  saveSettings();
+  if (enabled) initializeVoice();
+  else stopVoiceHook();
+  if (tray) tray.setContextMenu(trayMenu());
+}
+
 function restartCadence(minutes = config.intervalMinutes) {
   clearInterval(cadenceTimer);
   nextReflectionAt = Date.now() + minutes * 60 * 1000;
@@ -290,6 +507,12 @@ function handleCommand(command) {
     case "now":
     case "/krshna":
       showCompanion(true);
+      break;
+    case "voice-on":
+      setVoiceEnabled(true);
+      break;
+    case "voice-off":
+      setVoiceEnabled(false);
       break;
     case "stop":
       app.quit();
@@ -326,6 +549,12 @@ function trayMenu() {
         }
       }))
     },
+    {
+      label: "Voice (hold Space)",
+      type: "checkbox",
+      checked: settings.voice.enabled,
+      click: (item) => setVoiceEnabled(item.checked)
+    },
     { type: "separator" },
     { label: "Quit Krishna Companion", role: "quit" }
   ]);
@@ -355,6 +584,7 @@ if (instanceLock) app.whenReady().then(() => {
   createWindow();
   createTray();
   restartCadence();
+  initializeVoice();
 
   globalShortcut.register(SHORTCUT, () => showCompanion(true));
   companionWindow.webContents.once("did-finish-load", () => {
@@ -397,4 +627,5 @@ app.on("will-quit", () => {
   globalShortcut.unregisterAll();
   clearInterval(cadenceTimer);
   clearTimeout(dismissTimer);
+  stopVoiceHook();
 });
