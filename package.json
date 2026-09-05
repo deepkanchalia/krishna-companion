@@ -12,7 +12,9 @@
     "src",
     "shell",
     "assets",
+    "!assets/candidates",
     "helpers",
+    "!helpers/listen",
     "data/gita.json",
     "scripts",
     "docs"
