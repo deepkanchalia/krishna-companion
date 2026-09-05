@@ -9,11 +9,12 @@ const projectRoot = path.join(__dirname, "..");
 const cli = path.join(projectRoot, "bin", "krshna.js");
 const hook = path.join(projectRoot, "scripts", "krshna-hook.js");
 
-function runHook(input) {
+function runHook(input, extraEnv = {}) {
   return execFileSync(process.execPath, [hook], {
     input,
     encoding: "utf8",
-    env: { ...process.env, PATH: "" }
+    // PATH is emptied to prove the hook resolves the CLI by absolute path, not PATH.
+    env: { ...process.env, PATH: "", ...extraEnv }
   });
 }
 
@@ -24,6 +25,17 @@ test("matching prompts are blocked and non-matching prompts pass silently", () =
   );
   assert.equal(runHook(JSON.stringify({ prompt: "hare krishna please fix the bug" })), "");
   assert.equal(runHook("not json"), "");
+});
+
+test("a spawn failure fails open: empty stdout, exit 0", () => {
+  const bogusNode = path.join(os.tmpdir(), "krshna-no-such-node-binary");
+  const result = execFileSync(process.execPath, [hook], {
+    input: JSON.stringify({ prompt: "Hare Kṛṣṇa!" }),
+    encoding: "utf8",
+    stdio: ["pipe", "pipe", "ignore"],
+    env: { ...process.env, KRSHNA_HOOK_NODE: bogusNode }
+  });
+  assert.equal(result, "");
 });
 
 test("install merges the Claude hook idempotently and uninstall removes only it", (context) => {
