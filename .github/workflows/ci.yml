@@ -9,6 +9,8 @@ jobs:
   test:
     name: test (${{ matrix.os }}, node ${{ matrix.node }})
     runs-on: ${{ matrix.os }}
+    # Experimental lanes never block the workflow, even if checkout or npm ci fails there.
+    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:

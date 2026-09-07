@@ -110,9 +110,9 @@ Built and verified on macOS. Windows (acrylic) and Linux (needs a compositor for
 
 ## Quality bar
 
-- `docs/SUCCESS-CRITERIA.md` is the measured bar. Every pull request cites the criterion IDs it touches and attaches the evidence.
-- `.github/workflows/ci.yml` runs `npm test` on macOS and Ubuntu (Node 20 and 22) and checks the npm tarball. Windows runs as experimental and never blocks.
-- `docs/DOGFOOD.md` logs every wrong or badly timed darshan; it is reviewed before each milestone.
+- `docs/SUCCESS-CRITERIA.md` is the acceptance bar. Each row says whether a test enforces it or a written manual procedure does. Pull requests cite the criterion IDs they touch and attach the evidence.
+- `.github/workflows/ci.yml` runs `npm test` on macOS and Ubuntu (Node 20 and 22) and checks the npm tarball. The Windows lane is experimental: its failures are reported as warnings and do not block.
+- `docs/DOGFOOD.md` is where wrong or badly timed darshans get logged, for review before each milestone.
 - `CLAUDE.md` holds the rules any agent must follow when editing this repo.
 
 ## Adversarial release review
