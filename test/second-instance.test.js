@@ -21,10 +21,11 @@ test("a bare --verse also means show me this verse", () => {
   assert.deepEqual(planFromArgv(["--verse=1.16"]), [{ type: "show", verse: "1.16" }]);
 });
 
-test("--interval restarts cadence with the new value, then keeps running", () => {
+test("--interval alone changes cadence without forwarding the defaulted command", () => {
+  // The launch carries the default command "live"; forwarding it would resume a paused
+  // companion, so a --interval-only launch must produce set-interval and nothing else.
   assert.deepEqual(planFromArgv(["--interval=90"], { intervalMinutes: 30 }), [
-    { type: "set-interval", minutes: 90 },
-    { type: "command", name: "live" }
+    { type: "set-interval", minutes: 90 }
   ]);
 });
 

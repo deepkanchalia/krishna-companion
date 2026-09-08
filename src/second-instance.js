@@ -38,9 +38,10 @@ function planSecondInstance(config, currentState = {}) {
       show.durationSeconds = config.durationSeconds;
     }
     actions.push(show);
-  } else if (command) {
-    // live / start / pause / resume / stop / voice-*, forwarded to the running app
-    // exactly as the previous single-instance handler did (handleCommand).
+  } else if (provided.command && command) {
+    // Forward a command only when the launch actually asked for one. A launch that set
+    // only --interval/--verse/--duration carries the DEFAULT command ("live"); forwarding
+    // that would silently resume a paused companion, so it must not be forwarded.
     actions.push({ type: "command", name: command });
   }
 
