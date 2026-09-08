@@ -7,6 +7,7 @@ const { spawn } = require("node:child_process");
 const { reflections } = require("../src/content");
 const { isValidHistoryEntry } = require("../src/journey");
 const { waitForAck } = require("../src/ack");
+const { readJson: readJsonQuarantine } = require("../src/store");
 
 const projectRoot = path.resolve(__dirname, "..");
 const rawCommand = (process.argv[2] || "live").toLowerCase();
@@ -77,7 +78,40 @@ function printStatus() {
   if (state.nextReference) console.log(`Next in sequence: ${state.nextReference}.`);
 }
 
+// One line if the app moved any damaged data file aside (store.js quarantine). The
+// names are our own <name>.corrupt-<timestamp>.json files, never outside text.
+function reportQuarantinedFiles() {
+  let entries;
+  try {
+    entries = fs.readdirSync(appDataDirectory());
+  } catch {
+    return;
+  }
+  const corrupt = entries.filter((name) => /\.corrupt-.*\.json$/.test(name)).sort();
+  if (corrupt.length === 0) return;
+  const noun = corrupt.length === 1 ? "file was" : "files were";
+  console.log(`Note: ${corrupt.length} damaged data ${noun} kept aside (${corrupt.join(", ")}).`);
+}
+
+// Launch or forward a `now` invocation and wait for the companion to acknowledge by
+// stamping state.json. Returns the exit code: 0 on ack, 1 if the launcher could not
+// start, 2 on timeout (with one stderr line). Dependencies are injectable so a test
+// can drive it with a fake launcher and clock, without Electron.
+function runNow({
+  launch: launchFn = launch,
+  stateFile: stateFilePath = stateFile(),
+  clock = Date.now,
+  budgetMs = 4000
+} = {}) {
+  const t0 = clock();
+  if (!launchFn("now")) return 1; // launcher missing: launch() already set the message
+  if (waitForAck(stateFilePath, t0, budgetMs)) return 0;
+  process.stderr.write(`companion did not acknowledge within ${budgetMs / 1000} s\n`);
+  return 2;
+}
+
 function printContext() {
+  reportQuarantinedFiles();
   let savedJourney;
   try {
     savedJourney = JSON.parse(fs.readFileSync(journeyFile(), "utf8"));
@@ -156,9 +190,15 @@ function installZsh() {
   fs.appendFileSync(zshrc, `${prefix}${zshBlock()}\n`);
 }
 
-// Remove the marked block, including its markers, the newline install wrote after
-// it, and the one separator newline install wrote before it, leaving every other
-// byte of .zshrc untouched. Returns the removed text, or null when there is no block.
+// Remove the marked block, including its markers and the newline install wrote after
+// it, leaving every other byte of .zshrc untouched. Returns the removed text, or null
+// when there is no block.
+//
+// The single separator newline install writes before the block is stripped ONLY when
+// the block is the last thing in the file (as install always appends it). For a block
+// that sits mid-file — a pre-B1 legacy block, or one a user moved — the newline before
+// it belongs to the preceding line, so stripping it would merge two lines; there we
+// leave it, keeping the surrounding content byte-identical.
 function uninstallZsh() {
   const zshrc = zshrcFile();
   if (!fs.existsSync(zshrc)) return null;
@@ -170,7 +210,9 @@ function uninstallZsh() {
   const removed = existing.slice(startIndex, after);
   if (existing[after] === "\n") after += 1; // the newline install wrote after the block
   let before = startIndex;
-  if (before > 0 && existing[before - 1] === "\n") before -= 1; // the separator install wrote before it
+  // Only strip the leading separator when nothing follows the block (block at EOF),
+  // which is where install put it; otherwise removing it would join two lines.
+  if (after >= existing.length && before > 0 && existing[before - 1] === "\n") before -= 1;
   fs.writeFileSync(zshrc, existing.slice(0, before) + existing.slice(after));
   return removed;
 }
@@ -189,10 +231,13 @@ function claudeHookCommand() {
   return `${CLAUDE_HOOK_MARKER} ${JSON.stringify(process.execPath)} ${JSON.stringify(hookPath)}`;
 }
 
+// Any command hook that runs krshna-hook.js is ours, marker or not: a legacy entry
+// installed before the KRSHNA_HOOK=1 marker existed still names krshna-hook.js, and
+// must be replaced on install and removed on uninstall rather than left to accumulate.
+// Fresh installs still write the marker (claudeHookCommand); this only widens matching.
 function isKrshnaHook(hook) {
   return hook?.type === "command"
     && typeof hook.command === "string"
-    && hook.command.includes(CLAUDE_HOOK_MARKER)
     && hook.command.includes("krshna-hook.js");
 }
 
@@ -271,8 +316,22 @@ function uninstallClaudeHook() {
 }
 
 function install() {
-  installZsh();
+  // Do the JSON step before touching .zshrc so a failure leaves the shell untouched.
+  // A damaged ~/.claude/settings.json is moved aside with one line rather than
+  // crashing with a stack trace or being silently overwritten with defaults.
+  const settingsFile = claudeSettingsFile();
+  const quarantined = [];
+  readJsonQuarantine(settingsFile, {}, quarantined);
+  if (quarantined.length > 0) {
+    process.stderr.write(
+      `Krishna Companion moved a damaged ${path.basename(settingsFile)} aside ` +
+      `(kept as ${path.basename(quarantined[0].quarantinedTo)}); run \`krshna install\` again.\n`
+    );
+    process.exitCode = 1;
+    return;
+  }
   installClaudeHook();
+  installZsh();
   console.log("Installed the /krshna shortcut, terminal status, and Claude Code voice hook.");
   console.log("Open a new terminal to use the shell integrations.");
 }
@@ -305,59 +364,59 @@ Krishna Companion
 `);
 }
 
-switch (command) {
-  case "status":
-    printStatus();
-    break;
-  case "context":
-    printContext();
-    break;
-  case "install":
-    install();
-    break;
-  case "uninstall":
-    uninstall();
-    break;
-  case "help":
-  case "--help":
-  case "-h":
-    help();
-    break;
-  case "now": {
-    // Launch or forward, then wait for the companion to stamp state.json before
-    // returning, so the Claude Code hook knows the invocation was received.
-    const t0 = Date.now();
-    if (!launch("now")) break; // electron missing: exit code already set
-    if (waitForAck(stateFile(), t0, 4000)) {
-      process.exitCode = 0;
-    } else {
-      process.stderr.write("companion did not acknowledge within 4 s\n");
-      process.exitCode = 2;
-    }
-    break;
-  }
-  case "live":
-  case "start":
-    launch(command);
-    console.log("🪶 Kṛṣṇa Companion is live. Your terminal work will continue normally.");
-    break;
-  case "pause":
-  case "resume":
-  case "voice-on":
-  case "voice-off":
-  case "stop":
-    if (!readState().live) {
-      console.log("Kṛṣṇa Companion is not running. Start it with: krshna");
+function main() {
+  switch (command) {
+    case "status":
+      printStatus();
       break;
-    }
-    launch(command);
-    break;
-  case "voice-":
-    console.error("Usage: krshna voice on|off");
-    process.exitCode = 1;
-    break;
-  default:
-    console.error(`Unknown command: ${rawCommand}`);
-    help();
-    process.exitCode = 1;
+    case "context":
+      printContext();
+      break;
+    case "install":
+      install();
+      break;
+    case "uninstall":
+      uninstall();
+      break;
+    case "help":
+    case "--help":
+    case "-h":
+      help();
+      break;
+    case "now":
+      // Launch or forward, then wait for the companion to stamp state.json before
+      // returning, so the Claude Code hook knows the invocation was received.
+      process.exitCode = runNow();
+      break;
+    case "live":
+    case "start":
+      launch(command);
+      console.log("🪶 Kṛṣṇa Companion is live. Your terminal work will continue normally.");
+      break;
+    case "pause":
+    case "resume":
+    case "voice-on":
+    case "voice-off":
+    case "stop":
+      if (!readState().live) {
+        console.log("Kṛṣṇa Companion is not running. Start it with: krshna");
+        break;
+      }
+      launch(command);
+      break;
+    case "voice-":
+      console.error("Usage: krshna voice on|off");
+      process.exitCode = 1;
+      break;
+    default:
+      console.error(`Unknown command: ${rawCommand}`);
+      help();
+      process.exitCode = 1;
+  }
 }
+
+module.exports = { runNow, installZsh, uninstallZsh, isKrshnaHook, reportQuarantinedFiles };
+
+// Run the CLI only when invoked directly, so tests can import the functions above
+// without executing a command.
+if (require.main === module) main();

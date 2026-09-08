@@ -258,6 +258,59 @@ test("zsh block: two checkouts install one block; uninstall restores .zshrc byte
   assert.equal(fs.readFileSync(zshrc, "utf8"), before, "no-op uninstall leaves .zshrc unchanged");
 });
 
+test("install replaces a legacy unmarked hook entry; uninstall removes it", (context) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-legacy-hook-"));
+  context.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const settingsFile = path.join(home, ".claude", "settings.json");
+  fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
+  // A hook installed before the KRSHNA_HOOK=1 marker existed: it still names
+  // krshna-hook.js but carries no marker and a stale checkout path.
+  const legacyCommand = `/usr/bin/node /old/checkout/scripts/krshna-hook.js`;
+  fs.writeFileSync(settingsFile, `${JSON.stringify({
+    hooks: { UserPromptSubmit: [{ matcher: "", hooks: [{ type: "command", command: legacyCommand }] }] }
+  }, null, 2)}\n`);
+  const env = { ...process.env, HOME: home, KRSHNA_HOME: home };
+
+  execFileSync(process.execPath, [cli, "install"], { env });
+  const installed = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
+  const ours = installed.hooks.UserPromptSubmit
+    .flatMap((group) => group.hooks || [])
+    .filter((item) => typeof item.command === "string" && item.command.includes("krshna-hook.js"));
+  assert.equal(ours.length, 1, "the legacy entry was replaced, not left to accumulate a second one");
+  assert.ok(ours[0].command.includes("KRSHNA_HOOK=1"), "the fresh entry carries the marker");
+  assert.ok(!ours[0].command.includes("/old/checkout"), "the stale legacy path is gone");
+
+  execFileSync(process.execPath, [cli, "uninstall"], { env });
+  const after = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
+  const remaining = (after.hooks?.UserPromptSubmit || [])
+    .flatMap((group) => group.hooks || [])
+    .filter((item) => typeof item.command === "string" && item.command.includes("krshna-hook.js"));
+  assert.equal(remaining.length, 0, "uninstall removes the legacy-derived entry too");
+});
+
+test("a legacy zsh block (no separator newline) is replaced, not duplicated, and uninstalled cleanly", (context) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-legacy-zsh-"));
+  context.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const zshrc = path.join(home, ".zshrc");
+  // Pre-B1 shape: the marked block sits directly after prior content with no separator
+  // line, with more user content after it.
+  const before = "export EDITOR=vim\n";
+  const after = "alias ll='ls -la'\n";
+  const legacyBlock = '# >>> krshna companion >>>\nsource "/old/path/shell/krshna.zsh"\n# <<< krshna companion <<<';
+  fs.writeFileSync(zshrc, `${before}${legacyBlock}\n${after}`);
+  const env = { ...process.env, HOME: home, KRSHNA_HOME: home };
+
+  execFileSync(process.execPath, [cli, "install"], { env });
+  const installed = fs.readFileSync(zshrc, "utf8");
+  assert.equal((installed.match(/# >>> krshna companion >>>/g) || []).length, 1, "one block, not duplicated");
+  assert.ok(!installed.includes("/old/path"), "the legacy source path was replaced in place");
+  assert.ok(installed.startsWith(before), "content before the block is preserved");
+  assert.ok(installed.endsWith(after), "content after the block is preserved");
+
+  execFileSync(process.execPath, [cli, "uninstall"], { env });
+  assert.equal(fs.readFileSync(zshrc, "utf8"), before + after, "surrounding lines byte-identical, not merged");
+});
+
 test("zsh install/uninstall round-trips both trailing-newline shapes byte-for-byte", (context) => {
   for (const before of ["export EDITOR=vim\nalias ll='ls -la'\n", "export EDITOR=vim\nalias ll='ls -la'"]) {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-zsh-shape-"));

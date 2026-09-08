@@ -6,6 +6,16 @@ const fs = require("node:fs");
 const os = require("node:os");
 
 const cli = path.join(__dirname, "..", "bin", "krshna.js");
+const { runNow } = require("../bin/krshna.js");
+
+// Mirror bin/krshna.js appDataDirectory() for the current platform, driven by
+// KRSHNA_HOME (which redirects the home root even on Windows, where os.homedir
+// ignores HOME).
+function dataDirFor(home) {
+  if (process.platform === "darwin") return path.join(home, "Library", "Application Support", "krishna-companion");
+  if (process.platform === "win32") return path.join(home, "AppData", "Roaming", "krishna-companion");
+  return path.join(home, ".config", "krishna-companion");
+}
 
 function zshAvailable() {
   try {
@@ -65,6 +75,84 @@ test("context survives a malformed journey and reports unreadable entries", (t) 
   assert.match(output, /journey has 4 unreadable entries/);
   assert.match(output, /Last explained: Bhagavad-gītā As It Is 1\.1/);
   assert.match(output, /The readable one\./);
+});
+
+test("runNow returns 0 on acknowledgement, 2 on timeout, 1 on a missing launcher", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-runnow-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const stateFile = path.join(dir, "state.json");
+
+  // Ack: the fake launcher stamps state.json exactly as the companion would.
+  const ackLaunch = () => {
+    fs.writeFileSync(stateFile, JSON.stringify({ lastCommand: { receivedAt: new Date().toISOString() } }));
+    return true;
+  };
+  assert.equal(runNow({ launch: ackLaunch, stateFile, clock: () => 0, budgetMs: 2000 }), 0);
+
+  // Timeout: launcher starts but nothing ever acknowledges; exactly one stderr line.
+  const errors = [];
+  const restore = process.stderr.write.bind(process.stderr);
+  process.stderr.write = (chunk) => { errors.push(String(chunk)); return true; };
+  let code;
+  try {
+    code = runNow({ launch: () => true, stateFile: path.join(dir, "absent.json"), clock: Date.now, budgetMs: 150 });
+  } finally {
+    process.stderr.write = restore;
+  }
+  assert.equal(code, 2);
+  assert.equal(errors.length, 1, "one stderr line on timeout");
+  assert.match(errors[0], /did not acknowledge/);
+
+  // Missing launcher: exit 1.
+  assert.equal(runNow({ launch: () => false, stateFile: path.join(dir, "x.json") }), 1);
+});
+
+test("install refuses a malformed settings.json: exit 1, one line, .zshrc untouched", (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-install-bad-"));
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const claudeDir = path.join(home, ".claude");
+  fs.mkdirSync(claudeDir, { recursive: true });
+  fs.writeFileSync(path.join(claudeDir, "settings.json"), "{ not valid json");
+  const zshrc = path.join(home, ".zshrc");
+  const zshrcBefore = "export EDITOR=vim\n";
+  fs.writeFileSync(zshrc, zshrcBefore);
+  const env = { ...process.env, HOME: home, KRSHNA_HOME: home };
+
+  let error;
+  try {
+    execFileSync(process.execPath, [cli, "install"], { env, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
+  } catch (thrown) {
+    error = thrown;
+  }
+  assert.ok(error, "install exited non-zero");
+  assert.equal(error.status, 1);
+  const lines = error.stderr.trim().split("\n").filter(Boolean);
+  assert.equal(lines.length, 1, "exactly one stderr line");
+
+  assert.equal(fs.readFileSync(zshrc, "utf8"), zshrcBefore, ".zshrc unchanged (JSON step runs first)");
+  const kept = fs.readdirSync(claudeDir).filter((name) => /^settings\.corrupt-.*\.json$/.test(name));
+  assert.equal(kept.length, 1, "the malformed settings file was moved aside, not deleted");
+});
+
+test("context reports a quarantined data file", (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-ctx-corrupt-"));
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const dataDir = dataDirFor(home);
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(path.join(dataDir, "settings.corrupt-2026-01-01T00-00-00-000Z.json"), "{ was bad");
+
+  const output = execFileSync(process.execPath, [cli, "context"], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      HOME: home,
+      KRSHNA_HOME: home,
+      XDG_CONFIG_HOME: path.join(home, ".config"),
+      APPDATA: path.join(home, "AppData", "Roaming")
+    }
+  });
+  assert.match(output, /damaged data file was kept aside/);
+  assert.match(output, /settings\.corrupt-/);
 });
 
 test("zsh prompt reads state without spawning Node", () => {
