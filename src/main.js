@@ -100,10 +100,10 @@ function readPersistentData() {
   journey = normalizeJourney(savedJourney, reflections.length, oldState.nextVerseIndex || 0);
 
   nextVerseIndex = journey.nextVerseIndex;
-  if (config.verse) {
+  if (config.provided?.verse) {
     // --verse=1.32-35 previews one specific teaching without touching the saved journey.
-    // A verse that does not exist is a hard error on a direct launch: exit rather than
-    // silently falling back to saved progress and showing the wrong teaching.
+    // A verse that is missing/empty/nonexistent is a hard error on a direct launch: exit
+    // rather than silently falling back to saved progress and showing the wrong teaching.
     const result = findVerseIndex(reflections, config.verse);
     if (result.error) {
       console.error(`Krishna Companion: ${result.error}`);

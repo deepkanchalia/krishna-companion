@@ -102,6 +102,13 @@ test("non-boolean demo/screenshot are dropped", () => {
   assert.match(lines[0], /demo|screenshot/);
 });
 
+test("an empty --verse on a second instance is ignored with one stderr line, not shown", () => {
+  const { actions, lines } = planCapturing(readConfig(["--verse="]));
+  assert.ok(!actions.some((a) => a.type === "show"), "no darshan for an empty verse");
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /verse/);
+});
+
 test("a clean config produces no rejection line", () => {
   const { lines } = planCapturing(readConfig(["--command=pause"]));
   assert.equal(lines.length, 0);

@@ -49,6 +49,14 @@ test("a demo without an explicit command asks a live instance for a reflection n
   assert.equal(readConfig(["--demo", "--verse=1.32-35"]).verse, "1.32-35");
 });
 
+test("an empty --verse is kept as \"\" and marked provided, never folded to undefined", () => {
+  const empty = readConfig(["--verse="]);
+  assert.equal(empty.verse, "", "empty value is preserved, not turned into a silent fallback");
+  assert.equal(empty.provided.verse, true);
+  assert.equal(readConfig([]).verse, undefined, "absence stays undefined");
+  assert.equal(readConfig([]).provided.verse, false);
+});
+
 test("falls back for non-numeric arguments and clamps unsafe values", () => {
   assert.equal(numberArgument(["--interval=nope"], "interval", 30, 0.1, 1440), 30);
   assert.equal(numberArgument(["--duration=-1"], "duration", 0, 0, 120), 0);

@@ -26,7 +26,10 @@ function readConfig(argv = process.argv.slice(2)) {
   return {
     demo,
     screenshot: argv.includes("--screenshot"),
-    verse: verseArgument?.slice("--verse=".length) || undefined,
+    // Keep an explicit empty value ("--verse=") as "" rather than folding it to
+    // undefined: an empty verse is a request error the caller must report, never a
+    // silent fall-back to saved progress. Absence stays undefined.
+    verse: verseArgument !== undefined ? verseArgument.slice("--verse=".length) : undefined,
     // A demo asks for a reflection right away, also when it reaches an instance that is already live.
     command: commandArgument?.slice("--command=".length) || (demo ? "now" : "live"),
     intervalMinutes: numberArgument(argv, "interval", DEFAULT_INTERVAL_MINUTES, 0.1, 1440),
