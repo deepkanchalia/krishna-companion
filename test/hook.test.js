@@ -9,12 +9,22 @@ const projectRoot = path.join(__dirname, "..");
 const cli = path.join(projectRoot, "bin", "krshna.js");
 const hook = path.join(projectRoot, "scripts", "krshna-hook.js");
 
+// The hook spawns `<node> bin/krshna.js now`, which would start or poke the real
+// companion. Tests point KRSHNA_HOOK_NODE at a stub that exits 0 instead, so a
+// successful spawn is observed without launching anything (CLAUDE.md: tests never
+// start the app). The stub is a POSIX script; on Windows the spawn fails and the
+// hook fails open, which the platform notes already list as untested.
+const stubDir = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-hook-stub-"));
+const stubLauncher = path.join(stubDir, "node-stub");
+fs.writeFileSync(stubLauncher, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+test.after(() => fs.rmSync(stubDir, { recursive: true, force: true }));
+
 function runHook(input, extraEnv = {}) {
   return execFileSync(process.execPath, [hook], {
     input,
     encoding: "utf8",
     // PATH is emptied to prove the hook resolves the CLI by absolute path, not PATH.
-    env: { ...process.env, PATH: "", ...extraEnv }
+    env: { ...process.env, PATH: "", KRSHNA_HOOK_NODE: stubLauncher, ...extraEnv }
   });
 }
 

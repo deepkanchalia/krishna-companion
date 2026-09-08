@@ -108,6 +108,13 @@ On macOS these files live in `~/Library/Application Support/krishna-companion/`.
 
 Built and verified on macOS. Windows (acrylic) and Linux (needs a compositor for the transparent window) are supported by the code but not yet tested.
 
+## Quality bar
+
+- `docs/SUCCESS-CRITERIA.md` is the acceptance bar. Each row says whether a test enforces it or a written manual procedure does. Pull requests cite the criterion IDs they touch and attach the evidence.
+- `.github/workflows/ci.yml` runs `npm test` on macOS and Ubuntu (Node 20 and 22) and checks the npm tarball. The Windows lane is experimental: its failures are reported as warnings and do not block.
+- `docs/DOGFOOD.md` is where wrong or badly timed darshans get logged, for review before each milestone.
+- `CLAUDE.md` holds the rules any agent must follow when editing this repo.
+
 ## Adversarial release review
 
 After authenticating Claude Code with `claude /login`, run the repository's read-only public-release review:
