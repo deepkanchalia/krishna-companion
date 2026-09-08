@@ -15,20 +15,27 @@ const hook = path.join(projectRoot, "scripts", "krshna-hook.js");
 // start the app). The stub is a POSIX script; on Windows the spawn fails and the
 // hook fails open, which the platform notes already list as untested.
 const stubDir = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-hook-stub-"));
-const stubLauncher = path.join(stubDir, "node-stub");
-fs.writeFileSync(stubLauncher, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+// The hook now waits for `krshna now` to *exit* and blocks only on exit 0. Two POSIX
+// stubs stand in for that CLI without launching anything: one that acknowledges
+// (exit 0) and one that reports no acknowledgement (exit 2). On Windows the spawn
+// fails and the hook fails open, which the platform notes already list as untested.
+const ackStub = path.join(stubDir, "ack-stub");
+const noAckStub = path.join(stubDir, "no-ack-stub");
+fs.writeFileSync(ackStub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+fs.writeFileSync(noAckStub, "#!/bin/sh\nexit 2\n", { mode: 0o755 });
 test.after(() => fs.rmSync(stubDir, { recursive: true, force: true }));
 
-function runHook(input, extraEnv = {}) {
+function runHook(input, stub = ackStub, extraEnv = {}) {
   return execFileSync(process.execPath, [hook], {
     input,
     encoding: "utf8",
+    stdio: ["pipe", "pipe", "ignore"],
     // PATH is emptied to prove the hook resolves the CLI by absolute path, not PATH.
-    env: { ...process.env, PATH: "", KRSHNA_HOOK_NODE: stubLauncher, ...extraEnv }
+    env: { ...process.env, PATH: "", KRSHNA_HOOK_NODE: stub, ...extraEnv }
   });
 }
 
-test("matching prompts are blocked and non-matching prompts pass silently", () => {
+test("acknowledged invocation is blocked; non-matching prompts pass silently", () => {
   assert.equal(
     runHook(JSON.stringify({ prompt: "Hare Kṛṣṇa!" })),
     JSON.stringify({ decision: "block", reason: "Hare Kṛṣṇa" })
@@ -37,15 +44,18 @@ test("matching prompts are blocked and non-matching prompts pass silently", () =
   assert.equal(runHook("not json"), "");
 });
 
-test("a spawn failure fails open: empty stdout, exit 0", () => {
+test("a non-zero CLI exit fails open: empty stdout, exit 0", () => {
+  assert.equal(runHook(JSON.stringify({ prompt: "Hare Kṛṣṇa!" }), noAckStub), "");
+});
+
+test("a spawn failure (missing launcher) fails open: empty stdout, exit 0", () => {
   const bogusNode = path.join(os.tmpdir(), "krshna-no-such-node-binary");
-  const result = execFileSync(process.execPath, [hook], {
-    input: JSON.stringify({ prompt: "Hare Kṛṣṇa!" }),
-    encoding: "utf8",
-    stdio: ["pipe", "pipe", "ignore"],
-    env: { ...process.env, KRSHNA_HOOK_NODE: bogusNode }
-  });
-  assert.equal(result, "");
+  assert.equal(runHook(JSON.stringify({ prompt: "Hare Kṛṣṇa!" }), bogusNode), "");
+});
+
+test("an oversized payload passes through untouched", () => {
+  const huge = "Hare Kṛṣṇa " + "x".repeat(70 * 1024);
+  assert.equal(runHook(JSON.stringify({ prompt: huge })), "");
 });
 
 test("install merges the Claude hook idempotently and uninstall removes only it", (context) => {

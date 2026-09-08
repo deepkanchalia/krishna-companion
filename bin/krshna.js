@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const { spawn } = require("node:child_process");
 const { reflections } = require("../src/content");
 const { isValidHistoryEntry } = require("../src/journey");
+const { waitForAck } = require("../src/ack");
 
 const projectRoot = path.resolve(__dirname, "..");
 const rawCommand = (process.argv[2] || "live").toLowerCase();
@@ -109,7 +110,7 @@ function launch(nextCommand) {
   } catch {
     console.error("Electron is not installed. Run `npm install` in the Krishna Companion project.");
     process.exitCode = 1;
-    return;
+    return false;
   }
 
   const child = spawn(electronPath, [projectRoot, `--command=${nextCommand}`], {
@@ -118,6 +119,7 @@ function launch(nextCommand) {
     cwd: projectRoot
   });
   child.unref();
+  return true;
 }
 
 function installZsh() {
@@ -268,13 +270,23 @@ switch (command) {
   case "-h":
     help();
     break;
+  case "now": {
+    // Launch or forward, then wait for the companion to stamp state.json before
+    // returning, so the Claude Code hook knows the invocation was received.
+    const t0 = Date.now();
+    if (!launch("now")) break; // electron missing: exit code already set
+    if (waitForAck(stateFile(), t0, 4000)) {
+      process.exitCode = 0;
+    } else {
+      process.stderr.write("companion did not acknowledge within 4 s\n");
+      process.exitCode = 2;
+    }
+    break;
+  }
   case "live":
   case "start":
-  case "now":
     launch(command);
-    if (command !== "now") {
-      console.log("🪶 Kṛṣṇa Companion is live. Your terminal work will continue normally.");
-    }
+    console.log("🪶 Kṛṣṇa Companion is live. Your terminal work will continue normally.");
     break;
   case "pause":
   case "resume":

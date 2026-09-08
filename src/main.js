@@ -46,6 +46,7 @@ let cadenceTimer;
 let dismissTimer;
 let paused = false;
 let nextReflectionAt;
+let lastCommand = null;
 let nextVerseIndex = 0;
 let requestedVerseIndex;
 let statePath;
@@ -126,8 +127,17 @@ function saveState(live = true) {
     nextReflectionAt,
     nextVerseIndex,
     nextReference: reflections[nextVerseIndex]?.reference,
-    lastReference: last?.reference
+    lastReference: last?.reference,
+    lastCommand
   });
+}
+
+// Record that a `now` invocation reached this instance, and persist it before the
+// card is shown. The CLI polls state.json for this stamp: the acknowledgement must
+// not depend on a card actually opening, since one may already be open.
+function acknowledgeCommand(name) {
+  lastCommand = { name, receivedAt: new Date().toISOString() };
+  saveState();
 }
 
 function saveJourney(index, reflection) {
@@ -506,6 +516,7 @@ function handleCommand(command) {
       break;
     case "now":
     case "/krshna":
+      acknowledgeCommand("now");
       showCompanion(true);
       break;
     case "voice-on":
@@ -590,6 +601,7 @@ if (instanceLock) app.whenReady().then(() => {
   companionWindow.webContents.once("did-finish-load", () => {
     showRestingCompanion();
     setTimeout(() => {
+      if (config.command === "now") acknowledgeCommand("now");
       if (config.demo || config.command === "now") showCompanion(true);
       else handleCommand(config.command);
 
