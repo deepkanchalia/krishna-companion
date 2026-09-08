@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { execFileSync } = require("node:child_process");
+const { execFileSync, spawn } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -15,20 +15,50 @@ const hook = path.join(projectRoot, "scripts", "krshna-hook.js");
 // start the app). The stub is a POSIX script; on Windows the spawn fails and the
 // hook fails open, which the platform notes already list as untested.
 const stubDir = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-hook-stub-"));
-const stubLauncher = path.join(stubDir, "node-stub");
-fs.writeFileSync(stubLauncher, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+// The hook now waits for `krshna now` to *exit* and blocks only on exit 0. Two POSIX
+// stubs stand in for that CLI without launching anything: one that acknowledges
+// (exit 0) and one that reports no acknowledgement (exit 2). On Windows the spawn
+// fails and the hook fails open, which the platform notes already list as untested.
+const ackStub = path.join(stubDir, "ack-stub");
+const noAckStub = path.join(stubDir, "no-ack-stub");
+// A stub that ignores SIGTERM and sleeps well past the hook's 6 s budget, to prove
+// the hook stops waiting on it AND SIGKILLs it rather than orphaning it. It records
+// its own PID so the test can confirm the process is gone.
+const hangStub = path.join(stubDir, "hang-stub");
+fs.writeFileSync(ackStub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+fs.writeFileSync(noAckStub, "#!/bin/sh\nexit 2\n", { mode: 0o755 });
+fs.writeFileSync(hangStub, '#!/bin/sh\ntrap "" TERM\necho $$ > "$KRSHNA_STUB_PIDFILE"\nsleep 8\n', { mode: 0o755 });
+
+// Poll until `pid` no longer exists (signal 0 throws), or the budget elapses.
+function processGoneWithin(pid, budgetMs) {
+  const deadline = Date.now() + budgetMs;
+  for (;;) {
+    try {
+      process.kill(pid, 0);
+    } catch {
+      return true; // ESRCH: the process is gone.
+    }
+    if (Date.now() >= deadline) return false;
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+  }
+}
 test.after(() => fs.rmSync(stubDir, { recursive: true, force: true }));
 
-function runHook(input, extraEnv = {}) {
+function runHook(input, stub = ackStub, extraEnv = {}) {
   return execFileSync(process.execPath, [hook], {
     input,
     encoding: "utf8",
+    stdio: ["pipe", "pipe", "ignore"],
     // PATH is emptied to prove the hook resolves the CLI by absolute path, not PATH.
-    env: { ...process.env, PATH: "", KRSHNA_HOOK_NODE: stubLauncher, ...extraEnv }
+    env: { ...process.env, PATH: "", KRSHNA_HOOK_NODE: stub, ...extraEnv }
   });
 }
 
-test("matching prompts are blocked and non-matching prompts pass silently", () => {
+test("acknowledged invocation is blocked; non-matching prompts pass silently", {
+  // The block path needs the POSIX stub to actually run as the CLI; Windows cannot
+  // exec a /bin/sh script, so there the hook fails open (a documented platform gap).
+  skip: process.platform === "win32" ? "POSIX stub cannot run on Windows" : false
+}, () => {
   assert.equal(
     runHook(JSON.stringify({ prompt: "Hare Kṛṣṇa!" })),
     JSON.stringify({ decision: "block", reason: "Hare Kṛṣṇa" })
@@ -37,15 +67,67 @@ test("matching prompts are blocked and non-matching prompts pass silently", () =
   assert.equal(runHook("not json"), "");
 });
 
-test("a spawn failure fails open: empty stdout, exit 0", () => {
+test("a non-zero CLI exit fails open: empty stdout, exit 0", () => {
+  assert.equal(runHook(JSON.stringify({ prompt: "Hare Kṛṣṇa!" }), noAckStub), "");
+});
+
+test("a spawn failure (missing launcher) fails open: empty stdout, exit 0", () => {
   const bogusNode = path.join(os.tmpdir(), "krshna-no-such-node-binary");
-  const result = execFileSync(process.execPath, [hook], {
-    input: JSON.stringify({ prompt: "Hare Kṛṣṇa!" }),
-    encoding: "utf8",
-    stdio: ["pipe", "pipe", "ignore"],
-    env: { ...process.env, KRSHNA_HOOK_NODE: bogusNode }
+  assert.equal(runHook(JSON.stringify({ prompt: "Hare Kṛṣṇa!" }), bogusNode), "");
+});
+
+test("an oversized payload passes through untouched", () => {
+  const huge = "Hare Kṛṣṇa " + "x".repeat(70 * 1024);
+  assert.equal(runHook(JSON.stringify({ prompt: huge })), "");
+});
+
+test("an oversized payload exits at once without waiting for EOF", () => {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [hook], {
+      env: { ...process.env, PATH: "", KRSHNA_HOOK_NODE: ackStub }
+    });
+    let out = "";
+    const started = Date.now();
+    child.stdout.on("data", (chunk) => { out += chunk; });
+    child.stdin.on("error", () => {}); // stdin is destroyed once the cap is hit
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      const elapsed = Date.now() - started;
+      try {
+        assert.equal(code, 0, "passes through with exit 0");
+        assert.equal(out, "", "nothing on stdout");
+        assert.ok(elapsed < 1000, `should stop reading at the cap, not hang (took ${elapsed} ms)`);
+        resolve();
+      } catch (error) {
+        reject(error);
+      }
+    });
+    // Send more than the 64 KB cap and deliberately never end stdin.
+    child.stdin.write("Hare Kṛṣṇa " + "x".repeat(70 * 1024));
   });
-  assert.equal(result, "");
+});
+
+test("a companion that never acknowledges is abandoned, not waited out", {
+  // POSIX stub; on Windows the spawn fails and the hook fails open at once.
+  skip: process.platform === "win32" ? "POSIX stub cannot run on Windows" : false
+}, () => {
+  const pidFile = path.join(stubDir, "hang-pid");
+  fs.rmSync(pidFile, { force: true });
+  const started = Date.now();
+  // Restore PATH so the stub's `sleep` resolves; the hook itself still finds the CLI
+  // by absolute path. Without this the stub would exit at once and never hang.
+  const out = runHook(JSON.stringify({ prompt: "Hare Kṛṣṇa!" }), hangStub, {
+    PATH: process.env.PATH,
+    KRSHNA_STUB_PIDFILE: pidFile
+  });
+  const elapsed = Date.now() - started;
+  assert.equal(out, "", "no block decision: the prompt passes through");
+  assert.ok(elapsed < 6600, `should give up near 6 s, not wait out the 8 s child (took ${elapsed} ms)`);
+
+  // The child must be SIGKILLed, not orphaned: its PID is gone within 1 s.
+  const pid = Number(fs.readFileSync(pidFile, "utf8").trim());
+  assert.ok(Number.isInteger(pid) && pid > 0, "stub recorded its PID");
+  assert.ok(processGoneWithin(pid, 1000), `the stub process ${pid} was killed, not orphaned`);
 });
 
 test("install merges the Claude hook idempotently and uninstall removes only it", (context) => {
@@ -64,7 +146,7 @@ test("install merges the Claude hook idempotently and uninstall removes only it"
     }
   };
   fs.writeFileSync(settingsFile, `${JSON.stringify(original, null, 2)}\n`);
-  const env = { ...process.env, HOME: home };
+  const env = { ...process.env, HOME: home, KRSHNA_HOME: home };
 
   execFileSync(process.execPath, [cli, "install"], { env });
   execFileSync(process.execPath, [cli, "install"], { env });
@@ -94,7 +176,7 @@ test("installing from two checkout paths leaves exactly one hook; uninstall clea
     fs.mkdirSync(path.join(root, "scripts"), { recursive: true });
     fs.copyFileSync(cli, path.join(root, "bin", "krshna.js"));
     fs.copyFileSync(hook, path.join(root, "scripts", "krshna-hook.js"));
-    fs.symlinkSync(path.join(projectRoot, "src"), path.join(root, "src"));
+    fs.symlinkSync(path.join(projectRoot, "src"), path.join(root, "src"), "junction"); // junction: no privilege needed on Windows
     return path.join(root, "bin", "krshna.js");
   }
 
@@ -104,7 +186,7 @@ test("installing from two checkout paths leaves exactly one hook; uninstall clea
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-home2-"));
   context.after(() => fs.rmSync(home, { recursive: true, force: true }));
   const settingsFile = path.join(home, ".claude", "settings.json");
-  const env = { ...process.env, HOME: home };
+  const env = { ...process.env, HOME: home, KRSHNA_HOME: home };
 
   execFileSync(process.execPath, [cliA, "install"], { env });
   execFileSync(process.execPath, [cliB, "install"], { env });
@@ -115,7 +197,10 @@ test("installing from two checkout paths leaves exactly one hook; uninstall clea
     .map((item) => item.command)
     .filter((command) => command.includes("KRSHNA_HOOK=1"));
   assert.equal(commands.length, 1);
-  assert.ok(commands[0].includes(path.join("checkout-b", "scripts", "krshna-hook.js")));
+  // Assert by segment, not a joined path: on Windows JSON.stringify escapes the path
+  // separators inside the stored command, so an exact path.join() substring misses.
+  assert.ok(commands[0].includes("checkout-b") && commands[0].includes("krshna-hook.js"));
+  assert.ok(!commands[0].includes("checkout-a"));
 
   // Uninstall from the *other* checkout still removes it: marker, not path, matches.
   execFileSync(process.execPath, [cliA, "uninstall"], { env });
@@ -124,4 +209,70 @@ test("installing from two checkout paths leaves exactly one hook; uninstall clea
     .flatMap((group) => group.hooks || [])
     .filter((item) => typeof item.command === "string" && item.command.includes("KRSHNA_HOOK=1"));
   assert.equal(remaining.length, 0);
+});
+
+test("zsh block: two checkouts install one block; uninstall restores .zshrc byte-for-byte", (context) => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-zsh-checkouts-"));
+  context.after(() => fs.rmSync(workspace, { recursive: true, force: true }));
+
+  function makeCheckout(name) {
+    const root = path.join(workspace, name);
+    fs.mkdirSync(path.join(root, "bin"), { recursive: true });
+    fs.mkdirSync(path.join(root, "scripts"), { recursive: true });
+    fs.mkdirSync(path.join(root, "shell"), { recursive: true });
+    fs.copyFileSync(cli, path.join(root, "bin", "krshna.js"));
+    fs.copyFileSync(hook, path.join(root, "scripts", "krshna-hook.js"));
+    fs.writeFileSync(path.join(root, "shell", "krshna.zsh"), "# stub\n");
+    fs.symlinkSync(path.join(projectRoot, "src"), path.join(root, "src"), "junction"); // junction: no privilege needed on Windows
+    return path.join(root, "bin", "krshna.js");
+  }
+
+  const cliA = makeCheckout("checkout-a");
+  const cliB = makeCheckout("checkout-b");
+
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-zsh-home-"));
+  context.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const zshrc = path.join(home, ".zshrc");
+  const before = "export EDITOR=vim\nalias ll='ls -la'\n";
+  fs.writeFileSync(zshrc, before);
+  const env = { ...process.env, HOME: home, KRSHNA_HOME: home };
+
+  execFileSync(process.execPath, [cliA, "install"], { env });
+  execFileSync(process.execPath, [cliB, "install"], { env });
+
+  const installed = fs.readFileSync(zshrc, "utf8");
+  const blocks = installed.match(/# >>> krshna companion >>>/g) || [];
+  assert.equal(blocks.length, 1, "exactly one zsh block");
+  // Segment checks, not joined paths: Windows escapes the separators in the source
+  // line (JSON.stringify), so an exact path.join() substring would miss.
+  assert.ok(installed.includes("checkout-b") && installed.includes("krshna.zsh"), "points at the second checkout");
+  assert.ok(!installed.includes("checkout-a"), "not the first checkout");
+  assert.ok(installed.startsWith(before), "original lines preserved");
+
+  execFileSync(process.execPath, [cliA, "uninstall"], { env });
+  const restored = fs.readFileSync(zshrc, "utf8");
+  assert.equal(restored, before, ".zshrc byte-identical after uninstall");
+
+  // A second uninstall with no block present is a no-op.
+  execFileSync(process.execPath, [cliA, "uninstall"], { env });
+  assert.equal(fs.readFileSync(zshrc, "utf8"), before, "no-op uninstall leaves .zshrc unchanged");
+});
+
+test("zsh install/uninstall round-trips both trailing-newline shapes byte-for-byte", (context) => {
+  for (const before of ["export EDITOR=vim\nalias ll='ls -la'\n", "export EDITOR=vim\nalias ll='ls -la'"]) {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-zsh-shape-"));
+    context.after(() => fs.rmSync(home, { recursive: true, force: true }));
+    const zshrc = path.join(home, ".zshrc");
+    fs.writeFileSync(zshrc, before);
+    const env = { ...process.env, HOME: home, KRSHNA_HOME: home };
+
+    execFileSync(process.execPath, [cli, "install"], { env });
+    const installed = fs.readFileSync(zshrc, "utf8");
+    assert.ok(installed.startsWith(before), "prior content is preserved");
+    assert.ok(installed.includes("# >>> krshna companion >>>"), "the block was written");
+
+    execFileSync(process.execPath, [cli, "uninstall"], { env });
+    const shape = before.endsWith("\n") ? "trailing newline" : "no trailing newline";
+    assert.equal(fs.readFileSync(zshrc, "utf8"), before, `${shape}: byte-identical after uninstall`);
+  }
 });

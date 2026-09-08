@@ -37,7 +37,7 @@ krshna stop
 
 `pause`, `resume` and `stop` only act on a running companion; they do not start one.
 
-`krshna install` (run in the quickstart above) adds a literal `/krshna` command and a persistent `🪶 Kṛṣṇa · 30m` right-prompt to zsh. Open a new terminal, then `/krshna` summons a teaching. `/krshna pause`, `/krshna resume`, and `/krshna stop` work as expected. The unprefixed `krshna` command remains the portable option across shells and terminal agents. `krshna uninstall` removes the Claude Code hook again.
+`krshna install` (run in the quickstart above) adds a literal `/krshna` command and a persistent `🪶 Kṛṣṇa · 30m` right-prompt to zsh. Open a new terminal, then `/krshna` summons a teaching. `/krshna pause`, `/krshna resume`, and `/krshna stop` work as expected. The unprefixed `krshna` command remains the portable option across shells and terminal agents. `krshna uninstall` removes both the zsh integration block and the Claude Code hook again, leaving the rest of your `.zshrc` untouched.
 
 ## Voice
 
@@ -88,7 +88,7 @@ Click “Continue” to collapse the card. The card opens without taking keyboar
 
 ## Source policy
 
-Every word shown to the reader is copied as is from A. C. Bhaktivedanta Swami Prabhupāda's *Bhagavad-gītā As It Is*, using the BBT-authorized [VedaBase](https://vedabase.io/en/library/bg/) edition: the translation of each verse and the opening sentences of its purport. Nothing is paraphrased, summarised or rewritten, and no other Gītā translation or commentary is used. Each teaching links to its source verse.
+Every word shown to the reader is copied as is from A. C. Bhaktivedanta Swami Prabhupāda's *Bhagavad-gītā As It Is*, using the BBT-authorized [VedaBase](https://vedabase.io/en/library/bg/) edition: the translation of each verse and the opening sentences of its purport. Nothing is paraphrased, summarised or rewritten, and no other Gītā translation or commentary is used. Each teaching links to its source verse. A small number of verses carry no purport on VedaBase (32 of the 657 corpus entries); for those the card shows the translation only.
 
 `data/gita.json` is built by `npm run fetch`, which reads VedaBase at the crawl delay its `robots.txt` asks for (about two hours for the full text) and caches every page under `data/cache/`.
 
@@ -96,7 +96,7 @@ The text of *Bhagavad-gītā As It Is* is © The Bhaktivedanta Book Trust Intern
 
 ## How context and sequence are saved
 
-The companion never reads or stores terminal output, prompts, source code, or conversations. Its “context” is limited to its own Gītā journey:
+The companion never reads or stores terminal output, source code, or conversations, and makes no network requests of its own. The one prompt it sees is through Claude Code's `UserPromptSubmit` hook: each prompt you submit is passed to the hook, which checks its text in memory against the single invocation phrase (“Hare Kṛṣṇa” as the whole prompt). Nothing about a prompt is stored, logged, or sent anywhere, whether it matches or not; nothing else is read. Beyond that, the companion's “context” is limited to its own Gītā journey:
 
 - `journey.json` atomically stores the next verse index and up to 100 previously shown references, translations, purport excerpts, source links, and timestamps.
 - `settings.json` stores the resting figurine position and local voice settings.

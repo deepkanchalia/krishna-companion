@@ -20,6 +20,7 @@ const { reflections } = require("./content");
 const { normalizeJourney, recordTeaching } = require("./journey");
 const { canShowTeaching } = require("./schedule");
 const { containsInvocation } = require("./voice");
+const { windowCanAcknowledge } = require("./ack");
 const {
   DEFAULT_VOICE_SETTINGS,
   createFrontmostAppGate,
@@ -46,6 +47,7 @@ let cadenceTimer;
 let dismissTimer;
 let paused = false;
 let nextReflectionAt;
+let lastCommand = null;
 let nextVerseIndex = 0;
 let requestedVerseIndex;
 let statePath;
@@ -126,8 +128,17 @@ function saveState(live = true) {
     nextReflectionAt,
     nextVerseIndex,
     nextReference: reflections[nextVerseIndex]?.reference,
-    lastReference: last?.reference
+    lastReference: last?.reference,
+    lastCommand
   });
+}
+
+// Record that a `now` invocation reached this instance, and persist it before the
+// card is shown. The CLI polls state.json for this stamp: the acknowledgement must
+// not depend on a card actually opening, since one may already be open.
+function acknowledgeCommand(name) {
+  lastCommand = { name, receivedAt: new Date().toISOString() };
+  saveState();
 }
 
 function saveJourney(index, reflection) {
@@ -487,6 +498,24 @@ function restartCadence(minutes = config.intervalMinutes) {
   saveState();
 }
 
+// Show a darshan for a `now` invocation. Recreate the window if the app is alive
+// without one; acknowledge (which blocks the prompt in the hook) and show only when
+// a window can actually display it, otherwise skip so the CLI exits 2 and the hook
+// passes the prompt through. When the window was just recreated its renderer is
+// still loading, so defer the reveal to did-finish-load — sending companion:show
+// before then would lose the teaching and flash a blank card.
+function revealNow() {
+  const recreated = !companionWindow || companionWindow.isDestroyed();
+  if (recreated) createWindow();
+  if (!windowCanAcknowledge(companionWindow)) return;
+  const reveal = () => {
+    acknowledgeCommand("now");
+    showCompanion(true);
+  };
+  if (recreated) companionWindow.webContents.once("did-finish-load", reveal);
+  else reveal();
+}
+
 function handleCommand(command) {
   switch (command) {
     case "pause":
@@ -506,7 +535,7 @@ function handleCommand(command) {
       break;
     case "now":
     case "/krshna":
-      showCompanion(true);
+      revealNow();
       break;
     case "voice-on":
       setVoiceEnabled(true);
@@ -590,7 +619,8 @@ if (instanceLock) app.whenReady().then(() => {
   companionWindow.webContents.once("did-finish-load", () => {
     showRestingCompanion();
     setTimeout(() => {
-      if (config.demo || config.command === "now") showCompanion(true);
+      if (config.command === "now") revealNow();
+      else if (config.demo) showCompanion(true);
       else handleCommand(config.command);
 
       if (!config.screenshot) return;
