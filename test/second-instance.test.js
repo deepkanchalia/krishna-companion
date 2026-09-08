@@ -4,23 +4,16 @@ const { planSecondInstance } = require("../src/second-instance");
 const config = require("../src/config");
 const { readConfig, SECOND_INSTANCE_COMMANDS } = config;
 
-// Build the config a real second launch would forward, from an argv, so the plan is
-// exercised through the same parser the app uses.
+// planSecondInstance is pure and returns { actions, rejected }; these helpers pull out
+// the piece each test cares about. Build the config a real second launch would forward
+// from an argv, so the plan is exercised through the same parser the app uses.
 function planFromArgv(argv, currentState) {
-  return planSecondInstance(readConfig(argv), currentState);
+  return planSecondInstance(readConfig(argv), currentState).actions;
 }
 
-// Run planSecondInstance capturing the stderr it writes for rejected fields.
-function planCapturing(incoming, currentState) {
-  const lines = [];
-  const restore = process.stderr.write.bind(process.stderr);
-  process.stderr.write = (chunk) => { lines.push(String(chunk)); return true; };
-  try {
-    const actions = planSecondInstance(incoming, currentState);
-    return { actions, lines };
-  } finally {
-    process.stderr.write = restore;
-  }
+// The names of the fields the validator rejected, for the rejection assertions.
+function rejectedFields(incoming, currentState) {
+  return planSecondInstance(incoming, currentState).rejected.map((entry) => entry.field);
 }
 
 test("now shows a darshan", () => {
@@ -91,67 +84,66 @@ test("the validator's bounds equal the limits readConfig enforces", () => {
   assert.equal(readConfig(["--duration=-5"]).durationSeconds, config.DURATION_SECONDS_MIN);
 });
 
-test("a forged command outside the whitelist is dropped with one stderr line", () => {
-  const { actions, lines } = planCapturing({ command: "rm -rf /", provided: { command: true } });
-  assert.ok(!actions.some((a) => a.type === "command"), "no command action");
-  assert.ok(!actions.some((a) => a.type === "show"), "does not show on garbage");
-  assert.equal(lines.length, 1);
-  assert.match(lines[0], /command/);
+test("planSecondInstance is pure: it reports rejected fields instead of writing stderr", () => {
+  const result = planSecondInstance({ command: "rm -rf /", provided: { command: true } });
+  assert.deepEqual(Object.keys(result).sort(), ["actions", "rejected"]);
+  assert.ok(Array.isArray(result.rejected) && typeof result.rejected[0].reason === "string");
+});
+
+test("a forged command outside the whitelist is rejected and does not act", () => {
+  const result = planSecondInstance({ command: "rm -rf /", provided: { command: true } });
+  assert.ok(!result.actions.some((a) => a.type === "command"), "no command action");
+  assert.ok(!result.actions.some((a) => a.type === "show"), "does not show on garbage");
+  assert.deepEqual(result.rejected.map((r) => r.field), ["command"]);
 });
 
 test("a malformed verse is dropped; a valid now still shows without it", () => {
-  const { actions, lines } = planCapturing({ command: "now", verse: "; rm", provided: { command: true, verse: true } });
-  assert.deepEqual(actions, [{ type: "show" }], "shows, but not the rejected verse");
-  assert.equal(lines.length, 1);
-  assert.match(lines[0], /verse/);
+  const result = planSecondInstance({ command: "now", verse: "; rm", provided: { command: true, verse: true } });
+  assert.deepEqual(result.actions, [{ type: "show" }], "shows, but not the rejected verse");
+  assert.deepEqual(result.rejected.map((r) => r.field), ["verse"]);
 });
 
 test("out-of-range interval and duration are dropped", () => {
-  const interval = planCapturing({ command: "live", intervalMinutes: 99999, provided: { command: true, interval: true } });
+  const interval = planSecondInstance({ command: "live", intervalMinutes: 99999, provided: { command: true, interval: true } });
   assert.ok(!interval.actions.some((a) => a.type === "set-interval"));
-  assert.match(interval.lines[0], /interval/);
+  assert.deepEqual(interval.rejected.map((r) => r.field), ["intervalMinutes"]);
 
-  const duration = planCapturing({ command: "now", durationSeconds: 99999, provided: { command: true, duration: true } });
+  const duration = planSecondInstance({ command: "now", durationSeconds: 99999, provided: { command: true, duration: true } });
   assert.deepEqual(duration.actions, [{ type: "show" }], "no one-off duration applied");
-  assert.match(duration.lines[0], /duration/);
+  assert.deepEqual(duration.rejected.map((r) => r.field), ["durationSeconds"]);
 });
 
 test("non-boolean demo/screenshot are dropped", () => {
-  const { actions, lines } = planCapturing({ command: "live", demo: "yes", screenshot: 1, provided: { command: true } });
-  assert.ok(!actions.some((a) => a.type === "screenshot"), "no screenshot on a non-boolean");
-  assert.equal(lines.length, 1);
-  assert.match(lines[0], /demo|screenshot/);
+  const fields = rejectedFields({ command: "live", demo: "yes", screenshot: 1, provided: { command: true } });
+  assert.ok(fields.includes("demo") && fields.includes("screenshot"));
 });
 
-test("an empty --verse on a second instance is ignored with one stderr line, not shown", () => {
-  const { actions, lines } = planCapturing(readConfig(["--verse="]));
-  assert.ok(!actions.some((a) => a.type === "show"), "no darshan for an empty verse");
-  assert.equal(lines.length, 1);
-  assert.match(lines[0], /verse/);
+test("an empty --verse on a second instance is rejected, not shown", () => {
+  const result = planSecondInstance(readConfig(["--verse="]));
+  assert.ok(!result.actions.some((a) => a.type === "show"), "no darshan for an empty verse");
+  assert.deepEqual(result.rejected.map((r) => r.field), ["verse"]);
 });
 
-test("an unknown top-level key is dropped with the same one-line notice", () => {
-  const { actions, lines } = planCapturing({ command: "now", provided: { command: true }, evil: 1 });
-  assert.deepEqual(actions, [{ type: "show" }], "still acts on the known fields");
-  assert.equal(lines.length, 1);
-  assert.match(lines[0], /evil/);
+test("an unknown top-level key is dropped and reported", () => {
+  const result = planSecondInstance({ command: "now", provided: { command: true }, evil: 1 });
+  assert.deepEqual(result.actions, [{ type: "show" }], "still acts on the known fields");
+  assert.deepEqual(result.rejected.map((r) => r.field), ["evil"]);
 });
 
-test("a clean config produces no rejection line", () => {
-  const { lines } = planCapturing(readConfig(["--command=pause"]));
-  assert.equal(lines.length, 0);
+test("a clean config rejects nothing", () => {
+  assert.deepEqual(planSecondInstance(readConfig(["--command=pause"])).rejected, []);
 });
 
 test("leading-zero verse is still accepted through the whitelist", () => {
-  const { actions, lines } = planCapturing({ command: "now", verse: "02.47", provided: { command: true, verse: true } });
-  assert.deepEqual(actions, [{ type: "show", verse: "02.47" }]);
-  assert.equal(lines.length, 0);
+  const result = planSecondInstance({ command: "now", verse: "02.47", provided: { command: true, verse: true } });
+  assert.deepEqual(result.actions, [{ type: "show", verse: "02.47" }]);
+  assert.deepEqual(result.rejected, []);
 });
 
 test("missing or malformed config is handled without crashing", () => {
-  assert.deepEqual(planSecondInstance(null), []);
-  assert.deepEqual(planSecondInstance(undefined), []);
-  assert.deepEqual(planSecondInstance("nope"), []);
+  assert.deepEqual(planSecondInstance(null), { actions: [], rejected: [] });
+  assert.deepEqual(planSecondInstance(undefined), { actions: [], rejected: [] });
+  assert.deepEqual(planSecondInstance("nope"), { actions: [], rejected: [] });
   // An empty object with no fields: default command is now, so it shows.
-  assert.deepEqual(planSecondInstance({}), [{ type: "show" }]);
+  assert.deepEqual(planSecondInstance({}).actions, [{ type: "show" }]);
 });

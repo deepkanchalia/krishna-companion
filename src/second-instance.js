@@ -48,7 +48,7 @@ function sanitizeIncoming(config) {
     clean.command = config.command;
     provided.command = raw.command === true;
   } else {
-    rejected.push("command");
+    rejected.push({ field: "command", reason: "not an accepted command" });
     clean.command = "live"; // safe: does not show a darshan on garbage input
     provided.command = false;
   }
@@ -58,7 +58,7 @@ function sanitizeIncoming(config) {
       clean.verse = config.verse;
       provided.verse = true;
     } else {
-      rejected.push("verse");
+      rejected.push({ field: "verse", reason: "not a verse like 2.47" });
     }
   }
 
@@ -68,7 +68,7 @@ function sanitizeIncoming(config) {
       clean.intervalMinutes = config.intervalMinutes;
       provided.interval = true;
     } else {
-      rejected.push("interval");
+      rejected.push({ field: "intervalMinutes", reason: `outside ${INTERVAL_MINUTES_MIN}–${INTERVAL_MINUTES_MAX}` });
     }
   }
 
@@ -78,34 +78,32 @@ function sanitizeIncoming(config) {
       clean.durationSeconds = config.durationSeconds;
       provided.duration = true;
     } else {
-      rejected.push("duration");
+      rejected.push({ field: "durationSeconds", reason: `outside ${DURATION_SECONDS_MIN}–${DURATION_SECONDS_MAX}` });
     }
   }
 
   clean.demo = config.demo === true;
-  if (config.demo !== undefined && typeof config.demo !== "boolean") rejected.push("demo");
+  if (config.demo !== undefined && typeof config.demo !== "boolean") rejected.push({ field: "demo", reason: "not a boolean" });
   clean.screenshot = config.screenshot === true;
-  if (config.screenshot !== undefined && typeof config.screenshot !== "boolean") rejected.push("screenshot");
+  if (config.screenshot !== undefined && typeof config.screenshot !== "boolean") rejected.push({ field: "screenshot", reason: "not a boolean" });
 
   // Any key we do not recognise is dropped and reported, so a forged additionalData
   // cannot smuggle unexpected fields past the validator unnoticed.
   for (const key of Object.keys(config)) {
-    if (!KNOWN_KEYS.has(key)) rejected.push(key);
+    if (!KNOWN_KEYS.has(key)) rejected.push({ field: key, reason: "unknown field" });
   }
 
   return { clean, rejected };
 }
 
+// Pure: returns the actions the running instance should take AND the list of rejected
+// fields ({ field, reason }). The caller (src/main.js) prints one stderr line per rejected
+// field; nothing here writes to stderr, so it stays testable without capturing output.
 function planSecondInstance(incoming, currentState = {}) {
   const actions = [];
-  if (!incoming || typeof incoming !== "object") return actions;
+  if (!incoming || typeof incoming !== "object") return { actions, rejected: [] };
 
   const { clean: config, rejected } = sanitizeIncoming(incoming);
-  if (rejected.length > 0) {
-    process.stderr.write(
-      `Krishna Companion ignored invalid second-instance ${rejected.length === 1 ? "field" : "fields"}: ${rejected.join(", ")}\n`
-    );
-  }
   const provided = config.provided;
 
   // --interval: change cadence and persist, whatever the command was.
@@ -135,7 +133,7 @@ function planSecondInstance(incoming, currentState = {}) {
 
   if (config.screenshot) actions.push({ type: "screenshot" });
 
-  return actions;
+  return { actions, rejected };
 }
 
 module.exports = { planSecondInstance, sanitizeIncoming };
