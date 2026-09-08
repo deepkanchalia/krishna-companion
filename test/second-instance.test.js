@@ -1,7 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { planSecondInstance } = require("../src/second-instance");
-const { readConfig } = require("../src/config");
+const config = require("../src/config");
+const { readConfig, SECOND_INSTANCE_COMMANDS } = config;
 
 // Build the config a real second launch would forward, from an argv, so the plan is
 // exercised through the same parser the app uses.
@@ -68,6 +69,26 @@ test("demo with a verse and screenshot shows the verse and captures", () => {
 test("pause and other commands are forwarded", () => {
   assert.deepEqual(planFromArgv(["--command=pause"]), [{ type: "command", name: "pause" }]);
   assert.deepEqual(planFromArgv(["--command=stop"]), [{ type: "command", name: "stop" }]);
+});
+
+test("start, voice-on and voice-off are accepted (were wrongly rejected before)", () => {
+  assert.deepEqual(planFromArgv(["--command=start"]), [{ type: "command", name: "start" }]);
+  assert.deepEqual(planFromArgv(["--command=voice-on"]), [{ type: "command", name: "voice-on" }]);
+  assert.deepEqual(planFromArgv(["--command=voice-off"]), [{ type: "command", name: "voice-off" }]);
+});
+
+test("every command the CLI dispatches to Electron is on the accepted list", () => {
+  // Exactly the commands bin/krshna.js starts Electron for (launch()), plus the now case.
+  for (const command of ["now", "live", "start", "pause", "resume", "stop", "voice-on", "voice-off"]) {
+    assert.ok(SECOND_INSTANCE_COMMANDS.includes(command), `${command} must be accepted`);
+  }
+});
+
+test("the validator's bounds equal the limits readConfig enforces", () => {
+  assert.equal(readConfig(["--interval=99999"]).intervalMinutes, config.INTERVAL_MINUTES_MAX);
+  assert.equal(readConfig(["--interval=0"]).intervalMinutes, config.INTERVAL_MINUTES_MIN);
+  assert.equal(readConfig(["--duration=99999"]).durationSeconds, config.DURATION_SECONDS_MAX);
+  assert.equal(readConfig(["--duration=-5"]).durationSeconds, config.DURATION_SECONDS_MIN);
 });
 
 test("a forged command outside the whitelist is dropped with one stderr line", () => {

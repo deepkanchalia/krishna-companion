@@ -16,9 +16,19 @@
 // set, so a plain `krshna now` does not reset a running instance's cadence to the
 // default just because config carries the default value.
 
+const {
+  SECOND_INSTANCE_COMMANDS,
+  INTERVAL_MINUTES_MIN,
+  INTERVAL_MINUTES_MAX,
+  DURATION_SECONDS_MIN,
+  DURATION_SECONDS_MAX
+} = require("./config");
+
 // The incoming config crosses a process boundary (Electron's additionalData), so it is
 // treated as untrusted: only known-good shapes are honoured, everything else is dropped.
-const VALID_COMMANDS = new Set(["live", "now", "pause", "resume", "stop", "/krshna"]);
+// The accepted commands and the interval/duration bounds come from src/config.js so they
+// stay identical to what readConfig itself enforces.
+const VALID_COMMANDS = new Set(SECOND_INSTANCE_COMMANDS);
 const VERSE_PATTERN = /^\d{1,2}\.\d{1,3}(-\d{1,3})?$/;
 const KNOWN_KEYS = new Set(["command", "verse", "intervalMinutes", "durationSeconds", "demo", "screenshot", "provided"]);
 
@@ -53,7 +63,8 @@ function sanitizeIncoming(config) {
   }
 
   if (raw.interval) {
-    if (Number.isInteger(config.intervalMinutes) && config.intervalMinutes >= 1 && config.intervalMinutes <= 1440) {
+    if (Number.isFinite(config.intervalMinutes)
+      && config.intervalMinutes >= INTERVAL_MINUTES_MIN && config.intervalMinutes <= INTERVAL_MINUTES_MAX) {
       clean.intervalMinutes = config.intervalMinutes;
       provided.interval = true;
     } else {
@@ -62,7 +73,8 @@ function sanitizeIncoming(config) {
   }
 
   if (raw.duration) {
-    if (Number.isInteger(config.durationSeconds) && config.durationSeconds >= 0 && config.durationSeconds <= 3600) {
+    if (Number.isFinite(config.durationSeconds)
+      && config.durationSeconds >= DURATION_SECONDS_MIN && config.durationSeconds <= DURATION_SECONDS_MAX) {
       clean.durationSeconds = config.durationSeconds;
       provided.duration = true;
     } else {
