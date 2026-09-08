@@ -202,6 +202,13 @@ function installZsh() {
 // that sits mid-file — a pre-B1 legacy block, or one a user moved — the newline before
 // it belongs to the preceding line, so stripping it would merge two lines; there we
 // leave it, keeping the surrounding content byte-identical.
+//
+// One legacy case is inherently byte-ambiguous and cannot be perfectly restored: a
+// pre-B1 block appended directly after a newline-terminated file produces the exact same
+// bytes as a B1 install onto a file with no trailing newline (`…\n# >>>…\n`). Both look
+// like "one separator newline before a block at EOF", so uninstall strips that newline —
+// correct for the B1 case, but it drops the pre-B1 file's final newline. This affects
+// only that one shape and only the trailing newline; every other byte is preserved.
 function uninstallZsh() {
   const zshrc = zshrcFile();
   if (!fs.existsSync(zshrc)) return null;

@@ -122,7 +122,9 @@ test("a companion that never acknowledges is abandoned, not waited out", {
   });
   const elapsed = Date.now() - started;
   assert.equal(out, "", "no block decision: the prompt passes through");
-  assert.ok(elapsed < 6600, `should give up near 6 s, not wait out the 8 s child (took ${elapsed} ms)`);
+  // Real budget: 6.0 s ack timeout + 0.5 s SIGTERM->SIGKILL escalation + spawn overhead,
+  // so it settles well under the 8 s child. 6600 ms leaves headroom for the spawn cost.
+  assert.ok(elapsed < 6600, `should give up near 6.5 s, not wait out the 8 s child (took ${elapsed} ms)`);
 
   // The child must be SIGKILLed, not orphaned: its PID is gone within 1 s.
   const pid = Number(fs.readFileSync(pidFile, "utf8").trim());
