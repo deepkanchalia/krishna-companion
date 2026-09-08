@@ -135,3 +135,48 @@ test("installing from two checkout paths leaves exactly one hook; uninstall clea
     .filter((item) => typeof item.command === "string" && item.command.includes("KRSHNA_HOOK=1"));
   assert.equal(remaining.length, 0);
 });
+
+test("zsh block: two checkouts install one block; uninstall restores .zshrc byte-for-byte", (context) => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-zsh-checkouts-"));
+  context.after(() => fs.rmSync(workspace, { recursive: true, force: true }));
+
+  function makeCheckout(name) {
+    const root = path.join(workspace, name);
+    fs.mkdirSync(path.join(root, "bin"), { recursive: true });
+    fs.mkdirSync(path.join(root, "scripts"), { recursive: true });
+    fs.mkdirSync(path.join(root, "shell"), { recursive: true });
+    fs.copyFileSync(cli, path.join(root, "bin", "krshna.js"));
+    fs.copyFileSync(hook, path.join(root, "scripts", "krshna-hook.js"));
+    fs.writeFileSync(path.join(root, "shell", "krshna.zsh"), "# stub\n");
+    fs.symlinkSync(path.join(projectRoot, "src"), path.join(root, "src"));
+    return path.join(root, "bin", "krshna.js");
+  }
+
+  const cliA = makeCheckout("checkout-a");
+  const cliB = makeCheckout("checkout-b");
+
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-zsh-home-"));
+  context.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const zshrc = path.join(home, ".zshrc");
+  const before = "export EDITOR=vim\nalias ll='ls -la'\n";
+  fs.writeFileSync(zshrc, before);
+  const env = { ...process.env, HOME: home, KRSHNA_HOME: home };
+
+  execFileSync(process.execPath, [cliA, "install"], { env });
+  execFileSync(process.execPath, [cliB, "install"], { env });
+
+  const installed = fs.readFileSync(zshrc, "utf8");
+  const blocks = installed.match(/# >>> krshna companion >>>/g) || [];
+  assert.equal(blocks.length, 1, "exactly one zsh block");
+  assert.ok(installed.includes(path.join("checkout-b", "shell", "krshna.zsh")), "points at the second checkout");
+  assert.ok(!installed.includes(path.join("checkout-a", "shell", "krshna.zsh")), "not the first checkout");
+  assert.ok(installed.startsWith(before), "original lines preserved");
+
+  execFileSync(process.execPath, [cliA, "uninstall"], { env });
+  const restored = fs.readFileSync(zshrc, "utf8");
+  assert.equal(restored, before, ".zshrc byte-identical after uninstall");
+
+  // A second uninstall with no block present is a no-op.
+  execFileSync(process.execPath, [cliA, "uninstall"], { env });
+  assert.equal(fs.readFileSync(zshrc, "utf8"), before, "no-op uninstall leaves .zshrc unchanged");
+});

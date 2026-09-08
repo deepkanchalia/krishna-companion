@@ -122,17 +122,52 @@ function launch(nextCommand) {
   return true;
 }
 
-function installZsh() {
-  const zshrc = path.join(os.homedir(), ".zshrc");
+const ZSH_START = "# >>> krshna companion >>>";
+const ZSH_END = "# <<< krshna companion <<<";
+
+function zshrcFile() {
+  return path.join(os.homedir(), ".zshrc");
+}
+
+function zshBlock() {
   const sourcePath = path.join(projectRoot, "shell", "krshna.zsh");
-  const start = "# >>> krshna companion >>>";
+  return `${ZSH_START}\nsource ${JSON.stringify(sourcePath)}\n${ZSH_END}`;
+}
+
+function installZsh() {
+  const zshrc = zshrcFile();
   const existing = fs.existsSync(zshrc) ? fs.readFileSync(zshrc, "utf8") : "";
-  if (!existing.includes(start)) {
-    const backup = `${zshrc}.krshna-backup`;
-    if (fs.existsSync(zshrc) && !fs.existsSync(backup)) fs.copyFileSync(zshrc, backup);
-    const prefix = existing.length && !existing.endsWith("\n") ? "\n" : "";
-    fs.appendFileSync(zshrc, `${prefix}${start}\nsource ${JSON.stringify(sourcePath)}\n# <<< krshna companion <<<\n`);
+  const backup = `${zshrc}.krshna-backup`;
+  if (fs.existsSync(zshrc) && !fs.existsSync(backup)) fs.copyFileSync(zshrc, backup);
+
+  const startIndex = existing.indexOf(ZSH_START);
+  const endIndex = existing.indexOf(ZSH_END, startIndex);
+  if (startIndex !== -1 && endIndex !== -1) {
+    // Replace the existing block in place so a moved checkout points at the current
+    // path instead of accumulating a second block.
+    const after = endIndex + ZSH_END.length;
+    fs.writeFileSync(zshrc, existing.slice(0, startIndex) + zshBlock() + existing.slice(after));
+    return;
   }
+  const prefix = existing.length && !existing.endsWith("\n") ? "\n" : "";
+  fs.appendFileSync(zshrc, `${prefix}${zshBlock()}\n`);
+}
+
+// Remove the marked block, including its markers and the newline the install wrote
+// after it, leaving every other byte of .zshrc untouched. Returns the removed text,
+// or null when there is no block.
+function uninstallZsh() {
+  const zshrc = zshrcFile();
+  if (!fs.existsSync(zshrc)) return null;
+  const existing = fs.readFileSync(zshrc, "utf8");
+  const startIndex = existing.indexOf(ZSH_START);
+  const endIndex = existing.indexOf(ZSH_END, startIndex);
+  if (startIndex === -1 || endIndex === -1) return null;
+  let after = endIndex + ZSH_END.length;
+  const removed = existing.slice(startIndex, after);
+  if (existing[after] === "\n") after += 1;
+  fs.writeFileSync(zshrc, existing.slice(0, startIndex) + existing.slice(after));
+  return removed;
 }
 
 function claudeSettingsFile() {
@@ -186,37 +221,48 @@ function writeJsonFile(filePath, value) {
   fs.renameSync(temporaryPath, filePath);
 }
 
+// Read the file, apply the mutation to that fresh content, then tmp+rename. Reading
+// immediately before the write keeps a concurrent change to the same file from
+// being clobbered by stale in-memory content. `mutate` returns the value to write,
+// or undefined to skip the write.
+function updateJsonFile(filePath, fallback, mutate) {
+  const next = mutate(readJsonFile(filePath, fallback));
+  if (next === undefined) return false;
+  writeJsonFile(filePath, next);
+  return true;
+}
+
 function installClaudeHook() {
   const settingsFile = claudeSettingsFile();
   const backupFile = `${settingsFile}.krshna-backup`;
   if (fs.existsSync(settingsFile) && !fs.existsSync(backupFile)) fs.copyFileSync(settingsFile, backupFile);
 
-  const settings = readJsonFile(settingsFile, {});
-  settings.hooks ||= {};
-  settings.hooks.UserPromptSubmit ||= [];
-  // Replace any prior marker entry (e.g. from a different checkout or Node) so we
-  // never accumulate duplicates, then append exactly one fresh entry.
-  const { result } = stripKrshnaHooks(settings.hooks.UserPromptSubmit);
-  result.push({
-    matcher: "",
-    hooks: [{ type: "command", command: claudeHookCommand() }]
+  updateJsonFile(settingsFile, {}, (settings) => {
+    settings.hooks ||= {};
+    settings.hooks.UserPromptSubmit ||= [];
+    // Replace any prior marker entry (e.g. from a different checkout or Node) so we
+    // never accumulate duplicates, then append exactly one fresh entry.
+    const { result } = stripKrshnaHooks(settings.hooks.UserPromptSubmit);
+    result.push({
+      matcher: "",
+      hooks: [{ type: "command", command: claudeHookCommand() }]
+    });
+    settings.hooks.UserPromptSubmit = result;
+    return settings;
   });
-  settings.hooks.UserPromptSubmit = result;
-  writeJsonFile(settingsFile, settings);
 }
 
 function uninstallClaudeHook() {
-  const settingsFile = claudeSettingsFile();
-  const settings = readJsonFile(settingsFile, null);
-  if (!settings || !Array.isArray(settings.hooks?.UserPromptSubmit)) return;
-
-  // Remove every marker match regardless of the Node or checkout path that wrote it.
-  const { result, changed } = stripKrshnaHooks(settings.hooks.UserPromptSubmit);
-  if (!changed) return;
-  settings.hooks.UserPromptSubmit = result;
-  if (settings.hooks.UserPromptSubmit.length === 0) delete settings.hooks.UserPromptSubmit;
-  if (Object.keys(settings.hooks).length === 0) delete settings.hooks;
-  writeJsonFile(settingsFile, settings);
+  updateJsonFile(claudeSettingsFile(), null, (settings) => {
+    if (!settings || !Array.isArray(settings.hooks?.UserPromptSubmit)) return undefined;
+    // Remove every marker match regardless of the Node or checkout path that wrote it.
+    const { result, changed } = stripKrshnaHooks(settings.hooks.UserPromptSubmit);
+    if (!changed) return undefined;
+    settings.hooks.UserPromptSubmit = result;
+    if (settings.hooks.UserPromptSubmit.length === 0) delete settings.hooks.UserPromptSubmit;
+    if (Object.keys(settings.hooks).length === 0) delete settings.hooks;
+    return settings;
+  });
 }
 
 function install() {
@@ -228,7 +274,11 @@ function install() {
 
 function uninstall() {
   uninstallClaudeHook();
+  const removedZsh = uninstallZsh();
   console.log("Removed the Krishna Companion Claude Code voice hook.");
+  console.log(removedZsh
+    ? "Removed the zsh integration block from ~/.zshrc (backup left in place)."
+    : "No zsh integration block was present in ~/.zshrc.");
 }
 
 function help() {
