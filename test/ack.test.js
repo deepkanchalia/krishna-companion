@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { Worker } = require("node:worker_threads");
 const { waitForAck, windowCanAcknowledge } = require("../src/ack");
 
 // waitForAck backs the CLI's `now` poll: exit 0 when the companion stamps state.json
@@ -37,6 +38,29 @@ test("returns false when no fresh acknowledgement appears within the budget (exi
 
   const missing = path.join(path.dirname(stateFile), "absent.json");
   assert.equal(waitForAck(missing, t0, 300), false);
+});
+
+test("resolves true once a delayed writer stamps the file (>= 500 ms)", (t) => {
+  const stateFile = tempStateFile(t);
+  const t0 = Date.now();
+  // waitForAck blocks the main thread, so the write must come from elsewhere: a
+  // worker stamps state.json 500 ms after we begin polling, like the companion
+  // booting after the CLI spawns it.
+  const worker = new Worker(
+    `const fs = require("node:fs");
+     const { workerData } = require("node:worker_threads");
+     setTimeout(() => fs.writeFileSync(workerData.file, JSON.stringify({
+       lastCommand: { name: "now", receivedAt: new Date().toISOString() }
+     })), 500);`,
+    { eval: true, workerData: { file: stateFile } }
+  );
+  t.after(() => worker.terminate());
+
+  const started = Date.now();
+  const acknowledged = waitForAck(stateFile, t0, 4000);
+  const elapsed = Date.now() - started;
+  assert.equal(acknowledged, true);
+  assert.ok(elapsed >= 500, `should have waited for the delayed write (took ${elapsed} ms)`);
 });
 
 test("windowCanAcknowledge: ack only when a live window is present", () => {
