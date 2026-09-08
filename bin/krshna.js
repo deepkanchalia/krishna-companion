@@ -231,14 +231,16 @@ function claudeHookCommand() {
   return `${CLAUDE_HOOK_MARKER} ${JSON.stringify(process.execPath)} ${JSON.stringify(hookPath)}`;
 }
 
-// Any command hook that runs krshna-hook.js is ours, marker or not: a legacy entry
-// installed before the KRSHNA_HOOK=1 marker existed still names krshna-hook.js, and
-// must be replaced on install and removed on uninstall rather than left to accumulate.
-// Fresh installs still write the marker (claudeHookCommand); this only widens matching.
+// A command hook is ours when it actually RUNS our script — its command names a path
+// ending in scripts/krshna-hook.js (POSIX slash or Windows backslash, the latter
+// doubled by JSON.stringify) — marker or not. This catches a legacy unmarked entry and
+// an entry from another checkout, but not a foreign hook that merely mentions the
+// basename in text. Fresh installs still write the KRSHNA_HOOK=1 marker (claudeHookCommand).
+const KRSHNA_HOOK_PATH = /[/\\]+scripts[/\\]+krshna-hook\.js/;
 function isKrshnaHook(hook) {
   return hook?.type === "command"
     && typeof hook.command === "string"
-    && hook.command.includes("krshna-hook.js");
+    && KRSHNA_HOOK_PATH.test(hook.command);
 }
 
 // Remove every marker-matching hook from a UserPromptSubmit list, dropping any

@@ -288,6 +288,29 @@ test("install replaces a legacy unmarked hook entry; uninstall removes it", (con
   assert.equal(remaining.length, 0, "uninstall removes the legacy-derived entry too");
 });
 
+test("a foreign hook that only mentions krshna-hook.js in text is left untouched", (context) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-foreign-hook-"));
+  context.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const settingsFile = path.join(home, ".claude", "settings.json");
+  fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
+  const foreign = "echo krshna-hook.js is nice";
+  fs.writeFileSync(settingsFile, `${JSON.stringify({
+    hooks: { UserPromptSubmit: [{ matcher: "", hooks: [{ type: "command", command: foreign }] }] }
+  }, null, 2)}\n`);
+  const env = { ...process.env, HOME: home, KRSHNA_HOME: home };
+
+  execFileSync(process.execPath, [cli, "install"], { env });
+  let commands = JSON.parse(fs.readFileSync(settingsFile, "utf8"))
+    .hooks.UserPromptSubmit.flatMap((group) => group.hooks || []).map((item) => item.command);
+  assert.ok(commands.includes(foreign), "the foreign hook survives install");
+  assert.equal(commands.filter((c) => /[/\\]+scripts[/\\]+krshna-hook\.js/.test(c)).length, 1, "ours added once");
+
+  execFileSync(process.execPath, [cli, "uninstall"], { env });
+  commands = ((JSON.parse(fs.readFileSync(settingsFile, "utf8")).hooks || {}).UserPromptSubmit || [])
+    .flatMap((group) => group.hooks || []).map((item) => item.command);
+  assert.ok(commands.includes(foreign), "the foreign hook survives uninstall too");
+});
+
 test("a legacy zsh block (no separator newline) is replaced, not duplicated, and uninstalled cleanly", (context) => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-legacy-zsh-"));
   context.after(() => fs.rmSync(home, { recursive: true, force: true }));
