@@ -134,6 +134,33 @@ test("install refuses a malformed settings.json: exit 1, one line, .zshrc untouc
   assert.equal(kept.length, 1, "the malformed settings file was moved aside, not deleted");
 });
 
+test("install does not crash when a corrupt settings.json cannot be moved aside", (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-install-ro-"));
+  t.after(() => { try { fs.chmodSync(path.join(home, ".claude"), 0o700); } catch { /* already */ } });
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const claudeDir = path.join(home, ".claude");
+  fs.mkdirSync(claudeDir, { recursive: true });
+  fs.writeFileSync(path.join(claudeDir, "settings.json"), "{ not valid json");
+  const zshrc = path.join(home, ".zshrc");
+  const zshrcBefore = "export EDITOR=vim\n";
+  fs.writeFileSync(zshrc, zshrcBefore);
+  // Read-only directory: the quarantine rename fails, so quarantinedTo is null.
+  fs.chmodSync(claudeDir, 0o500);
+  const env = { ...process.env, HOME: home, KRSHNA_HOME: home };
+
+  let error;
+  try {
+    execFileSync(process.execPath, [cli, "install"], { env, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
+  } catch (thrown) {
+    error = thrown;
+  }
+  assert.ok(error, "install exited non-zero");
+  assert.equal(error.status, 1);
+  assert.doesNotMatch(error.stderr, /TypeError/, "no stack trace");
+  assert.match(error.stderr, /could not move a damaged settings\.json aside; left it untouched/);
+  assert.equal(fs.readFileSync(zshrc, "utf8"), zshrcBefore, ".zshrc untouched");
+});
+
 test("context reports a quarantined data file", (t) => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-ctx-corrupt-"));
   t.after(() => fs.rmSync(home, { recursive: true, force: true }));

@@ -335,10 +335,12 @@ function install() {
   const quarantined = [];
   readJsonQuarantine(settingsFile, {}, quarantined);
   if (quarantined.length > 0) {
-    process.stderr.write(
-      `Krishna Companion moved a damaged ${path.basename(settingsFile)} aside ` +
-      `(kept as ${path.basename(quarantined[0].quarantinedTo)}); run \`krshna install\` again.\n`
-    );
+    const { quarantinedTo } = quarantined[0];
+    // quarantinedTo is null when the rename itself failed (e.g. a read-only ~/.claude):
+    // branch on it rather than calling path.basename(null) and crashing with a TypeError.
+    process.stderr.write(quarantinedTo
+      ? `Krishna Companion moved a damaged ${path.basename(settingsFile)} aside (kept as ${path.basename(quarantinedTo)}); run \`krshna install\` again.\n`
+      : `Krishna Companion could not move a damaged ${path.basename(settingsFile)} aside; left it untouched. Fix or remove it, then run \`krshna install\` again.\n`);
     process.exitCode = 1;
     return;
   }
