@@ -56,13 +56,6 @@ function timeUntil(timestamp) {
   return minutes < 1 ? "<1m" : `${minutes}m`;
 }
 
-function promptStatus() {
-  const state = readState();
-  if (!state.live) return;
-  const status = state.paused ? "paused" : `${timeUntil(state.nextReflectionAt)}`;
-  process.stdout.write(`🪶 Kṛṣṇa · ${status}`);
-}
-
 function printStatus() {
   const state = readState();
   if (!state.live) {
@@ -286,6 +279,7 @@ function help() {
 Krishna Companion
 
   krshna             Make the companion live
+  krshna start       Alias of krshna (make the companion live)
   krshna now         Invite a reflection now
   krshna pause       Pause scheduled reflections
   krshna resume      Resume the companion
@@ -295,14 +289,11 @@ Krishna Companion
   krshna voice off   Disable hold-Space voice
   krshna stop        Stop the companion
   krshna install     Add /krshna, terminal status, and the Claude Code voice hook
-  krshna uninstall   Remove the Claude Code voice hook
+  krshna uninstall   Remove the zsh integration and the Claude Code voice hook
 `);
 }
 
 switch (command) {
-  case "prompt":
-    promptStatus();
-    break;
   case "status":
     printStatus();
     break;

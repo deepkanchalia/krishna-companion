@@ -19,8 +19,10 @@ function zshAvailable() {
 test("CLI documents the universal terminal commands", () => {
   const output = execFileSync(process.execPath, [cli, "help"], { encoding: "utf8" });
   assert.match(output, /krshna\s+Make the companion live/);
+  assert.match(output, /krshna start\s+Alias of krshna/);
   assert.match(output, /krshna now/);
   assert.match(output, /krshna context/);
+  assert.doesNotMatch(output, /krshna prompt/);
   assert.match(output, /krshna voice on/);
   assert.match(output, /krshna voice off/);
   assert.match(output, /Add \/krshna/);
