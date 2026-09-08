@@ -87,7 +87,10 @@ function reportQuarantinedFiles() {
   } catch {
     return;
   }
-  const corrupt = entries.filter((name) => /\.corrupt-.*\.json$/.test(name)).sort();
+  // Only our own quarantine files, matched strictly, so a hostile filename dropped in
+  // the data directory can never be echoed to the terminal.
+  const CORRUPT_NAME = /^(state|journey|settings)\.corrupt-[0-9TZ-]+(-\d+)?(\.\d+)?\.json$/;
+  const corrupt = entries.filter((name) => CORRUPT_NAME.test(name)).sort();
   if (corrupt.length === 0) return;
   const noun = corrupt.length === 1 ? "file was" : "files were";
   console.log(`Note: ${corrupt.length} damaged data ${noun} kept aside (${corrupt.join(", ")}).`);

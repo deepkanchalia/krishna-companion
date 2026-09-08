@@ -155,6 +155,31 @@ test("context reports a quarantined data file", (t) => {
   assert.match(output, /settings\.corrupt-/);
 });
 
+test("context lists only real quarantine files, never a hostile filename", (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-ctx-hostile-"));
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const dataDir = dataDirFor(home);
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(path.join(dataDir, "state.corrupt-2026-01-01T00-00-00-000Z-4242.json"), "{ real");
+  // Names that must never be echoed: wrong base, and a poisoned "stamp".
+  fs.writeFileSync(path.join(dataDir, "evil.corrupt-2026Z.json"), "x");
+  fs.writeFileSync(path.join(dataDir, "settings.corrupt-;rm -rf ~.json"), "x");
+
+  const output = execFileSync(process.execPath, [cli, "context"], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      HOME: home,
+      KRSHNA_HOME: home,
+      XDG_CONFIG_HOME: path.join(home, ".config"),
+      APPDATA: path.join(home, "AppData", "Roaming")
+    }
+  });
+  assert.match(output, /state\.corrupt-2026-01-01T00-00-00-000Z-4242\.json/, "the real file is listed");
+  assert.doesNotMatch(output, /evil/, "wrong-base file excluded");
+  assert.doesNotMatch(output, /rm -rf/, "poisoned name excluded");
+});
+
 test("zsh prompt reads state without spawning Node", () => {
   const integration = fs.readFileSync(path.join(__dirname, "..", "shell", "krshna.zsh"), "utf8");
   assert.doesNotMatch(integration, /krshna prompt/);
