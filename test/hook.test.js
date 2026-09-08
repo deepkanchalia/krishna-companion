@@ -21,8 +21,12 @@ const stubDir = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-hook-stub-"));
 // fails and the hook fails open, which the platform notes already list as untested.
 const ackStub = path.join(stubDir, "ack-stub");
 const noAckStub = path.join(stubDir, "no-ack-stub");
+// A stub that ignores SIGTERM and sleeps well past the hook's 6 s budget, to prove
+// the hook stops waiting on it rather than hanging the prompt.
+const hangStub = path.join(stubDir, "hang-stub");
 fs.writeFileSync(ackStub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
 fs.writeFileSync(noAckStub, "#!/bin/sh\nexit 2\n", { mode: 0o755 });
+fs.writeFileSync(hangStub, "#!/bin/sh\ntrap '' TERM\nsleep 8\n", { mode: 0o755 });
 test.after(() => fs.rmSync(stubDir, { recursive: true, force: true }));
 
 function runHook(input, stub = ackStub, extraEnv = {}) {
@@ -60,6 +64,19 @@ test("a spawn failure (missing launcher) fails open: empty stdout, exit 0", () =
 test("an oversized payload passes through untouched", () => {
   const huge = "Hare Kṛṣṇa " + "x".repeat(70 * 1024);
   assert.equal(runHook(JSON.stringify({ prompt: huge })), "");
+});
+
+test("a companion that never acknowledges is abandoned, not waited out", {
+  // POSIX stub; on Windows the spawn fails and the hook fails open at once.
+  skip: process.platform === "win32" ? "POSIX stub cannot run on Windows" : false
+}, () => {
+  const started = Date.now();
+  // Restore PATH so the stub's `sleep` resolves; the hook itself still finds the CLI
+  // by absolute path. Without this the stub would exit at once and never hang.
+  const out = runHook(JSON.stringify({ prompt: "Hare Kṛṣṇa!" }), hangStub, { PATH: process.env.PATH });
+  const elapsed = Date.now() - started;
+  assert.equal(out, "", "no block decision: the prompt passes through");
+  assert.ok(elapsed < 6500, `should give up near 6 s, not wait out the 8 s child (took ${elapsed} ms)`);
 });
 
 test("install merges the Claude hook idempotently and uninstall removes only it", (context) => {
