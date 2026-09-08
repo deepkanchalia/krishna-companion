@@ -66,6 +66,27 @@ test("two corrupt reads produce two quarantine files with distinct names", (t) =
   for (const name of names) assert.ok(fs.existsSync(path.join(dir, name)));
 });
 
+test("a failed quarantine rename keeps the file read-only; a later save cannot overwrite it", (t) => {
+  const dir = tempDir(t);
+  const file = path.join(dir, "settings.json");
+  const originalBytes = "{ corrupt but precious";
+  fs.writeFileSync(file, originalBytes);
+  // A read-only directory makes the quarantine rename (and any write) fail.
+  fs.chmodSync(dir, 0o500);
+  t.after(() => { try { fs.chmodSync(dir, 0o700); } catch { /* already restored */ } });
+
+  const quarantined = [];
+  assert.deepEqual(readJson(file, { fallback: true }, quarantined), { fallback: true });
+  assert.equal(quarantined.length, 1);
+  assert.equal(quarantined[0].quarantinedTo, null, "recorded as unrepaired for the startup notice");
+  assert.equal(fs.readFileSync(file, "utf8"), originalBytes, "the failed rename left the original bytes");
+
+  // Even once the directory is writable again, the path stays read-only this session.
+  fs.chmodSync(dir, 0o700);
+  assert.equal(writeJson(file, { defaulted: true }), false, "the save is refused");
+  assert.equal(fs.readFileSync(file, "utf8"), originalBytes, "original bytes survive a subsequent save call");
+});
+
 test("writeJson round-trips and never throws on a bad path", (t) => {
   const dir = tempDir(t);
   const file = path.join(dir, "nested", "settings.json");

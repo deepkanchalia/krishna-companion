@@ -342,9 +342,16 @@ function showVoiceNotice(body) {
 // paths, never from untrusted input), so no corpus or outside text reaches it (C3).
 function notifyQuarantines() {
   if (quarantined.length === 0) return;
-  const kept = quarantined.map((item) => path.basename(item.quarantinedTo)).join(", ");
-  const noun = quarantined.length === 1 ? "a damaged file" : "damaged files";
-  const body = `Krishna Companion repaired ${noun}; the original was kept as ${kept}.`;
+  const repaired = quarantined.filter((item) => item.quarantinedTo).map((item) => path.basename(item.quarantinedTo));
+  const untouched = quarantined.filter((item) => !item.quarantinedTo).map((item) => path.basename(item.file));
+  const parts = [];
+  if (repaired.length) {
+    parts.push(`repaired ${repaired.length === 1 ? "a damaged file" : "damaged files"}, kept as ${repaired.join(", ")}`);
+  }
+  if (untouched.length) {
+    parts.push(`could not repair ${untouched.join(", ")} and left ${untouched.length === 1 ? "it" : "them"} untouched`);
+  }
+  const body = `Krishna Companion ${parts.join("; ")}.`;
   if (tray) tray.setToolTip(`Krishna Companion — ${body}`);
   try {
     if (Notification.isSupported()) new Notification({ title: "Krishna Companion", body }).show();

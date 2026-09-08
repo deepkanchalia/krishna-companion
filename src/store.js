@@ -16,6 +16,11 @@ const {
   writeFileSync
 } = require("node:fs");
 
+// Files this session must not overwrite: when a corrupt file could not be moved aside
+// (a read-only directory, say), we keep its bytes intact by refusing every later save
+// to that path, so the user's data is never lost to a defaulted write.
+const readOnlyThisSession = new Set();
+
 // Where a damaged <name>.json is moved to: <name>.corrupt-<ISO timestamp>.json,
 // next to the original. Colons and dots in the ISO string are replaced so the name
 // is legal on Windows too. If that name is somehow already taken (two failures in
@@ -53,7 +58,12 @@ function readJson(filePath, fallback, quarantined) {
       renameSync(filePath, quarantinedTo);
       if (Array.isArray(quarantined)) quarantined.push({ file: filePath, quarantinedTo });
     } catch (error) {
-      process.stderr.write(`krishna-companion: could not quarantine ${filePath}: ${error.message}\n`);
+      // The bad file could not be moved aside. Do NOT hand back a writable fallback that
+      // a later save would flush over the original: mark the path read-only for this
+      // session, keep its bytes, and record it (quarantinedTo: null) for the startup notice.
+      readOnlyThisSession.add(filePath);
+      if (Array.isArray(quarantined)) quarantined.push({ file: filePath, quarantinedTo: null });
+      process.stderr.write(`krishna-companion: could not quarantine ${filePath} (${error.message}); keeping it read-only this session\n`);
     }
     return fallback;
   }
@@ -63,6 +73,10 @@ function readJson(filePath, fallback, quarantined) {
 // on one stderr line and swallowed: a save must never throw out of the app. Returns
 // true on success, false on failure.
 function writeJson(filePath, value) {
+  if (readOnlyThisSession.has(filePath)) {
+    process.stderr.write(`krishna-companion: refusing to overwrite ${filePath}: kept read-only after a failed repair\n`);
+    return false;
+  }
   try {
     mkdirSync(path.dirname(filePath), { recursive: true });
     const temporaryPath = `${filePath}.${process.pid}.tmp`;
