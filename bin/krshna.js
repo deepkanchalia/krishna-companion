@@ -241,18 +241,34 @@ function claudeHookCommand() {
   return `${CLAUDE_HOOK_MARKER} ${JSON.stringify(process.execPath)} ${JSON.stringify(hookPath)}`;
 }
 
-// A command hook is ours when it actually RUNS our script — its command names a path
-// ending in scripts/krshna-hook.js (POSIX slash or Windows backslash, the latter
-// doubled by JSON.stringify) — marker or not. This catches a legacy unmarked entry and
-// an entry from another checkout, but not a foreign hook that merely mentions the
-// basename in text. Fresh installs still write the KRSHNA_HOOK=1 marker (claudeHookCommand).
-// The path must END at krshna-hook.js — followed by a closing quote, whitespace, or the
-// end of the command — so a lookalike such as .../krshna-hook.js.bak is not treated as ours.
-const KRSHNA_HOOK_PATH = /[/\\]+scripts[/\\]+krshna-hook\.js(?=["'\s]|$)/;
+// The script path a hook must end in to be ours (POSIX slash or Windows backslash, the
+// latter doubled by JSON.stringify). Anchored to the token end so .../krshna-hook.js.bak
+// is not a match.
+const KRSHNA_HOOK_SCRIPT = /[/\\]+scripts[/\\]+krshna-hook\.js$/;
+
+// Split a shell-ish command into tokens, honouring single/double quotes.
+function tokenizeCommand(command) {
+  const tokens = [];
+  const re = /"([^"]*)"|'([^']*)'|(\S+)/g;
+  let match;
+  while ((match = re.exec(command)) !== null) tokens.push(match[1] ?? match[2] ?? match[3]);
+  return tokens;
+}
+
+// A command hook is ours when it actually RUNS our script — marker or not. Parse it rather
+// than substring-match: drop any leading VAR=value assignments (e.g. KRSHNA_HOOK=1), then
+// require exactly two tokens — an interpreter named by path and the script — with the
+// script ending in scripts/krshna-hook.js. This catches a legacy unmarked entry and an
+// entry from another checkout, but rejects `echo …/krshna-hook.js`, `cat …/krshna-hook.js.bak`,
+// and any bare mention. (Our own hooks always invoke node by absolute path, so requiring a
+// path-shaped interpreter safely excludes `echo`/`cat`.) Fresh installs still write the marker.
 function isKrshnaHook(hook) {
-  return hook?.type === "command"
-    && typeof hook.command === "string"
-    && KRSHNA_HOOK_PATH.test(hook.command);
+  if (hook?.type !== "command" || typeof hook.command !== "string") return false;
+  const tokens = tokenizeCommand(hook.command);
+  while (tokens.length > 0 && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[0])) tokens.shift();
+  if (tokens.length !== 2) return false;
+  const [interpreter, script] = tokens;
+  return /[/\\]/.test(interpreter) && KRSHNA_HOOK_SCRIPT.test(script);
 }
 
 // Remove every marker-matching hook from a UserPromptSubmit list, dropping any

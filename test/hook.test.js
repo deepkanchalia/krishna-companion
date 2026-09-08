@@ -339,6 +339,19 @@ test("a .js.bak lookalike hook is foreign; the real shapes are still ours", (con
   assert.ok(after.includes(bak), "the .js.bak hook survives uninstall too");
 });
 
+test("isKrshnaHook parses the command: our shapes accepted, echo/.bak lookalikes rejected", () => {
+  const { isKrshnaHook } = require("../bin/krshna.js");
+  const cmd = (command) => isKrshnaHook({ type: "command", command });
+  // Our three real shapes (marked, legacy unmarked, another checkout) — all node-by-path.
+  assert.equal(cmd(`KRSHNA_HOOK=1 "/usr/local/bin/node" "/co/scripts/krshna-hook.js"`), true);
+  assert.equal(cmd(`/usr/bin/node /old/checkout/scripts/krshna-hook.js`), true);
+  assert.equal(cmd(`KRSHNA_HOOK=1 "/opt/n/bin/node" "/other-checkout/scripts/krshna-hook.js"`), true);
+  // Foreign: a lookalike interpreter, a .bak sibling, and an extra-token mention.
+  assert.equal(cmd(`echo /opt/scripts/krshna-hook.js`), false, "echo is not a path-shaped interpreter");
+  assert.equal(cmd(`cat /tmp/scripts/krshna-hook.js.bak`), false, ".bak sibling is not our script");
+  assert.equal(cmd(`/usr/bin/node /co/scripts/krshna-hook.js --extra`), false, "three tokens is not our shape");
+});
+
 test("a legacy zsh block (no separator newline) is replaced, not duplicated, and uninstalled cleanly", (context) => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-legacy-zsh-"));
   context.after(() => fs.rmSync(home, { recursive: true, force: true }));
