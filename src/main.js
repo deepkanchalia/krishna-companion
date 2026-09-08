@@ -1,5 +1,5 @@
 const path = require("node:path");
-const { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } = require("node:fs");
+const { existsSync } = require("node:fs");
 const { writeFile } = require("node:fs/promises");
 const { spawn } = require("node:child_process");
 const {
@@ -16,11 +16,15 @@ const {
   systemPreferences
 } = require("electron");
 const { readConfig } = require("./config");
-const { reflections } = require("./content");
+const { reflections, findVerseIndex } = require("./content");
+const { readJson, writeJson } = require("./store");
 const { normalizeJourney, recordTeaching } = require("./journey");
 const { canShowTeaching } = require("./schedule");
 const { containsInvocation } = require("./voice");
 const { windowCanAcknowledge } = require("./ack");
+const { planSecondInstance } = require("./second-instance");
+const { shortcutUnavailableMessage } = require("./shortcut");
+const { resetOnWindowClosed } = require("./window-state");
 const {
   DEFAULT_VOICE_SETTINGS,
   createFrontmostAppGate,
@@ -65,28 +69,19 @@ let voiceDisabledForLaunch = false;
 let voiceNoticeShown = false;
 let helperBuildStarted = false;
 
-const instanceLock = app.requestSingleInstanceLock({ command: config.command });
+// The full parsed config travels to a running instance so it can honour a verse,
+// interval, duration, demo or screenshot passed to a second launch (planSecondInstance).
+const instanceLock = app.requestSingleInstanceLock(config);
 if (!instanceLock) app.quit();
 
-function readJson(filePath, fallback) {
-  try {
-    return JSON.parse(readFileSync(filePath, "utf8"));
-  } catch {
-    return fallback;
-  }
-}
-
-function writeJson(filePath, value) {
-  mkdirSync(path.dirname(filePath), { recursive: true });
-  const temporaryPath = `${filePath}.${process.pid}.tmp`;
-  writeFileSync(temporaryPath, JSON.stringify(value, null, 2), { mode: 0o600 });
-  renameSync(temporaryPath, filePath);
-}
+// Files that were found corrupt and moved aside during this launch. Turned into one
+// startup notification so the reader learns their originals were kept, not lost.
+const quarantined = [];
 
 function readPersistentData() {
-  const oldState = readJson(statePath, {});
-  const savedJourney = readJson(journeyPath, null);
-  const savedSettings = readJson(settingsPath, {});
+  const oldState = readJson(statePath, {}, quarantined);
+  const savedJourney = readJson(journeyPath, null, quarantined);
+  const savedSettings = readJson(settingsPath, {}, quarantined);
 
   settings = {
     ...savedSettings,
@@ -107,8 +102,15 @@ function readPersistentData() {
   nextVerseIndex = journey.nextVerseIndex;
   if (config.verse) {
     // --verse=1.32-35 previews one specific teaching without touching the saved journey.
-    const requested = reflections.findIndex((item) => `${item.chapterNumber}.${item.verse}` === config.verse);
-    if (requested !== -1) requestedVerseIndex = requested;
+    // A verse that does not exist is a hard error on a direct launch: exit rather than
+    // silently falling back to saved progress and showing the wrong teaching.
+    const result = findVerseIndex(reflections, config.verse);
+    if (result.error) {
+      console.error(`Krishna Companion: ${result.error}`);
+      app.exit(1);
+      return;
+    }
+    requestedVerseIndex = result.index;
   }
   if (Number.isFinite(settings.restingPosition?.x) && Number.isFinite(settings.restingPosition?.y)) {
     restingPosition = settings.restingPosition;
@@ -266,7 +268,13 @@ function createWindow() {
   companionWindow.webContents.on("will-navigate", (event) => event.preventDefault());
   companionWindow.loadFile(path.join(__dirname, "index.html"));
   companionWindow.on("moved", rememberDraggedPosition);
-  companionWindow.on("closed", () => { companionWindow = undefined; });
+  companionWindow.on("closed", () => {
+    companionWindow = undefined;
+    // Reset expansion and drop the per-card timer so a recreated window can show a
+    // teaching again; otherwise isExpanded stays true and canShowTeaching refuses.
+    clearTimeout(dismissTimer);
+    ({ isExpanded, dismissTimer } = resetOnWindowClosed({ isExpanded, dismissTimer }));
+  });
 }
 
 function showRestingCompanion() {
@@ -326,6 +334,30 @@ function showVoiceNotice(body) {
     }
   } catch {
     // The tray tooltip remains as the once-per-launch notice.
+  }
+}
+
+// One product-chrome notification for damaged files repaired this launch. The text
+// is fixed chrome plus our own quarantine filenames (derived from the app's own
+// paths, never from untrusted input), so no corpus or outside text reaches it (C3).
+function notifyQuarantines() {
+  if (quarantined.length === 0) return;
+  const kept = quarantined.map((item) => path.basename(item.quarantinedTo)).join(", ");
+  const noun = quarantined.length === 1 ? "a damaged file" : "damaged files";
+  const body = `Krishna Companion repaired ${noun}; the original was kept as ${kept}.`;
+  if (tray) tray.setToolTip(`Krishna Companion — ${body}`);
+  try {
+    if (Notification.isSupported()) new Notification({ title: "Krishna Companion", body }).show();
+  } catch {
+    // The tray tooltip remains as the notice.
+  }
+}
+
+function showShortcutNotice(body) {
+  try {
+    if (Notification.isSupported()) new Notification({ title: "Krishna Companion", body }).show();
+  } catch {
+    // No notification centre available; the stderr line remains the record.
   }
 }
 
@@ -504,16 +536,75 @@ function restartCadence(minutes = config.intervalMinutes) {
 // passes the prompt through. When the window was just recreated its renderer is
 // still loading, so defer the reveal to did-finish-load — sending companion:show
 // before then would lose the teaching and flash a blank card.
-function revealNow() {
+function revealNow({ index, durationSeconds } = {}) {
   const recreated = !companionWindow || companionWindow.isDestroyed();
   if (recreated) createWindow();
   if (!windowCanAcknowledge(companionWindow)) return;
   const reveal = () => {
     acknowledgeCommand("now");
+    // A specific verse or a one-off duration applies to this showing only: save and
+    // restore the sequence override and the configured duration around the show, so
+    // scheduled darshans keep following the saved journey at the normal cadence.
+    const previousRequested = requestedVerseIndex;
+    const previousDuration = config.durationSeconds;
+    if (Number.isInteger(index)) requestedVerseIndex = index;
+    if (Number.isFinite(durationSeconds)) config.durationSeconds = durationSeconds;
     showCompanion(true);
+    requestedVerseIndex = previousRequested;
+    config.durationSeconds = previousDuration;
   };
   if (recreated) companionWindow.webContents.once("did-finish-load", reveal);
   else reveal();
+}
+
+// Apply a config handed in by a second launch to this running instance. Pure decision
+// in second-instance.js; this only carries it out.
+function applySecondInstance(incoming) {
+  for (const action of planSecondInstance(incoming, { intervalMinutes: config.intervalMinutes })) {
+    switch (action.type) {
+      case "set-interval":
+        config.intervalMinutes = action.minutes;
+        restartCadence(action.minutes);
+        if (tray) tray.setContextMenu(trayMenu());
+        break;
+      case "show": {
+        let index;
+        if (action.verse) {
+          const result = findVerseIndex(reflections, action.verse);
+          if (result.error) {
+            console.error(`Krishna Companion: ${result.error}`);
+            break;
+          }
+          index = result.index;
+        }
+        revealNow({ index, durationSeconds: action.durationSeconds });
+        break;
+      }
+      case "command":
+        handleCommand(action.name);
+        break;
+      case "screenshot":
+        captureScreenshotAndQuit(incoming?.demo);
+        break;
+      default:
+        break;
+    }
+  }
+}
+
+// Capture the current window to the preview file, then quit. Used by --screenshot on
+// a direct launch and when forwarded to a running instance.
+function captureScreenshotAndQuit(demo = config.demo) {
+  setTimeout(async () => {
+    if (!companionWindow || companionWindow.isDestroyed()) {
+      app.quit();
+      return;
+    }
+    const preview = await companionWindow.webContents.capturePage();
+    const previewName = demo ? "preview.png" : "resting-preview.png";
+    await writeFile(path.join(__dirname, "..", previewName), preview.toPNG());
+    app.quit();
+  }, 2600);
 }
 
 function handleCommand(command) {
@@ -600,7 +691,7 @@ function createTray() {
 }
 
 if (instanceLock) app.on("second-instance", (_event, _argv, _directory, additionalData) => {
-  handleCommand(additionalData?.command || "now");
+  applySecondInstance(additionalData || { command: "now" });
 });
 
 if (instanceLock) app.whenReady().then(() => {
@@ -612,10 +703,16 @@ if (instanceLock) app.whenReady().then(() => {
   if (process.platform === "darwin") app.dock?.hide();
   createWindow();
   createTray();
+  notifyQuarantines();
   restartCadence();
   initializeVoice();
 
-  globalShortcut.register(SHORTCUT, () => showCompanion(true));
+  const shortcutRegistered = globalShortcut.register(SHORTCUT, () => showCompanion(true));
+  if (!shortcutRegistered) {
+    const message = shortcutUnavailableMessage(SHORTCUT);
+    console.error(`Krishna Companion: ${message}`);
+    showShortcutNotice(message);
+  }
   companionWindow.webContents.once("did-finish-load", () => {
     showRestingCompanion();
     setTimeout(() => {
@@ -623,13 +720,7 @@ if (instanceLock) app.whenReady().then(() => {
       else if (config.demo) showCompanion(true);
       else handleCommand(config.command);
 
-      if (!config.screenshot) return;
-      setTimeout(async () => {
-        const preview = await companionWindow.webContents.capturePage();
-        const previewName = config.demo ? "preview.png" : "resting-preview.png";
-        await writeFile(path.join(__dirname, "..", previewName), preview.toPNG());
-        app.quit();
-      }, 2600);
+      if (config.screenshot) captureScreenshotAndQuit();
     }, 450);
   });
 });
