@@ -498,6 +498,24 @@ function restartCadence(minutes = config.intervalMinutes) {
   saveState();
 }
 
+// Show a darshan for a `now` invocation. Recreate the window if the app is alive
+// without one; acknowledge (which blocks the prompt in the hook) and show only when
+// a window can actually display it, otherwise skip so the CLI exits 2 and the hook
+// passes the prompt through. When the window was just recreated its renderer is
+// still loading, so defer the reveal to did-finish-load — sending companion:show
+// before then would lose the teaching and flash a blank card.
+function revealNow() {
+  const recreated = !companionWindow || companionWindow.isDestroyed();
+  if (recreated) createWindow();
+  if (!windowCanAcknowledge(companionWindow)) return;
+  const reveal = () => {
+    acknowledgeCommand("now");
+    showCompanion(true);
+  };
+  if (recreated) companionWindow.webContents.once("did-finish-load", reveal);
+  else reveal();
+}
+
 function handleCommand(command) {
   switch (command) {
     case "pause":
@@ -517,14 +535,7 @@ function handleCommand(command) {
       break;
     case "now":
     case "/krshna":
-      // Recreate the window if the app is alive but its window was closed, then
-      // acknowledge only if a darshan can actually be shown; otherwise skip the ack
-      // so the CLI exits 2 and the hook passes the prompt through.
-      if (!companionWindow || companionWindow.isDestroyed()) createWindow();
-      if (windowCanAcknowledge(companionWindow)) {
-        acknowledgeCommand("now");
-        showCompanion(true);
-      }
+      revealNow();
       break;
     case "voice-on":
       setVoiceEnabled(true);
@@ -608,11 +619,8 @@ if (instanceLock) app.whenReady().then(() => {
   companionWindow.webContents.once("did-finish-load", () => {
     showRestingCompanion();
     setTimeout(() => {
-      if (config.command === "now") {
-        if (!companionWindow || companionWindow.isDestroyed()) createWindow();
-        if (windowCanAcknowledge(companionWindow)) acknowledgeCommand("now");
-      }
-      if (config.demo || config.command === "now") showCompanion(true);
+      if (config.command === "now") revealNow();
+      else if (config.demo) showCompanion(true);
       else handleCommand(config.command);
 
       if (!config.screenshot) return;
