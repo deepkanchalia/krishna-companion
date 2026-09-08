@@ -109,6 +109,13 @@ test("an empty --verse on a second instance is ignored with one stderr line, not
   assert.match(lines[0], /verse/);
 });
 
+test("an unknown top-level key is dropped with the same one-line notice", () => {
+  const { actions, lines } = planCapturing({ command: "now", provided: { command: true }, evil: 1 });
+  assert.deepEqual(actions, [{ type: "show" }], "still acts on the known fields");
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /evil/);
+});
+
 test("a clean config produces no rejection line", () => {
   const { lines } = planCapturing(readConfig(["--command=pause"]));
   assert.equal(lines.length, 0);

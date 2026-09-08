@@ -20,6 +20,7 @@
 // treated as untrusted: only known-good shapes are honoured, everything else is dropped.
 const VALID_COMMANDS = new Set(["live", "now", "pause", "resume", "stop", "/krshna"]);
 const VERSE_PATTERN = /^\d{1,2}\.\d{1,3}(-\d{1,3})?$/;
+const KNOWN_KEYS = new Set(["command", "verse", "intervalMinutes", "durationSeconds", "demo", "screenshot", "provided"]);
 
 // Return a config with only valid fields kept, plus the names of any provided-but-invalid
 // fields that were dropped. A command that is present but not on the whitelist is dropped
@@ -73,6 +74,12 @@ function sanitizeIncoming(config) {
   if (config.demo !== undefined && typeof config.demo !== "boolean") rejected.push("demo");
   clean.screenshot = config.screenshot === true;
   if (config.screenshot !== undefined && typeof config.screenshot !== "boolean") rejected.push("screenshot");
+
+  // Any key we do not recognise is dropped and reported, so a forged additionalData
+  // cannot smuggle unexpected fields past the validator unnoticed.
+  for (const key of Object.keys(config)) {
+    if (!KNOWN_KEYS.has(key)) rejected.push(key);
+  }
 
   return { clean, rejected };
 }
