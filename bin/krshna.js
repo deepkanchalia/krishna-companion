@@ -246,7 +246,9 @@ function claudeHookCommand() {
 // doubled by JSON.stringify) — marker or not. This catches a legacy unmarked entry and
 // an entry from another checkout, but not a foreign hook that merely mentions the
 // basename in text. Fresh installs still write the KRSHNA_HOOK=1 marker (claudeHookCommand).
-const KRSHNA_HOOK_PATH = /[/\\]+scripts[/\\]+krshna-hook\.js/;
+// The path must END at krshna-hook.js — followed by a closing quote, whitespace, or the
+// end of the command — so a lookalike such as .../krshna-hook.js.bak is not treated as ours.
+const KRSHNA_HOOK_PATH = /[/\\]+scripts[/\\]+krshna-hook\.js(?=["'\s]|$)/;
 function isKrshnaHook(hook) {
   return hook?.type === "command"
     && typeof hook.command === "string"

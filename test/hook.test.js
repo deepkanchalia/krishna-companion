@@ -313,6 +313,32 @@ test("a foreign hook that only mentions krshna-hook.js in text is left untouched
   assert.ok(commands.includes(foreign), "the foreign hook survives uninstall too");
 });
 
+test("a .js.bak lookalike hook is foreign; the real shapes are still ours", (context) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-bak-hook-"));
+  context.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const settingsFile = path.join(home, ".claude", "settings.json");
+  fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
+  const bak = "cat /tmp/scripts/krshna-hook.js.bak";
+  fs.writeFileSync(settingsFile, `${JSON.stringify({
+    hooks: { UserPromptSubmit: [{ matcher: "", hooks: [{ type: "command", command: bak }] }] }
+  }, null, 2)}\n`);
+  const env = { ...process.env, HOME: home, KRSHNA_HOME: home };
+
+  execFileSync(process.execPath, [cli, "install"], { env });
+  const installed = JSON.parse(fs.readFileSync(settingsFile, "utf8"))
+    .hooks.UserPromptSubmit.flatMap((group) => group.hooks || []).map((item) => item.command);
+  assert.ok(installed.includes(bak), "the .js.bak hook is left alone");
+  // Real shapes still recognised as ours by the end-anchored path.
+  const ours = installed.filter((c) => /[/\\]+scripts[/\\]+krshna-hook\.js(?=["'\s]|$)/.test(c));
+  assert.equal(ours.length, 1);
+  assert.ok(ours[0].includes("KRSHNA_HOOK=1"));
+
+  execFileSync(process.execPath, [cli, "uninstall"], { env });
+  const after = ((JSON.parse(fs.readFileSync(settingsFile, "utf8")).hooks || {}).UserPromptSubmit || [])
+    .flatMap((group) => group.hooks || []).map((item) => item.command);
+  assert.ok(after.includes(bak), "the .js.bak hook survives uninstall too");
+});
+
 test("a legacy zsh block (no separator newline) is replaced, not duplicated, and uninstalled cleanly", (context) => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-legacy-zsh-"));
   context.after(() => fs.rmSync(home, { recursive: true, force: true }));
