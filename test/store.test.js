@@ -22,7 +22,8 @@ test("a corrupt file is quarantined, not silently replaced", (t) => {
   assert.deepEqual(value, { fallback: true }, "the fallback is returned");
   assert.equal(quarantined.length, 1, "one quarantine was recorded");
   assert.equal(quarantined[0].file, file);
-  assert.match(path.basename(quarantined[0].quarantinedTo), /^settings\.corrupt-.*\.json$/);
+  assert.match(path.basename(quarantined[0].quarantinedTo), /^settings\.corrupt-[0-9TZ-]+-\d+\.json$/);
+  assert.ok(path.basename(quarantined[0].quarantinedTo).endsWith(`-${process.pid}.json`), "the name carries this process's pid");
   assert.ok(fs.existsSync(quarantined[0].quarantinedTo), "the original was moved aside");
   assert.equal(fs.readFileSync(quarantined[0].quarantinedTo, "utf8"), "{ this is not json", "contents preserved");
   assert.ok(!fs.existsSync(file), "the corrupt file no longer sits at its original name");
@@ -61,8 +62,8 @@ test("two corrupt reads produce two quarantine files with distinct names", (t) =
   assert.equal(quarantined.length, 2);
   const names = quarantined.map((item) => path.basename(item.quarantinedTo));
   assert.notEqual(names[0], names[1], "the quarantine names differ");
-  assert.match(names[0], /^state\.corrupt-.*\.json$/);
-  assert.match(names[1], /^journey\.corrupt-.*\.json$/);
+  assert.match(names[0], /^state\.corrupt-[0-9TZ-]+-\d+\.json$/);
+  assert.match(names[1], /^journey\.corrupt-[0-9TZ-]+-\d+\.json$/);
   for (const name of names) assert.ok(fs.existsSync(path.join(dir, name)));
 });
 

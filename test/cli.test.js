@@ -139,7 +139,7 @@ test("context reports a quarantined data file", (t) => {
   t.after(() => fs.rmSync(home, { recursive: true, force: true }));
   const dataDir = dataDirFor(home);
   fs.mkdirSync(dataDir, { recursive: true });
-  fs.writeFileSync(path.join(dataDir, "settings.corrupt-2026-01-01T00-00-00-000Z.json"), "{ was bad");
+  fs.writeFileSync(path.join(dataDir, "settings.corrupt-2026-01-01T00-00-00-000Z-4242.json"), "{ was bad");
 
   const output = execFileSync(process.execPath, [cli, "context"], {
     encoding: "utf8",

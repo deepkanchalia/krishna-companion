@@ -29,10 +29,13 @@ function quarantineTarget(filePath) {
   const directory = path.dirname(filePath);
   const base = path.basename(filePath).replace(/\.json$/i, "");
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  let candidate = path.join(directory, `${base}.corrupt-${stamp}.json`);
+  // Include the pid so two processes quarantining the same file in the same millisecond
+  // cannot pick the same target; a counter breaks any residual tie within one process.
+  const prefix = `${base}.corrupt-${stamp}-${process.pid}`;
+  let candidate = path.join(directory, `${prefix}.json`);
   let counter = 1;
   while (existsSync(candidate)) {
-    candidate = path.join(directory, `${base}.corrupt-${stamp}-${counter}.json`);
+    candidate = path.join(directory, `${prefix}-${counter}.json`);
     counter += 1;
   }
   return candidate;
