@@ -9,7 +9,25 @@ test("uses the requested interval and duration", () => {
     verse: undefined,
     command: "live",
     intervalMinutes: 45,
-    durationSeconds: 24
+    durationSeconds: 24,
+    provided: {
+      command: false,
+      verse: false,
+      demo: false,
+      screenshot: false,
+      interval: true,
+      duration: true
+    }
+  });
+});
+
+test("records which options a launch actually provided", () => {
+  assert.deepEqual(readConfig([]).provided, {
+    command: false, verse: false, demo: false, screenshot: false, interval: false, duration: false
+  });
+  const full = readConfig(["--command=now", "--verse=2.47", "--interval=60", "--duration=10", "--demo", "--screenshot"]);
+  assert.deepEqual(full.provided, {
+    command: true, verse: true, demo: true, screenshot: true, interval: true, duration: true
   });
 });
 
@@ -29,6 +47,14 @@ test("a demo without an explicit command asks a live instance for a reflection n
   assert.equal(readConfig(["--demo"]).command, "now");
   assert.equal(readConfig([]).command, "live");
   assert.equal(readConfig(["--demo", "--verse=1.32-35"]).verse, "1.32-35");
+});
+
+test("an empty --verse is kept as \"\" and marked provided, never folded to undefined", () => {
+  const empty = readConfig(["--verse="]);
+  assert.equal(empty.verse, "", "empty value is preserved, not turned into a silent fallback");
+  assert.equal(empty.provided.verse, true);
+  assert.equal(readConfig([]).verse, undefined, "absence stays undefined");
+  assert.equal(readConfig([]).provided.verse, false);
 });
 
 test("falls back for non-numeric arguments and clamps unsafe values", () => {
