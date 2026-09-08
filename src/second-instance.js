@@ -15,10 +15,79 @@
 // `config.provided` (from readConfig) says which options the second launch actually
 // set, so a plain `krshna now` does not reset a running instance's cadence to the
 // default just because config carries the default value.
-function planSecondInstance(config, currentState = {}) {
+
+// The incoming config crosses a process boundary (Electron's additionalData), so it is
+// treated as untrusted: only known-good shapes are honoured, everything else is dropped.
+const VALID_COMMANDS = new Set(["live", "now", "pause", "resume", "stop", "/krshna"]);
+const VERSE_PATTERN = /^\d{1,2}\.\d{1,3}(-\d{1,3})?$/;
+
+// Return a config with only valid fields kept, plus the names of any provided-but-invalid
+// fields that were dropped. A command that is present but not on the whitelist is dropped
+// and falls back to a safe non-showing default; an absent command keeps the "now" default.
+function sanitizeIncoming(config) {
+  const rejected = [];
+  const raw = (config.provided && typeof config.provided === "object") ? config.provided : {};
+  const provided = {};
+  const clean = { provided };
+
+  if (config.command === undefined) {
+    clean.command = "now";
+    provided.command = false;
+  } else if (typeof config.command === "string" && VALID_COMMANDS.has(config.command)) {
+    clean.command = config.command;
+    provided.command = raw.command === true;
+  } else {
+    rejected.push("command");
+    clean.command = "live"; // safe: does not show a darshan on garbage input
+    provided.command = false;
+  }
+
+  if (raw.verse) {
+    if (typeof config.verse === "string" && VERSE_PATTERN.test(config.verse)) {
+      clean.verse = config.verse;
+      provided.verse = true;
+    } else {
+      rejected.push("verse");
+    }
+  }
+
+  if (raw.interval) {
+    if (Number.isInteger(config.intervalMinutes) && config.intervalMinutes >= 1 && config.intervalMinutes <= 1440) {
+      clean.intervalMinutes = config.intervalMinutes;
+      provided.interval = true;
+    } else {
+      rejected.push("interval");
+    }
+  }
+
+  if (raw.duration) {
+    if (Number.isInteger(config.durationSeconds) && config.durationSeconds >= 0 && config.durationSeconds <= 3600) {
+      clean.durationSeconds = config.durationSeconds;
+      provided.duration = true;
+    } else {
+      rejected.push("duration");
+    }
+  }
+
+  clean.demo = config.demo === true;
+  if (config.demo !== undefined && typeof config.demo !== "boolean") rejected.push("demo");
+  clean.screenshot = config.screenshot === true;
+  if (config.screenshot !== undefined && typeof config.screenshot !== "boolean") rejected.push("screenshot");
+
+  return { clean, rejected };
+}
+
+function planSecondInstance(incoming, currentState = {}) {
   const actions = [];
-  if (!config || typeof config !== "object") return actions;
-  const provided = config.provided || {};
+  if (!incoming || typeof incoming !== "object") return actions;
+
+  const { clean: config, rejected } = sanitizeIncoming(incoming);
+  if (rejected.length > 0) {
+    process.stderr.write(
+      `Krishna Companion ignored invalid second-instance ${rejected.length === 1 ? "field" : "fields"}: ${rejected.join(", ")}\n`
+    );
+  }
+  const provided = config.provided;
 
   // --interval: change cadence and persist, whatever the command was.
   if (provided.interval && Number.isFinite(config.intervalMinutes)) {
@@ -50,4 +119,4 @@ function planSecondInstance(config, currentState = {}) {
   return actions;
 }
 
-module.exports = { planSecondInstance };
+module.exports = { planSecondInstance, sanitizeIncoming };

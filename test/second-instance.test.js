@@ -9,6 +9,19 @@ function planFromArgv(argv, currentState) {
   return planSecondInstance(readConfig(argv), currentState);
 }
 
+// Run planSecondInstance capturing the stderr it writes for rejected fields.
+function planCapturing(incoming, currentState) {
+  const lines = [];
+  const restore = process.stderr.write.bind(process.stderr);
+  process.stderr.write = (chunk) => { lines.push(String(chunk)); return true; };
+  try {
+    const actions = planSecondInstance(incoming, currentState);
+    return { actions, lines };
+  } finally {
+    process.stderr.write = restore;
+  }
+}
+
 test("now shows a darshan", () => {
   assert.deepEqual(planFromArgv(["--command=now"]), [{ type: "show" }]);
 });
@@ -55,6 +68,49 @@ test("demo with a verse and screenshot shows the verse and captures", () => {
 test("pause and other commands are forwarded", () => {
   assert.deepEqual(planFromArgv(["--command=pause"]), [{ type: "command", name: "pause" }]);
   assert.deepEqual(planFromArgv(["--command=stop"]), [{ type: "command", name: "stop" }]);
+});
+
+test("a forged command outside the whitelist is dropped with one stderr line", () => {
+  const { actions, lines } = planCapturing({ command: "rm -rf /", provided: { command: true } });
+  assert.ok(!actions.some((a) => a.type === "command"), "no command action");
+  assert.ok(!actions.some((a) => a.type === "show"), "does not show on garbage");
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /command/);
+});
+
+test("a malformed verse is dropped; a valid now still shows without it", () => {
+  const { actions, lines } = planCapturing({ command: "now", verse: "; rm", provided: { command: true, verse: true } });
+  assert.deepEqual(actions, [{ type: "show" }], "shows, but not the rejected verse");
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /verse/);
+});
+
+test("out-of-range interval and duration are dropped", () => {
+  const interval = planCapturing({ command: "live", intervalMinutes: 99999, provided: { command: true, interval: true } });
+  assert.ok(!interval.actions.some((a) => a.type === "set-interval"));
+  assert.match(interval.lines[0], /interval/);
+
+  const duration = planCapturing({ command: "now", durationSeconds: 99999, provided: { command: true, duration: true } });
+  assert.deepEqual(duration.actions, [{ type: "show" }], "no one-off duration applied");
+  assert.match(duration.lines[0], /duration/);
+});
+
+test("non-boolean demo/screenshot are dropped", () => {
+  const { actions, lines } = planCapturing({ command: "live", demo: "yes", screenshot: 1, provided: { command: true } });
+  assert.ok(!actions.some((a) => a.type === "screenshot"), "no screenshot on a non-boolean");
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /demo|screenshot/);
+});
+
+test("a clean config produces no rejection line", () => {
+  const { lines } = planCapturing(readConfig(["--command=pause"]));
+  assert.equal(lines.length, 0);
+});
+
+test("leading-zero verse is still accepted through the whitelist", () => {
+  const { actions, lines } = planCapturing({ command: "now", verse: "02.47", provided: { command: true, verse: true } });
+  assert.deepEqual(actions, [{ type: "show", verse: "02.47" }]);
+  assert.equal(lines.length, 0);
 });
 
 test("missing or malformed config is handled without crashing", () => {
