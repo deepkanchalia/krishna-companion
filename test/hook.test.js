@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { execFileSync } = require("node:child_process");
+const { execFileSync, spawn } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -64,6 +64,32 @@ test("a spawn failure (missing launcher) fails open: empty stdout, exit 0", () =
 test("an oversized payload passes through untouched", () => {
   const huge = "Hare Kṛṣṇa " + "x".repeat(70 * 1024);
   assert.equal(runHook(JSON.stringify({ prompt: huge })), "");
+});
+
+test("an oversized payload exits at once without waiting for EOF", () => {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [hook], {
+      env: { ...process.env, PATH: "", KRSHNA_HOOK_NODE: ackStub }
+    });
+    let out = "";
+    const started = Date.now();
+    child.stdout.on("data", (chunk) => { out += chunk; });
+    child.stdin.on("error", () => {}); // stdin is destroyed once the cap is hit
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      const elapsed = Date.now() - started;
+      try {
+        assert.equal(code, 0, "passes through with exit 0");
+        assert.equal(out, "", "nothing on stdout");
+        assert.ok(elapsed < 1000, `should stop reading at the cap, not hang (took ${elapsed} ms)`);
+        resolve();
+      } catch (error) {
+        reject(error);
+      }
+    });
+    // Send more than the 64 KB cap and deliberately never end stdin.
+    child.stdin.write("Hare Kṛṣṇa " + "x".repeat(70 * 1024));
+  });
 });
 
 test("a companion that never acknowledges is abandoned, not waited out", {

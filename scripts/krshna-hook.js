@@ -16,22 +16,18 @@ const MAX_INPUT_BYTES = 64 * 1024;
 const ACK_TIMEOUT_MS = 6000;
 
 let input = "";
-let overflowed = false;
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", (chunk) => {
-  if (overflowed) return;
   input += chunk;
-  // Cap the payload: a prompt this large is never the bare invocation, so stop
-  // reading and let it pass through.
+  // A prompt this large is never the bare invocation. Stop reading and pass it
+  // through at once, without waiting for an EOF that may never come.
   if (Buffer.byteLength(input, "utf8") > MAX_INPUT_BYTES) {
-    overflowed = true;
-    input = "";
+    process.stdin.destroy();
+    process.exit(0);
   }
 });
 process.stdin.on("error", () => {});
 process.stdin.on("end", () => {
-  if (overflowed) return; // Oversized payload: pass through silently.
-
   let payload;
   try {
     payload = JSON.parse(input);
