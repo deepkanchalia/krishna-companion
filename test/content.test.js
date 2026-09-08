@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { reflections, purportExcerpt } = require("../src/content");
+const { reflections, purportExcerpt, findVerseIndex } = require("../src/content");
 
 const VERSES_IN_GITA = 700;
 
@@ -36,6 +36,23 @@ test("the corpus is the complete Bhagavad-gītā As It Is, in order, from VedaBa
 
   assert.equal(chapter, 18, "all eighteen chapters present");
   assert.equal(verseCount, VERSES_IN_GITA);
+});
+
+test("findVerseIndex resolves grouped verses, exact verses, and rejects bad input", () => {
+  const entryFor = (request) => reflections[findVerseIndex(reflections, request).index];
+
+  // 1.16 and 1.18 fall inside the grouped span, stored as one entry "16-18".
+  assert.equal(entryFor("1.16").reference, "Bhagavad-gītā As It Is 1.16-18");
+  assert.equal(entryFor("1.18").reference, "Bhagavad-gītā As It Is 1.16-18");
+  // 1.19 is its own entry, and 2.47 matches exactly.
+  assert.equal(entryFor("1.19").reference, "Bhagavad-gītā As It Is 1.19");
+  assert.equal(entryFor("2.47").reference, "Bhagavad-gītā As It Is 2.47");
+  // An exact grouped reference resolves to that same grouped entry.
+  assert.equal(entryFor("1.16-18").reference, "Bhagavad-gītā As It Is 1.16-18");
+
+  // Nothing that does not exist ever falls back silently.
+  assert.deepEqual(findVerseIndex(reflections, "99.1"), { error: "no verse 99.1" });
+  assert.deepEqual(findVerseIndex(reflections, "abc"), { error: "no verse abc" });
 });
 
 test("purport excerpts keep whole sentences and stop early", () => {

@@ -44,6 +44,38 @@ function loadReflections(file = DATA_FILE) {
   }));
 }
 
+// Resolve a "--verse" request to an index into `reflections`. Accepts an exact
+// reference such as "2.47" or a grouped "1.16-18", and a single "C.V" that falls
+// inside a grouped span (so "1.16" and "1.18" both resolve to the "1.16-18" entry).
+// Returns { index, entry } on a hit, or { error } for anything that does not match
+// a real verse — the caller must never fall back silently to saved progress.
+function findVerseIndex(list, request) {
+  if (typeof request !== "string" || !request.trim()) {
+    return { error: `no verse ${request}` };
+  }
+  const trimmed = request.trim();
+
+  // Exact reference first: handles a grouped request ("1.16-18") and a plain "2.47".
+  const exact = list.findIndex((item) => `${item.chapterNumber}.${item.verse}` === trimmed);
+  if (exact !== -1) return { index: exact, entry: list[exact] };
+
+  // A single "C.V": accept it when V falls inside a grouped span "A-B" of chapter C.
+  const single = trimmed.match(/^(\d+)\.(\d+)$/);
+  if (single) {
+    const chapter = Number(single[1]);
+    const verse = Number(single[2]);
+    const index = list.findIndex((item) => {
+      if (item.chapterNumber !== chapter) return false;
+      const [from, to] = String(item.verse).split("-").map(Number);
+      const end = Number.isFinite(to) ? to : from;
+      return Number.isFinite(from) && verse >= from && verse <= end;
+    });
+    if (index !== -1) return { index, entry: list[index] };
+  }
+
+  return { error: `no verse ${trimmed}` };
+}
+
 const reflections = loadReflections();
 
-module.exports = { reflections, loadReflections, purportExcerpt };
+module.exports = { reflections, loadReflections, purportExcerpt, findVerseIndex };
