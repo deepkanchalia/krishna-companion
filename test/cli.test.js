@@ -7,6 +7,15 @@ const os = require("node:os");
 
 const cli = path.join(__dirname, "..", "bin", "krshna.js");
 
+function zshAvailable() {
+  try {
+    execFileSync("zsh", ["-f", "-c", "true"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 test("CLI documents the universal terminal commands", () => {
   const output = execFileSync(process.execPath, [cli, "help"], { encoding: "utf8" });
   assert.match(output, /krshna\s+Make the companion live/);
@@ -51,7 +60,9 @@ test("zsh prompt reads state without spawning Node", () => {
   assert.match(integration, /state\.json/);
 });
 
-test("zsh prompt segment does not assign to read-only special parameters", (t) => {
+test("zsh prompt segment does not assign to read-only special parameters", {
+  skip: zshAvailable() ? false : "requires zsh on PATH"
+}, (t) => {
   const temporaryHome = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-zsh-"));
   t.after(() => fs.rmSync(temporaryHome, { recursive: true, force: true }));
 
