@@ -232,3 +232,22 @@ test("zsh block: two checkouts install one block; uninstall restores .zshrc byte
   execFileSync(process.execPath, [cliA, "uninstall"], { env });
   assert.equal(fs.readFileSync(zshrc, "utf8"), before, "no-op uninstall leaves .zshrc unchanged");
 });
+
+test("zsh install/uninstall round-trips both trailing-newline shapes byte-for-byte", (context) => {
+  for (const before of ["export EDITOR=vim\nalias ll='ls -la'\n", "export EDITOR=vim\nalias ll='ls -la'"]) {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-zsh-shape-"));
+    context.after(() => fs.rmSync(home, { recursive: true, force: true }));
+    const zshrc = path.join(home, ".zshrc");
+    fs.writeFileSync(zshrc, before);
+    const env = { ...process.env, HOME: home, KRSHNA_HOME: home };
+
+    execFileSync(process.execPath, [cli, "install"], { env });
+    const installed = fs.readFileSync(zshrc, "utf8");
+    assert.ok(installed.startsWith(before), "prior content is preserved");
+    assert.ok(installed.includes("# >>> krshna companion >>>"), "the block was written");
+
+    execFileSync(process.execPath, [cli, "uninstall"], { env });
+    const shape = before.endsWith("\n") ? "trailing newline" : "no trailing newline";
+    assert.equal(fs.readFileSync(zshrc, "utf8"), before, `${shape}: byte-identical after uninstall`);
+  }
+});

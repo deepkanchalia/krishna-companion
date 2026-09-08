@@ -149,13 +149,16 @@ function installZsh() {
     fs.writeFileSync(zshrc, existing.slice(0, startIndex) + zshBlock() + existing.slice(after));
     return;
   }
-  const prefix = existing.length && !existing.endsWith("\n") ? "\n" : "";
+  // Always separate the block from prior content with exactly one newline (even when
+  // the file already ends in one); uninstallZsh strips that same newline back, so a
+  // file with or without a trailing newline round-trips byte-identical.
+  const prefix = existing.length ? "\n" : "";
   fs.appendFileSync(zshrc, `${prefix}${zshBlock()}\n`);
 }
 
-// Remove the marked block, including its markers and the newline the install wrote
-// after it, leaving every other byte of .zshrc untouched. Returns the removed text,
-// or null when there is no block.
+// Remove the marked block, including its markers, the newline install wrote after
+// it, and the one separator newline install wrote before it, leaving every other
+// byte of .zshrc untouched. Returns the removed text, or null when there is no block.
 function uninstallZsh() {
   const zshrc = zshrcFile();
   if (!fs.existsSync(zshrc)) return null;
@@ -165,8 +168,10 @@ function uninstallZsh() {
   if (startIndex === -1 || endIndex === -1) return null;
   let after = endIndex + ZSH_END.length;
   const removed = existing.slice(startIndex, after);
-  if (existing[after] === "\n") after += 1;
-  fs.writeFileSync(zshrc, existing.slice(0, startIndex) + existing.slice(after));
+  if (existing[after] === "\n") after += 1; // the newline install wrote after the block
+  let before = startIndex;
+  if (before > 0 && existing[before - 1] === "\n") before -= 1; // the separator install wrote before it
+  fs.writeFileSync(zshrc, existing.slice(0, before) + existing.slice(after));
   return removed;
 }
 
