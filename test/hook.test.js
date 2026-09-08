@@ -122,7 +122,9 @@ test("a companion that never acknowledges is abandoned, not waited out", {
   });
   const elapsed = Date.now() - started;
   assert.equal(out, "", "no block decision: the prompt passes through");
-  assert.ok(elapsed < 6600, `should give up near 6 s, not wait out the 8 s child (took ${elapsed} ms)`);
+  // Real budget: 6.0 s ack timeout + 0.5 s SIGTERM->SIGKILL escalation + spawn overhead,
+  // so it settles well under the 8 s child. 6600 ms leaves headroom for the spawn cost.
+  assert.ok(elapsed < 6600, `should give up near 6.5 s, not wait out the 8 s child (took ${elapsed} ms)`);
 
   // The child must be SIGKILLed, not orphaned: its PID is gone within 1 s.
   const pid = Number(fs.readFileSync(pidFile, "utf8").trim());
@@ -256,6 +258,121 @@ test("zsh block: two checkouts install one block; uninstall restores .zshrc byte
   // A second uninstall with no block present is a no-op.
   execFileSync(process.execPath, [cliA, "uninstall"], { env });
   assert.equal(fs.readFileSync(zshrc, "utf8"), before, "no-op uninstall leaves .zshrc unchanged");
+});
+
+test("install replaces a legacy unmarked hook entry; uninstall removes it", (context) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-legacy-hook-"));
+  context.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const settingsFile = path.join(home, ".claude", "settings.json");
+  fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
+  // A hook installed before the KRSHNA_HOOK=1 marker existed: it still names
+  // krshna-hook.js but carries no marker and a stale checkout path.
+  const legacyCommand = `/usr/bin/node /old/checkout/scripts/krshna-hook.js`;
+  fs.writeFileSync(settingsFile, `${JSON.stringify({
+    hooks: { UserPromptSubmit: [{ matcher: "", hooks: [{ type: "command", command: legacyCommand }] }] }
+  }, null, 2)}\n`);
+  const env = { ...process.env, HOME: home, KRSHNA_HOME: home };
+
+  execFileSync(process.execPath, [cli, "install"], { env });
+  const installed = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
+  const ours = installed.hooks.UserPromptSubmit
+    .flatMap((group) => group.hooks || [])
+    .filter((item) => typeof item.command === "string" && item.command.includes("krshna-hook.js"));
+  assert.equal(ours.length, 1, "the legacy entry was replaced, not left to accumulate a second one");
+  assert.ok(ours[0].command.includes("KRSHNA_HOOK=1"), "the fresh entry carries the marker");
+  assert.ok(!ours[0].command.includes("/old/checkout"), "the stale legacy path is gone");
+
+  execFileSync(process.execPath, [cli, "uninstall"], { env });
+  const after = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
+  const remaining = (after.hooks?.UserPromptSubmit || [])
+    .flatMap((group) => group.hooks || [])
+    .filter((item) => typeof item.command === "string" && item.command.includes("krshna-hook.js"));
+  assert.equal(remaining.length, 0, "uninstall removes the legacy-derived entry too");
+});
+
+test("a foreign hook that only mentions krshna-hook.js in text is left untouched", (context) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-foreign-hook-"));
+  context.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const settingsFile = path.join(home, ".claude", "settings.json");
+  fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
+  const foreign = "echo krshna-hook.js is nice";
+  fs.writeFileSync(settingsFile, `${JSON.stringify({
+    hooks: { UserPromptSubmit: [{ matcher: "", hooks: [{ type: "command", command: foreign }] }] }
+  }, null, 2)}\n`);
+  const env = { ...process.env, HOME: home, KRSHNA_HOME: home };
+
+  execFileSync(process.execPath, [cli, "install"], { env });
+  let commands = JSON.parse(fs.readFileSync(settingsFile, "utf8"))
+    .hooks.UserPromptSubmit.flatMap((group) => group.hooks || []).map((item) => item.command);
+  assert.ok(commands.includes(foreign), "the foreign hook survives install");
+  assert.equal(commands.filter((c) => /[/\\]+scripts[/\\]+krshna-hook\.js/.test(c)).length, 1, "ours added once");
+
+  execFileSync(process.execPath, [cli, "uninstall"], { env });
+  commands = ((JSON.parse(fs.readFileSync(settingsFile, "utf8")).hooks || {}).UserPromptSubmit || [])
+    .flatMap((group) => group.hooks || []).map((item) => item.command);
+  assert.ok(commands.includes(foreign), "the foreign hook survives uninstall too");
+});
+
+test("a .js.bak lookalike hook is foreign; the real shapes are still ours", (context) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-bak-hook-"));
+  context.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const settingsFile = path.join(home, ".claude", "settings.json");
+  fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
+  const bak = "cat /tmp/scripts/krshna-hook.js.bak";
+  fs.writeFileSync(settingsFile, `${JSON.stringify({
+    hooks: { UserPromptSubmit: [{ matcher: "", hooks: [{ type: "command", command: bak }] }] }
+  }, null, 2)}\n`);
+  const env = { ...process.env, HOME: home, KRSHNA_HOME: home };
+
+  execFileSync(process.execPath, [cli, "install"], { env });
+  const installed = JSON.parse(fs.readFileSync(settingsFile, "utf8"))
+    .hooks.UserPromptSubmit.flatMap((group) => group.hooks || []).map((item) => item.command);
+  assert.ok(installed.includes(bak), "the .js.bak hook is left alone");
+  // Real shapes still recognised as ours by the end-anchored path.
+  const ours = installed.filter((c) => /[/\\]+scripts[/\\]+krshna-hook\.js(?=["'\s]|$)/.test(c));
+  assert.equal(ours.length, 1);
+  assert.ok(ours[0].includes("KRSHNA_HOOK=1"));
+
+  execFileSync(process.execPath, [cli, "uninstall"], { env });
+  const after = ((JSON.parse(fs.readFileSync(settingsFile, "utf8")).hooks || {}).UserPromptSubmit || [])
+    .flatMap((group) => group.hooks || []).map((item) => item.command);
+  assert.ok(after.includes(bak), "the .js.bak hook survives uninstall too");
+});
+
+test("isKrshnaHook parses the command: our shapes accepted, echo/.bak lookalikes rejected", () => {
+  const { isKrshnaHook } = require("../bin/krshna.js");
+  const cmd = (command) => isKrshnaHook({ type: "command", command });
+  // Our three real shapes (marked, legacy unmarked, another checkout) — all node-by-path.
+  assert.equal(cmd(`KRSHNA_HOOK=1 "/usr/local/bin/node" "/co/scripts/krshna-hook.js"`), true);
+  assert.equal(cmd(`/usr/bin/node /old/checkout/scripts/krshna-hook.js`), true);
+  assert.equal(cmd(`KRSHNA_HOOK=1 "/opt/n/bin/node" "/other-checkout/scripts/krshna-hook.js"`), true);
+  // Foreign: a lookalike interpreter, a .bak sibling, and an extra-token mention.
+  assert.equal(cmd(`echo /opt/scripts/krshna-hook.js`), false, "echo is not a path-shaped interpreter");
+  assert.equal(cmd(`cat /tmp/scripts/krshna-hook.js.bak`), false, ".bak sibling is not our script");
+  assert.equal(cmd(`/usr/bin/node /co/scripts/krshna-hook.js --extra`), false, "three tokens is not our shape");
+});
+
+test("a legacy zsh block (no separator newline) is replaced, not duplicated, and uninstalled cleanly", (context) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-legacy-zsh-"));
+  context.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const zshrc = path.join(home, ".zshrc");
+  // Pre-B1 shape: the marked block sits directly after prior content with no separator
+  // line, with more user content after it.
+  const before = "export EDITOR=vim\n";
+  const after = "alias ll='ls -la'\n";
+  const legacyBlock = '# >>> krshna companion >>>\nsource "/old/path/shell/krshna.zsh"\n# <<< krshna companion <<<';
+  fs.writeFileSync(zshrc, `${before}${legacyBlock}\n${after}`);
+  const env = { ...process.env, HOME: home, KRSHNA_HOME: home };
+
+  execFileSync(process.execPath, [cli, "install"], { env });
+  const installed = fs.readFileSync(zshrc, "utf8");
+  assert.equal((installed.match(/# >>> krshna companion >>>/g) || []).length, 1, "one block, not duplicated");
+  assert.ok(!installed.includes("/old/path"), "the legacy source path was replaced in place");
+  assert.ok(installed.startsWith(before), "content before the block is preserved");
+  assert.ok(installed.endsWith(after), "content after the block is preserved");
+
+  execFileSync(process.execPath, [cli, "uninstall"], { env });
+  assert.equal(fs.readFileSync(zshrc, "utf8"), before + after, "surrounding lines byte-identical, not merged");
 });
 
 test("zsh install/uninstall round-trips both trailing-newline shapes byte-for-byte", (context) => {
