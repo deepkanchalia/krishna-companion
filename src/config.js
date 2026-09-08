@@ -12,6 +12,11 @@ function numberArgument(argv, name, fallback, minimum, maximum) {
   return Math.min(Math.max(value, minimum), maximum);
 }
 
+function hasFlag(argv, name) {
+  const prefix = `--${name}=`;
+  return argv.includes(`--${name}`) || argv.some((argument) => argument.startsWith(prefix));
+}
+
 function readConfig(argv = process.argv.slice(2)) {
   const commandArgument = argv.find((argument) => argument.startsWith("--command="));
   const demo = argv.includes("--demo");
@@ -25,13 +30,24 @@ function readConfig(argv = process.argv.slice(2)) {
     // A demo asks for a reflection right away, also when it reaches an instance that is already live.
     command: commandArgument?.slice("--command=".length) || (demo ? "now" : "live"),
     intervalMinutes: numberArgument(argv, "interval", DEFAULT_INTERVAL_MINUTES, 0.1, 1440),
-    durationSeconds: numberArgument(argv, "duration", DEFAULT_DURATION_SECONDS, 0, 120)
+    durationSeconds: numberArgument(argv, "duration", DEFAULT_DURATION_SECONDS, 0, 120),
+    // Which options this launch actually set, so a second instance can tell an
+    // explicit --interval/--duration/--verse from a defaulted one (planSecondInstance).
+    provided: {
+      command: Boolean(commandArgument),
+      verse: hasFlag(argv, "verse"),
+      demo,
+      screenshot: argv.includes("--screenshot"),
+      interval: hasFlag(argv, "interval"),
+      duration: hasFlag(argv, "duration")
+    }
   };
 }
 
 module.exports = {
   DEFAULT_DURATION_SECONDS,
   DEFAULT_INTERVAL_MINUTES,
+  hasFlag,
   numberArgument,
   readConfig
 };
