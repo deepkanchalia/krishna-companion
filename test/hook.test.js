@@ -22,11 +22,26 @@ const stubDir = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-hook-stub-"));
 const ackStub = path.join(stubDir, "ack-stub");
 const noAckStub = path.join(stubDir, "no-ack-stub");
 // A stub that ignores SIGTERM and sleeps well past the hook's 6 s budget, to prove
-// the hook stops waiting on it rather than hanging the prompt.
+// the hook stops waiting on it AND SIGKILLs it rather than orphaning it. It records
+// its own PID so the test can confirm the process is gone.
 const hangStub = path.join(stubDir, "hang-stub");
 fs.writeFileSync(ackStub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
 fs.writeFileSync(noAckStub, "#!/bin/sh\nexit 2\n", { mode: 0o755 });
-fs.writeFileSync(hangStub, "#!/bin/sh\ntrap '' TERM\nsleep 8\n", { mode: 0o755 });
+fs.writeFileSync(hangStub, '#!/bin/sh\ntrap "" TERM\necho $$ > "$KRSHNA_STUB_PIDFILE"\nsleep 8\n', { mode: 0o755 });
+
+// Poll until `pid` no longer exists (signal 0 throws), or the budget elapses.
+function processGoneWithin(pid, budgetMs) {
+  const deadline = Date.now() + budgetMs;
+  for (;;) {
+    try {
+      process.kill(pid, 0);
+    } catch {
+      return true; // ESRCH: the process is gone.
+    }
+    if (Date.now() >= deadline) return false;
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+  }
+}
 test.after(() => fs.rmSync(stubDir, { recursive: true, force: true }));
 
 function runHook(input, stub = ackStub, extraEnv = {}) {
@@ -96,13 +111,23 @@ test("a companion that never acknowledges is abandoned, not waited out", {
   // POSIX stub; on Windows the spawn fails and the hook fails open at once.
   skip: process.platform === "win32" ? "POSIX stub cannot run on Windows" : false
 }, () => {
+  const pidFile = path.join(stubDir, "hang-pid");
+  fs.rmSync(pidFile, { force: true });
   const started = Date.now();
   // Restore PATH so the stub's `sleep` resolves; the hook itself still finds the CLI
   // by absolute path. Without this the stub would exit at once and never hang.
-  const out = runHook(JSON.stringify({ prompt: "Hare Kṛṣṇa!" }), hangStub, { PATH: process.env.PATH });
+  const out = runHook(JSON.stringify({ prompt: "Hare Kṛṣṇa!" }), hangStub, {
+    PATH: process.env.PATH,
+    KRSHNA_STUB_PIDFILE: pidFile
+  });
   const elapsed = Date.now() - started;
   assert.equal(out, "", "no block decision: the prompt passes through");
-  assert.ok(elapsed < 6500, `should give up near 6 s, not wait out the 8 s child (took ${elapsed} ms)`);
+  assert.ok(elapsed < 6600, `should give up near 6 s, not wait out the 8 s child (took ${elapsed} ms)`);
+
+  // The child must be SIGKILLed, not orphaned: its PID is gone within 1 s.
+  const pid = Number(fs.readFileSync(pidFile, "utf8").trim());
+  assert.ok(Number.isInteger(pid) && pid > 0, "stub recorded its PID");
+  assert.ok(processGoneWithin(pid, 1000), `the stub process ${pid} was killed, not orphaned`);
 });
 
 test("install merges the Claude hook idempotently and uninstall removes only it", (context) => {

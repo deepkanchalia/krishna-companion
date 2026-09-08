@@ -48,15 +48,15 @@ process.stdin.on("end", () => {
   const timer = setTimeout(() => {
     if (settled) return;
     settled = true;
-    // Ask the child to stop, escalate to SIGKILL if it ignores that, and unref it
-    // so it can no longer hold this process open. Then pass the prompt through
-    // (nothing on stdout) and exit now instead of waiting out the child.
-    try { child.kill("SIGTERM"); } catch {}
-    const hardKill = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, 500);
-    hardKill.unref?.();
-    child.unref?.();
+    // Ask the child to stop; if it ignores SIGTERM, wait 500 ms and SIGKILL it, then
+    // pass the prompt through (nothing on stdout) and exit. Staying alive for the
+    // escalation keeps the child from being orphaned; total budget stays under 6.6 s.
     process.stderr.write("krshna-hook: companion did not acknowledge within 6 s\n");
-    process.exit(0);
+    try { child.kill("SIGTERM"); } catch {}
+    setTimeout(() => {
+      try { child.kill("SIGKILL"); } catch {}
+      process.exit(0);
+    }, 500);
   }, ACK_TIMEOUT_MS);
   timer.unref?.();
 
