@@ -104,6 +104,12 @@ function readPersistentData() {
     // --verse=1.32-35 previews one specific teaching without touching the saved journey.
     // A verse that is missing/empty/nonexistent is a hard error on a direct launch: exit
     // rather than silently falling back to saved progress and showing the wrong teaching.
+    if (!config.verse || !String(config.verse).trim()) {
+      // An empty "--verse=" is a usage slip, not a bad verse number: say what to pass.
+      console.error("Krishna Companion: --verse needs a value like 2.47");
+      app.exit(1);
+      return;
+    }
     const result = findVerseIndex(reflections, config.verse);
     if (result.error) {
       console.error(`Krishna Companion: ${result.error}`);
