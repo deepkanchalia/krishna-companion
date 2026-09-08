@@ -35,7 +35,11 @@ function runHook(input, stub = ackStub, extraEnv = {}) {
   });
 }
 
-test("acknowledged invocation is blocked; non-matching prompts pass silently", () => {
+test("acknowledged invocation is blocked; non-matching prompts pass silently", {
+  // The block path needs the POSIX stub to actually run as the CLI; Windows cannot
+  // exec a /bin/sh script, so there the hook fails open (a documented platform gap).
+  skip: process.platform === "win32" ? "POSIX stub cannot run on Windows" : false
+}, () => {
   assert.equal(
     runHook(JSON.stringify({ prompt: "Hare Kṛṣṇa!" })),
     JSON.stringify({ decision: "block", reason: "Hare Kṛṣṇa" })
@@ -74,7 +78,7 @@ test("install merges the Claude hook idempotently and uninstall removes only it"
     }
   };
   fs.writeFileSync(settingsFile, `${JSON.stringify(original, null, 2)}\n`);
-  const env = { ...process.env, HOME: home };
+  const env = { ...process.env, HOME: home, KRSHNA_HOME: home };
 
   execFileSync(process.execPath, [cli, "install"], { env });
   execFileSync(process.execPath, [cli, "install"], { env });
@@ -104,7 +108,7 @@ test("installing from two checkout paths leaves exactly one hook; uninstall clea
     fs.mkdirSync(path.join(root, "scripts"), { recursive: true });
     fs.copyFileSync(cli, path.join(root, "bin", "krshna.js"));
     fs.copyFileSync(hook, path.join(root, "scripts", "krshna-hook.js"));
-    fs.symlinkSync(path.join(projectRoot, "src"), path.join(root, "src"));
+    fs.symlinkSync(path.join(projectRoot, "src"), path.join(root, "src"), "junction"); // junction: no privilege needed on Windows
     return path.join(root, "bin", "krshna.js");
   }
 
@@ -114,7 +118,7 @@ test("installing from two checkout paths leaves exactly one hook; uninstall clea
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-home2-"));
   context.after(() => fs.rmSync(home, { recursive: true, force: true }));
   const settingsFile = path.join(home, ".claude", "settings.json");
-  const env = { ...process.env, HOME: home };
+  const env = { ...process.env, HOME: home, KRSHNA_HOME: home };
 
   execFileSync(process.execPath, [cliA, "install"], { env });
   execFileSync(process.execPath, [cliB, "install"], { env });
@@ -125,7 +129,10 @@ test("installing from two checkout paths leaves exactly one hook; uninstall clea
     .map((item) => item.command)
     .filter((command) => command.includes("KRSHNA_HOOK=1"));
   assert.equal(commands.length, 1);
-  assert.ok(commands[0].includes(path.join("checkout-b", "scripts", "krshna-hook.js")));
+  // Assert by segment, not a joined path: on Windows JSON.stringify escapes the path
+  // separators inside the stored command, so an exact path.join() substring misses.
+  assert.ok(commands[0].includes("checkout-b") && commands[0].includes("krshna-hook.js"));
+  assert.ok(!commands[0].includes("checkout-a"));
 
   // Uninstall from the *other* checkout still removes it: marker, not path, matches.
   execFileSync(process.execPath, [cliA, "uninstall"], { env });
@@ -148,7 +155,7 @@ test("zsh block: two checkouts install one block; uninstall restores .zshrc byte
     fs.copyFileSync(cli, path.join(root, "bin", "krshna.js"));
     fs.copyFileSync(hook, path.join(root, "scripts", "krshna-hook.js"));
     fs.writeFileSync(path.join(root, "shell", "krshna.zsh"), "# stub\n");
-    fs.symlinkSync(path.join(projectRoot, "src"), path.join(root, "src"));
+    fs.symlinkSync(path.join(projectRoot, "src"), path.join(root, "src"), "junction"); // junction: no privilege needed on Windows
     return path.join(root, "bin", "krshna.js");
   }
 
@@ -168,8 +175,10 @@ test("zsh block: two checkouts install one block; uninstall restores .zshrc byte
   const installed = fs.readFileSync(zshrc, "utf8");
   const blocks = installed.match(/# >>> krshna companion >>>/g) || [];
   assert.equal(blocks.length, 1, "exactly one zsh block");
-  assert.ok(installed.includes(path.join("checkout-b", "shell", "krshna.zsh")), "points at the second checkout");
-  assert.ok(!installed.includes(path.join("checkout-a", "shell", "krshna.zsh")), "not the first checkout");
+  // Segment checks, not joined paths: Windows escapes the separators in the source
+  // line (JSON.stringify), so an exact path.join() substring would miss.
+  assert.ok(installed.includes("checkout-b") && installed.includes("krshna.zsh"), "points at the second checkout");
+  assert.ok(!installed.includes("checkout-a"), "not the first checkout");
   assert.ok(installed.startsWith(before), "original lines preserved");
 
   execFileSync(process.execPath, [cliA, "uninstall"], { env });

@@ -31,9 +31,14 @@ test("CLI documents the universal terminal commands", () => {
 test("context survives a malformed journey and reports unreadable entries", (t) => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-ctx-"));
   t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  // Mirror bin/krshna.js appDataDirectory() for each platform, driven by KRSHNA_HOME
+  // (which redirects the home root even on Windows, where os.homedir ignores HOME).
+  const appData = path.join(home, "AppData", "Roaming");
   const dataDir = process.platform === "darwin"
     ? path.join(home, "Library", "Application Support", "krishna-companion")
-    : path.join(home, ".config", "krishna-companion");
+    : process.platform === "win32"
+      ? path.join(appData, "krishna-companion")
+      : path.join(home, ".config", "krishna-companion");
   fs.mkdirSync(dataDir, { recursive: true });
   const malformed = {
     nextVerseIndex: 3,
@@ -49,7 +54,13 @@ test("context survives a malformed journey and reports unreadable entries", (t) 
 
   const output = execFileSync(process.execPath, [cli, "context"], {
     encoding: "utf8",
-    env: { ...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, ".config") }
+    env: {
+      ...process.env,
+      HOME: home,
+      KRSHNA_HOME: home,
+      XDG_CONFIG_HOME: path.join(home, ".config"),
+      APPDATA: appData
+    }
   });
   assert.match(output, /journey has 4 unreadable entries/);
   assert.match(output, /Last explained: Bhagavad-gītā As It Is 1\.1/);

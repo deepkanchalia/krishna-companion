@@ -13,15 +13,22 @@ const rawCommand = (process.argv[2] || "live").toLowerCase();
 const voiceAction = (process.argv[3] || "").toLowerCase();
 const command = rawCommand === "voice" ? `voice-${voiceAction}` : rawCommand.replace(/^\//, "");
 
+// Resolve the home directory through KRSHNA_HOME first so tests (and Windows, where
+// os.homedir ignores $HOME) can redirect every home-rooted path to a temp directory.
+// Electron owns the app's own userData path, so src/main.js does not use this.
+function homeDirectory() {
+  return process.env.KRSHNA_HOME || os.homedir();
+}
+
 function appDataDirectory() {
   const appDirectory = "krishna-companion";
   if (process.platform === "darwin") {
-    return path.join(os.homedir(), "Library", "Application Support", appDirectory);
+    return path.join(homeDirectory(), "Library", "Application Support", appDirectory);
   }
   if (process.platform === "win32") {
-    return path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), appDirectory);
+    return path.join(process.env.APPDATA || path.join(homeDirectory(), "AppData", "Roaming"), appDirectory);
   }
-  return path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"), appDirectory);
+  return path.join(process.env.XDG_CONFIG_HOME || path.join(homeDirectory(), ".config"), appDirectory);
 }
 
 function stateFile() {
@@ -119,7 +126,7 @@ const ZSH_START = "# >>> krshna companion >>>";
 const ZSH_END = "# <<< krshna companion <<<";
 
 function zshrcFile() {
-  return path.join(os.homedir(), ".zshrc");
+  return path.join(homeDirectory(), ".zshrc");
 }
 
 function zshBlock() {
@@ -164,7 +171,7 @@ function uninstallZsh() {
 }
 
 function claudeSettingsFile() {
-  return path.join(os.homedir(), ".claude", "settings.json");
+  return path.join(homeDirectory(), ".claude", "settings.json");
 }
 
 // Marker carried by every hook entry we install, so we can find (and replace or
