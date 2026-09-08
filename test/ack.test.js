@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { waitForAck } = require("../src/ack");
+const { waitForAck, windowCanAcknowledge } = require("../src/ack");
 
 // waitForAck backs the CLI's `now` poll: exit 0 when the companion stamps state.json
 // with a lastCommand newer than t0, exit 2 otherwise. This exercises it directly, so
@@ -37,4 +37,14 @@ test("returns false when no fresh acknowledgement appears within the budget (exi
 
   const missing = path.join(path.dirname(stateFile), "absent.json");
   assert.equal(waitForAck(missing, t0, 300), false);
+});
+
+test("windowCanAcknowledge: ack only when a live window is present", () => {
+  // Present and not destroyed -> acknowledge (block the prompt, show the darshan).
+  assert.equal(windowCanAcknowledge({ isDestroyed: () => false }), true);
+  // Missing window -> no ack, so the CLI exits 2 and the hook passes through.
+  assert.equal(windowCanAcknowledge(undefined), false);
+  assert.equal(windowCanAcknowledge(null), false);
+  // Destroyed window -> no ack.
+  assert.equal(windowCanAcknowledge({ isDestroyed: () => true }), false);
 });

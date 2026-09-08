@@ -29,4 +29,13 @@ function sleepSync(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
-module.exports = { waitForAck };
+// A `now` invocation should acknowledge (which blocks the prompt in the hook) only
+// when there is a live window able to show the darshan. If the window is missing or
+// destroyed, we skip the ack: the CLI then exits 2 and the hook passes the prompt
+// through, rather than swallowing it with nothing on screen. Pure so main.js can be
+// tested for this decision without launching Electron.
+function windowCanAcknowledge(window) {
+  return Boolean(window) && typeof window.isDestroyed === "function" && !window.isDestroyed();
+}
+
+module.exports = { waitForAck, windowCanAcknowledge };

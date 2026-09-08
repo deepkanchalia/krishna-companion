@@ -20,6 +20,7 @@ const { reflections } = require("./content");
 const { normalizeJourney, recordTeaching } = require("./journey");
 const { canShowTeaching } = require("./schedule");
 const { containsInvocation } = require("./voice");
+const { windowCanAcknowledge } = require("./ack");
 const {
   DEFAULT_VOICE_SETTINGS,
   createFrontmostAppGate,
@@ -516,8 +517,14 @@ function handleCommand(command) {
       break;
     case "now":
     case "/krshna":
-      acknowledgeCommand("now");
-      showCompanion(true);
+      // Recreate the window if the app is alive but its window was closed, then
+      // acknowledge only if a darshan can actually be shown; otherwise skip the ack
+      // so the CLI exits 2 and the hook passes the prompt through.
+      if (!companionWindow || companionWindow.isDestroyed()) createWindow();
+      if (windowCanAcknowledge(companionWindow)) {
+        acknowledgeCommand("now");
+        showCompanion(true);
+      }
       break;
     case "voice-on":
       setVoiceEnabled(true);
@@ -601,7 +608,10 @@ if (instanceLock) app.whenReady().then(() => {
   companionWindow.webContents.once("did-finish-load", () => {
     showRestingCompanion();
     setTimeout(() => {
-      if (config.command === "now") acknowledgeCommand("now");
+      if (config.command === "now") {
+        if (!companionWindow || companionWindow.isDestroyed()) createWindow();
+        if (windowCanAcknowledge(companionWindow)) acknowledgeCommand("now");
+      }
       if (config.demo || config.command === "now") showCompanion(true);
       else handleCommand(config.command);
 
