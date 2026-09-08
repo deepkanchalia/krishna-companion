@@ -16,7 +16,7 @@ Status values: `held` = enforced by an automated check today, and the named chec
 | C6 | Voice hold timing: Space held 1999 ms does not fire; 2000 ms fires; OS key-repeat does not reset the hold; a second key cancels; a false frontmost gate blocks. | `test/voice-hold.test.js` | held |
 | C6b | Voice frontmost whitelist: the hold fires only while a listed terminal or editor is frontmost. Procedure: hold Space in Terminal (fires), in a browser (does not fire). | manual on macOS | manual |
 | C7 | Voice privacy: the helper requires Apple's on-device recognizer and refuses to run without it (`helpers/listen.swift`). Procedure for each release: run a darshan by voice with a network monitor open (zero connections from the helper or app), then list files modified under the app's data directory (no audio or transcript file). Deny one permission: exactly one notification appears and the app keeps running. | manual on macOS | manual |
-| C8 | Opening a darshan never takes keyboard focus: characters typed while the card opens land in the terminal. Focus moves to the card only after an explicit click into it, and returns on Continue. Procedure: type before clicking, then click and press Enter. | manual | manual |
+| C8 | Opening a darshan never takes keyboard focus: characters typed while the card opens land in the terminal. Focus moves to the card only after an explicit click into it, and returns on End darshan. Procedure: type before clicking, click the card, use Enter to expand, and Escape to end. | `test/darshan-main.test.js` asserts focus calls against doubles; native procedure remains manual | manual |
 | C9 | Crash safety: `state.json`, `journey.json`, `settings.json` are written by temp file plus rename, so a kill mid-write leaves the previous file intact. Progress is saved when a verse is shown, so `kill -9` mid-darshan and relaunch shows the next verse, never a repeat. A journey file with malformed entries is read past the bad entries and reported by `krshna context`. Known gap: a file that fails to parse entirely is replaced with defaults without a notice (robustness batch, quarantine instead). | `test/journey.test.js`, `test/cli.test.js`; kill test manual | manual |
 | C10 | Network: the renderer cannot open connections (CSP `connect-src 'none'` in `src/index.html`); the only outbound action is opening a VedaBase URL that exists in the corpus, on an explicit click (`src/main.js` validates before `openExternal`). No `fetch`, `net`, `http`, or `loadURL` to a remote host anywhere under `src/` or `bin/`. Procedure: grep those names on every change; `npm run fetch` is the sole network path and is never called by the app. | manual, grep on each pull request | manual |
 | C11 | zsh prompt segment: the shipped `shell/krshna.zsh` contains no call to `node`, `krshna`, or `krshna prompt`, and reads `state.json` directly. In a clean `zsh -f` shell the paused label renders exactly. Minute arithmetic is checked by hand: set `nextTeachingAt` 7 minutes ahead and confirm the prompt shows 7m. | `test/cli.test.js` for the first two; minutes manual | held (static and paused label), manual (minutes) |
@@ -34,10 +34,27 @@ Environment for every manual M1 check unless stated: MacBook Air 13-inch, built-
 | M1.3 | Quiet while typing: no darshan starts if any key was pressed in the last 20 seconds. A blocked darshan is deferred, retried every 5 seconds, and dropped after 10 minutes in favour of the next slot. Never dropped silently: the deferral is visible in `krshna context`. | unit tests with fake input timestamps | proposed |
 | M1.4 | Fullscreen guard: no darshan over a fullscreen application. Deferred as in M1.3. | manual on macOS | proposed |
 | M1.5 | Two-stage bubble: stage one shows the translation only, at most 3 lines in the environment above. Tap or Enter expands to the purport opening. The entry with the tallest rendered stage two still fits inside the display. | screenshots of both stages for the tallest entry; unit test that tap and Enter both send the expand message | proposed |
-| M1.6 | Arrival and withdrawal each complete in at most 1.5 seconds along the bottom edge of the display that holds the focused window, ending within 8 points of the chosen corner. During the motion, at most 5 percent of frames exceed 20 ms (measured in the Electron performance panel on the environment above). While present the figure does not move: position identical at 0, 30, and 60 seconds. It never follows the cursor. | screen recording plus performance trace | proposed |
+| M1.6 | Arrival and withdrawal are in-window slides at the saved resting position: Krishna enters from the right edge of the companion window in at most 1.1 seconds and leaves the same way in at most 0.9 seconds. The window is placed once, on the display that holds the saved position, and does not move while present (position identical at 0, 30, and 60 seconds). It never follows the cursor. During arrival, at most 5 percent of frames exceed 20 ms (Electron performance panel, environment above). | screen recording of one full darshan plus the performance panel capture; `test/darshan.test.js` for the timings | proposed |
 | M1.7 | Absent between darshans: no companion window is visible (window list shows none) and the app's average CPU over a 5-minute Activity Monitor sample is under 1 percent. | Activity Monitor and window list | proposed |
 | M1.8 | An untouched darshan withdraws on its own after 3 minutes. A darshan the reader has expanded stays until closed. | unit test on the timeout; manual | proposed |
 | M1.9 | Every `held` criterion in the Always table still passes in CI, and every `manual` one is re-run and ticked in the milestone pull request. | CI plus the manual list above | proposed |
+
+## Darshan animation branch evidence
+
+The `codex/darshan-message-animation` branch implements the M1 UI slice and its
+necessary window/timer wiring, not the entire M1 milestone. M1.1, M1.5–M1.8 have
+implementation and automated/renderer evidence in the branch's tests (`test/darshan.test.js`, `test/darshan-main.test.js`, `test/renderer.test.js`).
+The M1 rows remain proposed until their native acceptance checks pass. In
+particular, the performance trace (M1.6), CPU sampling
+(M1.7), schedule extensions (M1.2), typing deferral (M1.3), and the fullscreen guard
+(M1.4) are not claimed by this branch.
+
+| ID | Branch criterion | Check | Status |
+|----|------------------|-------|--------|
+| UI1 | Arrival takes 1.1 seconds to reveal a message; withdrawal hides the native window after 0.9 seconds. Reduced motion reveals without the entrance delay. There is no repeating figure animation while reading. | `test/darshan.test.js`, `test/renderer.test.js`; visual browser preview | manual (native motion) |
+| UI2 | One explicit Next verse action advances exactly one corpus entry, including grouped verses and wrapping 18.78 to 1.1. A specific verse preview never advances or saves progress. | `test/darshan-main.test.js` with Electron doubles | held |
+| UI3 | Every one of the 657 entries reaches the message renderer verbatim. Empty purports create no message. Tap and Enter expand; Escape during arrival cancels the pending reveal. | `test/renderer.test.js` | held |
+| UI4 | Untouched timeout is 180 seconds after arrival. Expanding cancels it, Next replaces it, double dismissal withdraws once, and window recreation cancels old timers. | `test/darshan.test.js`, `test/darshan-main.test.js` | held |
 
 ## How to use this file
 

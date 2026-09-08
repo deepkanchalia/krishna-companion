@@ -25,6 +25,7 @@ const { windowCanAcknowledge } = require("./ack");
 const { planSecondInstance } = require("./second-instance");
 const { shortcutUnavailableMessage } = require("./shortcut");
 const { resetOnWindowClosed } = require("./window-state");
+const { createDarshan } = require("./darshan");
 const {
   DEFAULT_VOICE_SETTINGS,
   createFrontmostAppGate,
@@ -34,8 +35,8 @@ const {
 // Exactly 10% smaller than the previous 176 × 224 resting widget.
 const RESTING_SIZE = { width: 158, height: 202 };
 // Reading height is a floor: the renderer reports how tall the verbatim text needs the card to be.
-const READING_SIZE = { width: 510, height: 326 };
-const SCREEN_MARGIN = 14;
+const READING_SIZE = { width: 660, height: 380 };
+const SCREEN_MARGIN = 8;
 // ⌘⌥K / Ctrl+Alt+K: ⌘⇧K is "Delete Line" in VS Code and would be stolen from every editor.
 const SHORTCUT = "CommandOrControl+Alt+K";
 const LISTEN_TIMEOUT_MS = 6_000;
@@ -68,6 +69,19 @@ let listeningSession;
 let voiceDisabledForLaunch = false;
 let voiceNoticeShown = false;
 let helperBuildStarted = false;
+let previewEncounter = false;
+let encounterDuration = 0;
+let readyForNext = false;
+const darshan = createDarshan({
+  onWithdraw: () => {
+    if (!companionWindow || companionWindow.isDestroyed()) return;
+    companionWindow.webContents.send("companion:collapse");
+    // Hand focus back immediately; the exit animation is not an input surface.
+    companionWindow.setFocusable(false);
+    companionWindow.setIgnoreMouseEvents(true);
+  },
+  onAbsent: showRestingCompanion
+});
 
 // The full parsed config travels to a running instance so it can honour a verse,
 // interval, duration, demo or screenshot passed to a second launch (planSecondInstance).
@@ -198,14 +212,15 @@ function widgetBounds(expanded) {
   const display = displayForPoint(restingPosition);
   const { workArea } = display;
   const height = Math.min(readingHeight, workArea.height - SCREEN_MARGIN * 2);
+  const width = Math.min(READING_SIZE.width, workArea.width - SCREEN_MARGIN * 2);
   const desired = {
-    x: restingPosition.x - (READING_SIZE.width - RESTING_SIZE.width),
+    x: restingPosition.x - (width - RESTING_SIZE.width),
     y: restingPosition.y - (height - RESTING_SIZE.height)
   };
   return {
-    width: READING_SIZE.width,
+    width,
     height,
-    x: Math.min(Math.max(desired.x, workArea.x), workArea.x + workArea.width - READING_SIZE.width),
+    x: Math.min(Math.max(desired.x, workArea.x), workArea.x + workArea.width - width),
     y: Math.min(Math.max(desired.y, workArea.y), workArea.y + workArea.height - height)
   };
 }
@@ -235,9 +250,9 @@ function nextReflection() {
 function rememberDraggedPosition() {
   if (programmaticMove || !companionWindow || companionWindow.isDestroyed()) return;
   const [x, y] = companionWindow.getPosition();
-  const [, height] = companionWindow.getSize();
+  const [width, height] = companionWindow.getSize();
   restingPosition = isExpanded
-    ? { x: x + READING_SIZE.width - RESTING_SIZE.width, y: y + height - RESTING_SIZE.height }
+    ? { x: x + width - RESTING_SIZE.width, y: y + height - RESTING_SIZE.height }
     : { x, y };
   restingPosition = clampedRestingPosition(restingPosition);
   saveSettings();
@@ -279,34 +294,41 @@ function createWindow() {
     // Reset expansion and drop the per-card timer so a recreated window can show a
     // teaching again; otherwise isExpanded stays true and canShowTeaching refuses.
     clearTimeout(dismissTimer);
+    darshan.reset();
     ({ isExpanded, dismissTimer } = resetOnWindowClosed({ isExpanded, dismissTimer }));
   });
 }
 
 function showRestingCompanion() {
   if (!companionWindow || companionWindow.isDestroyed()) return;
+  if (darshan.phase !== "absent") return;
   isExpanded = false;
+  companionWindow.hide();
   setGlass(false);
   setWidgetBounds(false);
   companionWindow.setFocusable(false);
-  companionWindow.setIgnoreMouseEvents(false);
-  companionWindow.showInactive();
+  companionWindow.setIgnoreMouseEvents(true);
 }
 
 function collapseCompanion() {
   clearTimeout(dismissTimer);
   dismissTimer = undefined;
-  if (!companionWindow || companionWindow.isDestroyed()) return;
-  companionWindow.webContents.send("companion:collapse");
-  setTimeout(showRestingCompanion, 380);
+  darshan.withdraw();
 }
 
 function showCompanion(force = false) {
   if (!canShowTeaching({ paused, isExpanded, force })) return false;
   if (!companionWindow || companionWindow.isDestroyed()) return false;
+  if (!darshan.show(config.durationSeconds)) return false;
+  stopListening();
   isExpanded = true;
+  previewEncounter = config.screenshot || Number.isInteger(requestedVerseIndex);
+  encounterDuration = config.durationSeconds;
+  readyForNext = false;
   readingHeight = READING_SIZE.height;
-  setGlass(true);
+  // Native vibrancy fills the entire window, including the transparent arrival
+  // stage. The message surface draws its own background instead.
+  setGlass(false);
   companionWindow.setIgnoreMouseEvents(false);
   companionWindow.setFocusable(false);
   setWidgetBounds(true);
@@ -314,19 +336,31 @@ function showCompanion(force = false) {
 
   companionWindow.webContents.send("companion:show", {
     ...nextReflection(),
-    durationSeconds: config.durationSeconds
+    durationSeconds: encounterDuration,
+    preview: previewEncounter
   });
 
   clearTimeout(dismissTimer);
   dismissTimer = undefined;
-  if (config.durationSeconds > 0) {
-    dismissTimer = setTimeout(collapseCompanion, config.durationSeconds * 1000);
-  }
   return true;
+}
+
+function showNextVerse() {
+  if (!isExpanded || previewEncounter || darshan.phase !== "present" || !readyForNext) return;
+  if (!companionWindow || companionWindow.isDestroyed()) return;
+  readyForNext = false;
+  darshan.show(encounterDuration);
+  readingHeight = READING_SIZE.height;
+  // Only this explicit action may advance while a teaching is already open.
+  companionWindow.webContents.send("companion:show", {
+    ...nextReflection(), durationSeconds: encounterDuration, continuing: true
+  });
 }
 
 function setListening(active) {
   if (!companionWindow || companionWindow.isDestroyed()) return;
+  // Listening feedback lives in the tray; absence does not reveal an idle figure.
+  if (tray) tray.setToolTip(active ? "Krishna Companion — Listening…" : "Krishna Companion");
   companionWindow.webContents.send("companion:listening", active);
 }
 
@@ -734,7 +768,8 @@ if (instanceLock) app.whenReady().then(() => {
     showRestingCompanion();
     setTimeout(() => {
       if (config.command === "now") revealNow();
-      else if (config.demo) showCompanion(true);
+      else if (config.demo || config.provided.verse) showCompanion(true);
+      else if (!config.screenshot && journey.history.length === 0 && ["live", "start"].includes(config.command)) showCompanion(true);
       else handleCommand(config.command);
 
       if (config.screenshot) captureScreenshotAndQuit();
@@ -743,6 +778,9 @@ if (instanceLock) app.whenReady().then(() => {
 });
 
 ipcMain.on("companion:dismiss", collapseCompanion);
+ipcMain.on("companion:expand", () => darshan.expand());
+ipcMain.on("companion:next", showNextVerse);
+ipcMain.on("companion:ready", () => { if (darshan.phase === "present") readyForNext = true; });
 ipcMain.on("companion:engage", () => {
   if (!isExpanded || !companionWindow || companionWindow.isDestroyed()) return;
   companionWindow.setFocusable(true);
@@ -752,7 +790,10 @@ ipcMain.on("companion:resize", (_event, height) => {
   if (!isExpanded || !companionWindow || companionWindow.isDestroyed()) return;
   if (!Number.isFinite(height)) return;
   readingHeight = Math.max(READING_SIZE.height, Math.ceil(height));
-  setWidgetBounds(true);
+  // Avoid needless native moves while measuring an unchanged message.
+  const bounds = widgetBounds(true);
+  const current = companionWindow.getBounds();
+  if (Object.keys(bounds).some((key) => bounds[key] !== current[key])) setWidgetBounds(true);
 });
 ipcMain.on("companion:open-source", (_event, url) => {
   if (reflections.some((item) => item.source === url)) shell.openExternal(url);
@@ -765,5 +806,6 @@ app.on("will-quit", () => {
   globalShortcut.unregisterAll();
   clearInterval(cadenceTimer);
   clearTimeout(dismissTimer);
+  darshan.reset();
   stopVoiceHook();
 });
