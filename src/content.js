@@ -5,6 +5,7 @@
 
 const { readFileSync } = require("node:fs");
 const path = require("node:path");
+const { safeLabel } = require("./sanitize");
 
 const DATA_FILE = path.join(__dirname, "..", "data", "gita.json");
 const EXCERPT_TARGET = 400;
@@ -51,7 +52,7 @@ function loadReflections(file = DATA_FILE) {
 // a real verse — the caller must never fall back silently to saved progress.
 function findVerseIndex(list, request) {
   if (typeof request !== "string" || !request.trim()) {
-    return { error: `no verse ${request}` };
+    return { error: `no verse ${safeLabel(request)}` };
   }
   const trimmed = request.trim();
 
@@ -73,7 +74,7 @@ function findVerseIndex(list, request) {
     if (index !== -1) return { index, entry: list[index] };
   }
 
-  return { error: `no verse ${trimmed}` };
+  return { error: `no verse ${safeLabel(trimmed)}` };
 }
 
 const reflections = loadReflections();

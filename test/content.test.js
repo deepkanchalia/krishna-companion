@@ -53,6 +53,11 @@ test("findVerseIndex resolves grouped verses, exact verses, and rejects bad inpu
   // Nothing that does not exist ever falls back silently.
   assert.deepEqual(findVerseIndex(reflections, "99.1"), { error: "no verse 99.1" });
   assert.deepEqual(findVerseIndex(reflections, "abc"), { error: "no verse abc" });
+
+  // The echoed request is sanitized: no control character survives to inject into a log.
+  const forged = findVerseIndex(reflections, "abc\nFORGED");
+  assert.equal(forged.error, "no verse abcFORGED");
+  assert.doesNotMatch(forged.error, /\n/);
 });
 
 test("purport excerpts keep whole sentences and stop early", () => {

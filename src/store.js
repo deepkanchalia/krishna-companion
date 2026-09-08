@@ -15,6 +15,11 @@ const {
   renameSync,
   writeFileSync
 } = require("node:fs");
+const { safeLabel } = require("./sanitize");
+
+// Strip control characters from a path/message before echoing it on one stderr line,
+// without truncating an ordinary path.
+const echo = (value) => safeLabel(value, 256);
 
 // Files this session must not overwrite: when a corrupt file could not be moved aside
 // (a read-only directory, say), we keep its bytes intact by refusing every later save
@@ -66,7 +71,7 @@ function readJson(filePath, fallback, quarantined) {
       // session, keep its bytes, and record it (quarantinedTo: null) for the startup notice.
       readOnlyThisSession.add(filePath);
       if (Array.isArray(quarantined)) quarantined.push({ file: filePath, quarantinedTo: null });
-      process.stderr.write(`krishna-companion: could not quarantine ${filePath} (${error.message}); keeping it read-only this session\n`);
+      process.stderr.write(`krishna-companion: could not quarantine ${echo(filePath)} (${echo(error.message)}); keeping it read-only this session\n`);
     }
     return fallback;
   }
@@ -77,7 +82,7 @@ function readJson(filePath, fallback, quarantined) {
 // true on success, false on failure.
 function writeJson(filePath, value) {
   if (readOnlyThisSession.has(filePath)) {
-    process.stderr.write(`krishna-companion: refusing to overwrite ${filePath}: kept read-only after a failed repair\n`);
+    process.stderr.write(`krishna-companion: refusing to overwrite ${echo(filePath)}: kept read-only after a failed repair\n`);
     return false;
   }
   try {
@@ -87,7 +92,7 @@ function writeJson(filePath, value) {
     renameSync(temporaryPath, filePath);
     return true;
   } catch (error) {
-    process.stderr.write(`krishna-companion: could not save ${filePath}: ${error.message}\n`);
+    process.stderr.write(`krishna-companion: could not save ${echo(filePath)}: ${echo(error.message)}\n`);
     return false;
   }
 }
