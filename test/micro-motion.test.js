@@ -91,8 +91,25 @@ test("the renderer runs no requestAnimationFrame loop, so nothing animates while
   assert.doesNotMatch(rendererSource, /setInterval/);
 });
 
-test("absence and reduced motion have no breathing loop", () => {
+test("absence and reduced motion have no breathing loop, and reduced motion disables the settle", () => {
   const breathingRule = styles.match(/body\[data-phase="arriving"\][^\n]+animation: breathe[^\n]+/)[0];
   assert.doesNotMatch(breathingRule, /data-phase="absent"|data-phase="withdrawing"/);
-  assert.match(styles, /prefers-reduced-motion: reduce[\s\S]+animation: none; transform: scale\(1\);/);
+  const reduced = styles.match(/prefers-reduced-motion: reduce[\s\S]+?\n\}/)[0];
+  assert.match(reduced, /animation: none; transform: scale\(1\);/);
+  // The one-shot settle (on the present presence layer) is disabled under reduced motion.
+  assert.match(reduced, /body\[data-phase="present"\] \.presence \{ animation: none; \}/);
+});
+
+test("the arrive and withdraw keyframes slide the figure along X from the right edge", () => {
+  const arrive = styles.match(/@keyframes arrive \{[^\n]*/)[0];
+  // Arrival starts off to the right (positive translateX) and lands at rest (no transform).
+  assert.match(arrive, /0% \{[^}]*transform: translateX\((\d+)px\)/);
+  assert.equal(Number(arrive.match(/0% \{[^}]*transform: translateX\((\d+)px\)/)[1]) > 0, true);
+  assert.match(arrive, /100% \{[^}]*transform: none/);
+
+  const withdraw = styles.match(/@keyframes withdraw \{[^\n]*/)[0];
+  // Withdrawal leaves from rest back off to the right (positive translateX at the end).
+  assert.match(withdraw, /transform: none/);
+  assert.match(withdraw, /100% \{[^}]*transform: translateX\((\d+)px\)/);
+  assert.equal(Number(withdraw.match(/100% \{[^}]*transform: translateX\((\d+)px\)/)[1]) > 0, true);
 });

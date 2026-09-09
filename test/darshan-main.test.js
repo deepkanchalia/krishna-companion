@@ -175,6 +175,22 @@ test("a now during withdrawal cancels the hide and re-arrives with the next vers
   assert.equal(shows.at(-1).payload.reflection, reflections[4], "re-arrives with the next verse");
 });
 
+test("opening never takes focus; only an explicit engage focuses, and dismiss drops it", async () => {
+  const h = await harness([], { nextVerseIndex: 3, history: [{ reference: reflections[2].reference, explanation: reflections[2].meaning }] });
+  h.command("now");
+  const win = h.windows.at(-1);
+  assert.equal(win.focusable, false, "opens non-focusable");
+  assert.equal(win.visible, true, "shown with showInactive()");
+  assert.equal(win.focused, false, "opening does not steal focus");
+  h.advance(ARRIVAL_MS);
+  h.ipc.emit("companion:engage");
+  assert.equal(win.focusable, true, "engage makes the window focusable");
+  assert.equal(win.focused, true, "engage focuses the window");
+  h.ipc.emit("companion:dismiss");
+  assert.equal(win.focusable, false, "dismiss drops focusability");
+  assert.equal(win.focused, false, "dismiss returns focus to the terminal");
+});
+
 test("returning users remain absent until invited and ordinary now never skips an open verse", async () => {
   const h = await harness([], { nextVerseIndex: 3, history: [{ reference: reflections[2].reference, explanation: reflections[2].meaning }] });
   assert.equal(h.windows[0].visible, false);

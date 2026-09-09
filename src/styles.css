@@ -102,4 +102,5 @@ body[data-phase="absent"] .figure, body[data-phase="withdrawing"] .figure { poin
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; transition-delay: 0s !important; }
   body[data-phase="arriving"] .figure img, body[data-phase="present"] .figure img { animation: none; transform: scale(1); }
+  body[data-phase="present"] .presence { animation: none; }
 }
