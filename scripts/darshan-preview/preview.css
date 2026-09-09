@@ -8,6 +8,9 @@ header p { margin: 0; color: #a1afa5; font-size: 12px; }
 nav { position: relative; z-index: 3; display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 18px 48px; }
 nav button, select { padding: 9px 12px; border: 1px solid #b7ab8640; border-radius: 8px; background: #202b24; color: #e2dac7; font-size: 11px; cursor: pointer; }
 label { color: #a8b4ab; font-size: 10px; } select { margin-left: 6px; }
+nav[aria-label="Frame review"] { position: absolute; top: 340px; left: 48px; width: 480px; padding: 15px; border: 1px solid #b7ab8630; border-radius: 12px; background: #14201bec; }
+#review-time { width: 86px; padding: 8px; margin-left: 6px; color: #fff0d1; background: #202b24; border: 1px solid #b7ab8640; border-radius: 7px; }
+.workspace-content { opacity: .3; }
 button:focus-visible, select:focus-visible { outline: 2px solid #e5c184; outline-offset: 3px; }
 .workspace { position: absolute; top: 280px; left: 48px; right: 48px; bottom: 55px; overflow: hidden; border: 1px solid #84968529; border-radius: 13px; background: #0d1510b3; box-shadow: 0 20px 60px #0003; }
 .window-chrome { display: flex; justify-content: space-between; padding: 12px 18px; border-bottom: 1px solid #8496851a; color: #8b9c8b; font: 10px monospace; }

@@ -11,6 +11,21 @@ that merged baseline so its review diff contains only this work.
 
 ## Experience
 
+Latest revision, 2026-09-09: Deep rejected the previous cutout motion as distorted.
+The description and screenshots below are historical, not visual approval.
+The correction uses continuous feathered limb surfaces, restrained angles,
+0.8 s pose transitions and a front-facing head. Removed the body-flattening turn,
+forearm swaps and whole-head blink swaps. Frame inspection and 0.25× playback
+are now available in the local preview. See `CHARACTER-MOVEMENT.md` for current
+behavior and remaining acceptance. **Not release-ready:** natural side turns
+remain incomplete because generated frames changed crown orientation/identity.
+Only the front-facing frame is used. No merge or release is authorized.
+
+Latest test run: 113 tests, 112 passed, 0 failed, 1 optional helper skipped.
+New runtime tests exercise loop cancellation and positive scaling; geometry tests
+sample every 8 ms and enforce angle/continuity bounds. These are regression
+checks, not a claim that the movement has received visual or devotional approval.
+
 Deep superseded the original glide-only design on 2026-09-08/09. Kṛṣṇa now uses
 a full-body painted skeletal rig: articulated hips/knees, shoulders/elbows,
 head tilt, blink and cloth movement. Arrival takes 3.2 s before the verse appears.

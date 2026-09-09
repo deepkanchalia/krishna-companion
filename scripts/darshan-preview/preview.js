@@ -12,6 +12,13 @@ verse.addEventListener("change", () => send("show"));
 document.querySelectorAll("[data-motion]").forEach((button) => {
   button.addEventListener("click", () => frame.contentWindow.postMessage({ type: "motion", action: button.dataset.motion }, location.origin));
 });
+function review(speed) {
+  frame.contentWindow.postMessage({ type: "review", action: document.querySelector("#review-action").value, elapsed: Number(document.querySelector("#review-time").value), speed }, location.origin);
+}
+document.querySelector("#review-frame").addEventListener("click", () => review(0));
+document.querySelector("#review-time").addEventListener("change", () => review(0));
+document.querySelector("#review-slow").addEventListener("click", () => review(.25));
+document.querySelector("#review-normal").addEventListener("click", () => review(1));
 document.querySelector("#size").addEventListener("change", (event) => {
   frame.style.width = `${event.target.value}px`;
   send("show");
