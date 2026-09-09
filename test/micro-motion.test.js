@@ -22,6 +22,15 @@ test("arrival, breathing and withdrawal are single-image transforms driven by CS
   assert.match(styles, /@keyframes breathe \{ 0%, 100% \{ transform: scale\(1\); \} 50% \{ transform: scale\(1\.012\); \} \}/);
 });
 
+test("a one-shot settle bob plays on arrival, driven by the settle variables", () => {
+  // 6 px ease-out over SETTLE_MS on the presence layer once the phase becomes present.
+  assert.match(styles, /body:not\(\.continuing\)\[data-phase="present"\] \.presence \{ animation: settle var\(--settle\) ease-out both; \}/);
+  assert.match(styles, /@keyframes settle \{ from \{ transform: translateY\(var\(--settle-px\)\); \} to \{ transform: translateY\(0\); \} \}/);
+  // One-shot: the settle animation must never loop.
+  const settleRule = styles.match(/animation: settle[^;]*/)[0];
+  assert.doesNotMatch(settleRule, /infinite/);
+});
+
 test("styles.css carries no literal s/ms duration for the figure animations", () => {
   // Every declaration that runs a figure animation must read a var(), never a number.
   const declarations = styles.match(/animation: (?:arrive|withdraw|breathe|threshold|settle)[^;]*/g) || [];

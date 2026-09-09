@@ -71,6 +71,8 @@ body[data-phase="arriving"] .typing i:nth-child(2) { animation-delay: .1s; }
 body[data-phase="arriving"] .typing i:nth-child(3) { animation-delay: .2s; }
 body[data-phase="arriving"] .verse-message { visibility: hidden; }
 body[data-phase="present"] .presence { opacity: 1; transform: none; }
+/* One-shot settle bob when the figure arrives; a continuing verse keeps the figure in place. */
+body:not(.continuing)[data-phase="present"] .presence { animation: settle var(--settle) ease-out both; }
 body[data-phase="present"] .card { opacity: 1; transform: none; pointer-events: auto; }
 body[data-phase="present"] .verse-message { animation: message-arrive .35s var(--ease) both; }
 body.continuing[data-phase="arriving"] .presence { animation: none; opacity: 1; transform: none; }
@@ -82,6 +84,7 @@ body[data-phase="absent"] .figure, body[data-phase="withdrawing"] .figure { poin
 @keyframes arrive { 0% { opacity: 0; transform: translateX(240px); } 18% { opacity: 1; } 100% { opacity: 1; transform: none; } }
 @keyframes withdraw { 0%, 18% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateX(240px); } }
 @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.012); } }
+@keyframes settle { from { transform: translateY(var(--settle-px)); } to { transform: translateY(0); } }
 @keyframes threshold { 20% { opacity: .8; transform: scaleX(1); } 100% { opacity: 0; transform: scaleX(1); } }
 @keyframes message-arrive { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes dot { 50% { opacity: .3; transform: translateY(-3px); } }

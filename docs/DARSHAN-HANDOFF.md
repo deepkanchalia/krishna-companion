@@ -23,6 +23,12 @@ Neither directory is included in the npm package or active test suite.
   three-line translation bubble reveals after 1.1 seconds.
 - While arriving or present, the image breathes on a 4-second ease-in-out scale
   from 1.000 to 1.012 and back. There is no JavaScript animation loop.
+- On arrival the figure plays one 6 px ease-out settle over 400 ms; a continuing
+  (Next verse) darshan keeps the figure in place and does not re-settle.
+- Blink is omitted: the parked heads atlas
+  (`assets/candidates/rig/krishna-heads-realistic.png`) contains no closed-eyes
+  frame, and its heads sit ~38 px off the shipped figure's eye line at rendered
+  1x size, far beyond the 1 px tolerance, so no aligned blink overlay is possible.
 - Tap the translation or press Enter after engaging the card to expand the full
   translation and purport opening. Verbatim corpus strings are never rewritten.
 - Next verse advances exactly one corpus entry and keeps the figure present.
