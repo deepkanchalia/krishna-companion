@@ -1,95 +1,90 @@
-# Darshan glide and micro-motion — Fable handoff
+# Darshan glide and micro-motion
 
-Branch: `codex/darshan-message-animation`. Owner decision recorded 2026-09-09.
-This branch is an M1 UI slice, not a claim that every M1 native acceptance check
-has passed. It is based on the `fdae25b` darshan flow over merged B2 `8731b8b`.
+Branch: `codex/darshan-message-animation`. This branch is the M1 darshan UI slice
+plus the window and timer wiring it needs. It is not a claim that every M1 native
+acceptance check has passed; the rows it does and does not claim are listed below.
 
-## Owner decision: articulated rig parked
-
-The AI-generated cut-out puppet did not produce a natural gait or dependable
-expressions. Rotating painted parts distorted anatomy, clothing, hands, and the
-face, and there was no animator-authored keyframed gait. M1 therefore ships only
-the original `assets/krishna.png` artwork as one image layer.
-
-The rig history remains available under `assets/candidates/rig/` and
-`experiments/articulated-rig/`. Its code, tests, model notes, prompts, generated
-atlases, and screenshots are reference material for a future human animator.
-Neither directory is included in the npm package or active test suite.
-
-## Shipped experience
+## What the branch does
 
 - The native companion window is hidden between darshans.
-- A single figure glides horizontally in from the right in 0.95 seconds; the
-  three-line translation bubble reveals after 1.1 seconds.
+- A single figure, `assets/krishna.png`, glides horizontally in from the right; the
+  three-line translation bubble reveals after the arrival delay.
 - While arriving or present, the image breathes on a 4-second ease-in-out scale
   from 1.000 to 1.012 and back. There is no JavaScript animation loop.
-- On arrival the figure plays one 6 px ease-out settle over 400 ms; a continuing
+- On arrival the figure plays one 6 px ease-out settle over 400 ms. A continuing
   (Next verse) darshan keeps the figure in place and does not re-settle.
-- Blink is omitted: the parked heads atlas
+- Blink is not implemented. The parked heads atlas
   (`assets/candidates/rig/krishna-heads-realistic.png`) contains no closed-eyes
-  frame, and its heads sit ~38 px off the shipped figure's eye line at rendered
-  1x size, far beyond the 1 px tolerance, so no aligned blink overlay is possible.
+  frame, and its heads sit about 38 px off the shipped figure's eye line at
+  rendered 1x size, far beyond the 1 px alignment tolerance, so no aligned blink
+  overlay is possible.
 - Tap the translation or press Enter after engaging the card to expand the full
   translation and purport opening. Verbatim corpus strings are never rewritten.
 - Next verse advances exactly one corpus entry and keeps the figure present.
 - An untouched verse withdraws after 180 seconds following arrival. Expansion
-  cancels that timeout; Next starts a new timeout.
-- Withdrawal glides right in 0.85 seconds; the native window hides at 0.9 seconds.
-- Reduced motion uses a fixed scale of 1.000 with no breathing loop.
+  cancels that timeout; Next starts a new one.
+- Withdrawal glides right and the native window hides after the withdrawal delay.
+- Reduced motion shows the fixed image with no breathing loop and no settle.
 
-## Integration boundaries
+## Where the numbers live
 
-- `src/darshan.js` owns the 1.1-second arrival, 180-second untouched, and
-  0.9-second withdrawal timers without importing Electron.
-- `src/main.js` owns saved placement, hidden-window lifecycle, focus gating,
-  readiness, progression, and native hiding.
-- `src/index.html`, `src/renderer.js`, and `src/styles.css` own the staged card,
-  single-image glide, and CSS-only breathing motion.
-- `scripts/preview-darshan.js` is a loopback-only browser harness around the real
-  renderer and corpus. It has no Electron, permissions, or persistence access.
+`src/darshan.js` is the single source for every darshan timing: `ARRIVAL_MS`,
+`WITHDRAWAL_MS`, `UNTOUCHED_MS`, `BREATH_MS`, `SETTLE_MS`, and `SETTLE_PX`.
+`src/main.js` sends `{ arrivalMs, withdrawalMs, breathMs, settleMs, settlePx }` in
+the `companion:show` payload. `src/renderer.js` writes them to the
+`--arrival`, `--withdraw`, `--breath`, `--settle`, and `--settle-px` CSS custom
+properties, and `src/styles.css` reads only those variables for the figure
+animations. The localhost preview serves the same constants so no duration is
+written twice.
 
-The existing `restingPosition` schema is unchanged. Opening still uses
-`showInactive()` and becomes focusable only after an explicit pointer engagement.
-The renderer CSP retains `connect-src 'none'`; source links remain main-process
-allowlisted against the corpus before `openExternal`.
+`src/main.js` owns saved placement, the hidden-window lifecycle, focus gating,
+readiness, verse progression, and native hiding. Opening uses `showInactive()` and
+the window becomes focusable only after an explicit pointer engagement. The
+renderer CSP keeps `connect-src 'none'`; source links are validated in the main
+process against the corpus before `openExternal`.
+
+## How to run the preview
+
+The preview is a loopback-only browser harness around the real renderer and corpus.
+It starts no Electron, requests no macOS permission, and writes no saved state.
+
+```bash
+node scripts/preview-darshan.js
+# open http://127.0.0.1:4173
+```
+
+Use the controls to replay the arrival, expand the message, advance verses, and
+switch entries, including the long and grouped ones.
 
 ## Evidence
 
-Local macOS, Node 24.13.0:
+`docs/evidence/` holds screenshots captured from the localhost preview at
+1470×956, for entry 14.22-25 (the tallest combined text):
 
-```text
-ℹ tests 103
-ℹ pass 102
-ℹ fail 0
-ℹ skipped 1
-```
+- `darshan-translation.png` — stage one, the three-line translation.
+- `darshan-long-expanded.png` — stage two, the expanded reading.
+- `darshan-withdrawn.png` — after withdrawal, the empty resting state.
 
-The skipped check is the optional prebuilt voice helper. Tests never launched
-Electron or requested a macOS permission. `npm pack --dry-run --json` contains no
-rig candidates, experiments, preview tooling, or compiled helper.
+Run `npm test` for the automated evidence; `test/micro-motion.test.js`,
+`test/darshan.test.js`, `test/renderer.test.js`, and `test/darshan-main.test.js`
+cover the timings, CSS variables, corpus verbatimness, and window wiring. Tests
+never launch Electron or request a macOS permission. `npm pack --dry-run` shows
+no rig candidates, experiments, preview tooling, evidence, or compiled helper.
 
-Renderer-only browser review used `http://127.0.0.1:4173` at 1470×956. The tallest
-entry, 14.22-25, rendered as exactly three lines in stage one. In stage two the
-660×866 iframe and 832px card remained within the viewport; its 1053px content
-scrolls inside the card. Computed image motion reported one source image,
-`breathe`, `4s`, `ease-in-out`, and a sampled scale of 1.00975. After withdrawal,
-the card and presence had zero opacity and the image animation was `none`.
+## Which M1 rows are claimed
 
-- [Tallest three-line translation](evidence/darshan-translation.png)
-- [Tallest expanded reading](evidence/darshan-long-expanded.png)
-- [After withdrawal](evidence/darshan-withdrawn.png)
+Claimed by this branch, with automated or renderer evidence: the two-stage bubble
+(M1.5), the single-image arrival, breathing, and withdrawal (M1.6), the absent and
+reduced-motion behaviour (M1.7), the 180-second untouched timeout (M1.8), and the
+micro-motion row (UI5). The always-on criteria touched are display provenance
+(C3), focus behaviour (C8), and network isolation (C10).
 
-## Display provenance and remaining acceptance
+## Which M1 rows are not claimed
 
-Translation, purport opening, chapter, reference, and source URL come exclusively
-from `src/content.js` / `data/gita.json` and are assigned with `textContent`.
-Buttons, headings, status notes, and preview labels are fixed product chrome. No
-new display sink or untrusted-text path was added, and corpus bytes remain untouched.
-
-Native focus return, saved-display placement, first-launch stopwatch, arrival
-performance trace, five-minute CPU sampling, and window-list absence still need
-their documented human checks. Schedule extensions, typing deferral, and the
-fullscreen guard remain outside this UI slice. No native performance or complete
-M1 acceptance claim is made.
-
-Criteria touched: C3, C8, C10, M1.5, M1.6, M1.7, M1.8, UI1–UI5.
+The native acceptance checks that need a human on macOS remain owed: native focus
+return, saved-display placement, the first-launch stopwatch (M1.1), the arrival
+performance trace, and the five-minute CPU sample and window-list absence (M1.7).
+A short screen recording of one darshan is also owed as a manual check. Schedule
+extensions (M1.2), typing deferral (M1.3), and the fullscreen guard (M1.4) are
+outside this UI slice. No native performance or complete M1 acceptance claim is
+made here.

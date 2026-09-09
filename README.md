@@ -80,8 +80,6 @@ npm run preview
 npm run preview -- --verse=1.32-35   # preview one specific verse
 ```
 
-`npm run preview:resting` now captures the empty, hidden resting state.
-
 Use `⌘⌥K` on macOS or `Ctrl+Alt+K` elsewhere to call up a teaching at any time. The menu-bar icon (a peacock feather) can also show a teaching, pause the schedule, or change the cadence to 30, 60, or 90 minutes.
 
 ## Options

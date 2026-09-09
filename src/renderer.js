@@ -54,7 +54,7 @@ function showTeaching({ reflection: incoming, durationSeconds, preview = false, 
   expanded = false;
   phase = "arriving";
   cardElement.inert = false;
-  document.body.classList.remove("listening", "expanded");
+  document.body.classList.remove("expanded");
   document.body.classList.toggle("continuing", continuing);
   document.body.dataset.phase = phase;
   document.querySelector("#messages").setAttribute("aria-busy", "true");
@@ -96,7 +96,6 @@ function collapse() {
   phase = "withdrawing";
   cardElement.inert = true;
   document.body.dataset.phase = phase;
-  document.body.classList.remove("listening");
   nextElement.disabled = true;
 }
 
@@ -129,4 +128,3 @@ document.addEventListener("keydown", (event) => {
 });
 window.krishna.onShow(showTeaching);
 window.krishna.onCollapse(collapse);
-window.krishna.onListening((active) => document.body.classList.toggle("listening", active));

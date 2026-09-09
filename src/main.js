@@ -24,7 +24,6 @@ const { containsInvocation } = require("./voice");
 const { windowCanAcknowledge } = require("./ack");
 const { planSecondInstance } = require("./second-instance");
 const { shortcutUnavailableMessage } = require("./shortcut");
-const { resetOnWindowClosed } = require("./window-state");
 const {
   createDarshan,
   ARRIVAL_MS,
@@ -42,6 +41,8 @@ const {
 // Exactly 10% smaller than the previous 176 × 224 resting widget.
 const RESTING_SIZE = { width: 158, height: 202 };
 // Reading height is a floor: the renderer reports how tall the verbatim text needs the card to be.
+// READING_SIZE.width is the single source for the expanded reading width. The compact CSS layout
+// (styles.css @media max-width) is the fallback for displays too narrow to hold this width.
 const READING_SIZE = { width: 660, height: 380 };
 const SCREEN_MARGIN = 8;
 // Every darshan timing comes from src/darshan.js. The renderer turns these into the
@@ -65,7 +66,6 @@ let readingHeight = READING_SIZE.height;
 let companionWindow;
 let tray;
 let cadenceTimer;
-let dismissTimer;
 let paused = false;
 let nextReflectionAt;
 let lastCommand = null;
@@ -307,11 +307,10 @@ function createWindow() {
   companionWindow.on("moved", rememberDraggedPosition);
   companionWindow.on("closed", () => {
     companionWindow = undefined;
-    // Reset expansion and drop the per-card timer so a recreated window can show a
-    // teaching again; otherwise isExpanded stays true and canShowTeaching refuses.
-    clearTimeout(dismissTimer);
+    // Reset expansion so a recreated window can show a teaching again; otherwise
+    // isExpanded stays true and canShowTeaching refuses every future showCompanion.
     darshan.reset();
-    ({ isExpanded, dismissTimer } = resetOnWindowClosed({ isExpanded, dismissTimer }));
+    isExpanded = false;
   });
 }
 
@@ -327,8 +326,6 @@ function showRestingCompanion() {
 }
 
 function collapseCompanion() {
-  clearTimeout(dismissTimer);
-  dismissTimer = undefined;
   darshan.withdraw();
 }
 
@@ -336,6 +333,8 @@ function showCompanion(force = false) {
   if (!canShowTeaching({ paused, isExpanded, force })) return false;
   if (!companionWindow || companionWindow.isDestroyed()) return false;
   if (!darshan.show(config.durationSeconds)) return false;
+  // A darshan takes over the window, so end any in-flight voice capture: the helper
+  // must not keep the microphone open behind a teaching the reader is already reading.
   stopListening();
   isExpanded = true;
   previewEncounter = config.screenshot || Number.isInteger(requestedVerseIndex);
@@ -356,9 +355,6 @@ function showCompanion(force = false) {
     durationSeconds: encounterDuration,
     preview: previewEncounter
   });
-
-  clearTimeout(dismissTimer);
-  dismissTimer = undefined;
   return true;
 }
 
@@ -822,7 +818,6 @@ app.on("will-quit", () => {
   saveState(false);
   globalShortcut.unregisterAll();
   clearInterval(cadenceTimer);
-  clearTimeout(dismissTimer);
   darshan.reset();
   stopVoiceHook();
 });
