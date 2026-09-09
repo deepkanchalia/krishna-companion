@@ -34,8 +34,8 @@ Environment for every manual M1 check unless stated: MacBook Air 13-inch, built-
 | M1.3 | Quiet while typing: no darshan starts if any key was pressed in the last 20 seconds. A blocked darshan is deferred, retried every 5 seconds, and dropped after 10 minutes in favour of the next slot. Never dropped silently: the deferral is visible in `krshna context`. | unit tests with fake input timestamps | proposed |
 | M1.4 | Fullscreen guard: no darshan over a fullscreen application. Deferred as in M1.3. | manual on macOS | proposed |
 | M1.5 | Two-stage bubble: stage one shows the translation only, at most 3 lines in the environment above. Tap or Enter expands to the purport opening. The entry with the tallest rendered stage two still fits inside the display. | screenshots of both stages for the tallest entry; unit test that tap and Enter both send the expand message | proposed |
-| M1.6 | Articulated arrival and withdrawal occur within the companion window at the saved resting position, each in at most 3.2 seconds. Legs bend under full-length clothing and hands gesture from connected elbows and shoulders. The window is placed on the saved display and does not follow the cursor. During arrival, at most 5 percent of frames exceed 20 ms (Electron performance panel, environment above). | screen recording of one full darshan plus the performance panel capture; `test/darshan.test.js` and `test/character-motion.test.js` for timings and joint changes | proposed |
-| M1.7 | Absent between darshans: no companion window is visible (window list shows none) and the app's average CPU over a 5-minute Activity Monitor sample is under 1 percent. | Activity Monitor and window list | proposed |
+| M1.6 | Single-image arrival and withdrawal occur within the companion window at the saved resting position, each in at most 1.1 seconds. `assets/krishna.png` glides horizontally from and to the right edge without articulated parts. While present, breathing is a 4-second ease-in-out scale from 1.000 to 1.012 and back, with no JavaScript animation loop. The window is placed on the saved display and does not follow the cursor. | `test/micro-motion.test.js` and `test/darshan.test.js` for artwork, CSS and timings; localhost-preview screenshots and computed-style inspection plus native placement check | proposed |
+| M1.7 | Absent between darshans: no companion window is visible (window list shows none), no image animation is selected in the absent phase, and the app's average CPU over a 5-minute Activity Monitor sample is under 1 percent. Reduced motion shows the fixed image without a loop. | `test/micro-motion.test.js`; Activity Monitor and window list | proposed |
 | M1.8 | An untouched darshan withdraws on its own after 3 minutes. A darshan the reader has expanded stays until closed. | unit test on the timeout; manual | proposed |
 | M1.9 | Every `held` criterion in the Always table still passes in CI, and every `manual` one is re-run and ticked in the milestone pull request. | CI plus the manual list above | proposed |
 
@@ -43,7 +43,7 @@ Environment for every manual M1 check unless stated: MacBook Air 13-inch, built-
 
 The `codex/darshan-message-animation` branch implements the M1 UI slice and its
 necessary window/timer wiring, not the entire M1 milestone. M1.1, M1.5–M1.8 have
-implementation and automated/renderer evidence in the branch's tests (`test/darshan.test.js`, `test/darshan-main.test.js`, `test/renderer.test.js`).
+implementation and automated/renderer evidence in the branch's tests (`test/darshan.test.js`, `test/darshan-main.test.js`, `test/micro-motion.test.js`, `test/renderer.test.js`).
 The M1 rows remain proposed until their native acceptance checks pass. In
 particular, the performance trace (M1.6), CPU sampling
 (M1.7), schedule extensions (M1.2), typing deferral (M1.3), and the fullscreen guard
@@ -51,20 +51,20 @@ particular, the performance trace (M1.6), CPU sampling
 
 | ID | Branch criterion | Check | Status |
 |----|------------------|-------|--------|
-| UI1 | Arrival reveals a message after 3.2 seconds; withdrawal hides the native window after 3.2 seconds. Reduced motion has no loop. No negative/zero body scale, whole-forearm swaps or whole-head blink swaps. Continuous limb bends and 0.8 s action blends use three art styles, facing the reader. Inspect walk and gestures at 0.25× and 1× before visual approval. Side turns remain incomplete. | `test/character-motion.test.js`, `test/character-runtime.test.js`, `test/darshan.test.js`, `test/renderer.test.js`; visual browser review | proposed (user rejected earlier motion; new revision awaits approval) |
+| UI1 | One `assets/krishna.png` figure glides from the right in 0.95 seconds; the message reveals at 1.1 seconds; withdrawal glides right in 0.85 seconds and the native window hides at 0.9 seconds. The present figure breathes on a 4-second ease-in-out scale from 1.000 to 1.012 and back. Reduced motion is fixed, and absence has no animation selector or JavaScript loop. | `test/micro-motion.test.js`, `test/darshan.test.js`, `test/renderer.test.js`; visual browser review | proposed pending native placement and CPU acceptance |
 | UI2 | One explicit Next verse action advances exactly one corpus entry, including grouped verses and wrapping 18.78 to 1.1. A specific verse preview never advances or saves progress. | `test/darshan-main.test.js` with Electron doubles | held |
 | UI3 | Every one of the 657 entries reaches the message renderer verbatim. Empty purports create no message. Tap and Enter expand; Escape during arrival cancels the pending reveal. | `test/renderer.test.js` | held |
 | UI4 | Untouched timeout is 180 seconds after arrival. Expanding cancels it, Next replaces it, double dismissal withdraws once, and window recreation cancels old timers. | `test/darshan.test.js`, `test/darshan-main.test.js` | held |
 
-### UI5 · hands and expressions (proposed)
+### UI5 · hands and expressions (parked)
 
-Hand sources stay on their anatomical sides in every action; wrist/finger geometry
-is rigid beyond the elbow bend. Smile/blink affect only local facial features.
-Blinks last 330ms per 5.3s and do not restart on action changes. Reduced motion
-keeps open eyes, a fixed smile and no loop. Regression checks are in
-`test/character-motion.test.js` and `test/character-runtime.test.js`. Inspect the
-enlarged face/hands at 1800ms and 2420ms in each style before visual approval.
-Status: proposed, awaiting Deep's visual acceptance.
+Owner decision, 2026-09-09: the generated cut-out puppet cannot produce a natural
+gait or reliable expressions without distorting painted anatomy and clothing.
+Hands, face patches, articulated joints, multiple styles, and their tests are not
+part of M1. The preserved source material lives under `experiments/articulated-rig/`
+and `assets/candidates/rig/` for a human animator who can author a unified model
+sheet, clean separations, fixed pivots, keyframed gait, cloth overlap, gestures,
+expressions, and transitions. Status: parked; no visual acceptance is claimed.
 
 ## How to use this file
 
