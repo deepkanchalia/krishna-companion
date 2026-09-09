@@ -28,11 +28,14 @@ function harness(reduced = false) {
     return elements.get(name);
   }
   const events = [];
+  const motions = [];
   const callbacks = {};
   const timers = new Map();
   const context = {
     document: { querySelector: element, body: element("body"), addEventListener: (type, fn) => { callbacks[type] = fn; } },
     window: {
+      KrishnaMotion: require("../src/character-motion"),
+      krishnaCharacter: { play: (action) => motions.push(action) },
       matchMedia: () => ({ matches: reduced }),
       krishna: {
         resize: () => {},
@@ -44,14 +47,14 @@ function harness(reduced = false) {
         openSource: (url) => events.push(url),
         onShow: (fn) => { callbacks.show = fn; },
         onCollapse: (fn) => { callbacks.collapse = fn; },
-        onListening: () => {}
+        onListening: (fn) => { callbacks.listening = fn; }
       }
     },
     setTimeout(fn, ms) { const token = {}; timers.set(token, { fn, ms }); return token; },
     clearTimeout: (token) => timers.delete(token)
   };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../src/renderer.js"), "utf8"), context);
-  return { element, events, callbacks, timers,
+  return { element, events, motions, callbacks, timers,
     show: (reflection = reflections[0], options = {}) => callbacks.show({ reflection, durationSeconds: 0, ...options }),
     reveal() { for (const [token, timer] of [...timers]) { timers.delete(token); timer.fn(); } },
     click: (selector) => element(selector).listeners.click(),
@@ -97,4 +100,25 @@ test("next is single-flight, preview disables progression, and reduced motion re
   assert.deepEqual(h.events, ["next"]);
   h.show(reflections[0], { preview: true });
   assert.equal(h.element("#next").hidden, true);
+});
+
+test("renderer choreographs walking, teaching, explaining and departure without changing scripture", () => {
+  const h = harness();
+  h.show();
+  assert.equal([...h.timers.values()][0].ms, 3200);
+  assert.deepEqual(h.motions, ["arriving"]);
+  h.reveal(); h.click("#expand");
+  h.callbacks.listening(true); h.callbacks.listening(false);
+  h.key("Escape");
+  assert.deepEqual(h.motions, ["arriving", "teach", "explain", "listen", "idle", "withdrawing"]);
+  assert.equal(h.element("#translation").textContent, reflections[0].translation);
+});
+
+test("next verse keeps the character planted rather than replaying the walk", () => {
+  const h = harness();
+  h.show(reflections[1], { continuing: true });
+  assert.equal([...h.timers.values()][0].ms, 320);
+  assert.deepEqual(h.motions, ["idle"]);
+  h.reveal();
+  assert.deepEqual(h.motions, ["idle", "teach"]);
 });

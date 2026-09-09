@@ -7,7 +7,7 @@ function show(continuing = false) {
   clearTimeout(closeTimer);
   showCallback({ reflection: previewReflections[currentIndex], durationSeconds: 0, continuing });
   notify("status", { label: previewReflections[currentIndex].reference });
-  closeTimer = setTimeout(withdraw, 181_100);
+  closeTimer = setTimeout(withdraw, 180_000 + window.KrishnaMotion.ARRIVAL_MS);
 }
 function withdraw() {
   clearTimeout(closeTimer);
@@ -37,5 +37,9 @@ window.addEventListener("message", (event) => {
     show();
   }
   if (event.data.type === "withdraw") withdraw();
+  if (event.data.type === "motion" && ["teach", "explain", "listen", "idle"].includes(event.data.action)) {
+    clearTimeout(closeTimer);
+    window.krishnaCharacter.play(event.data.action);
+  }
 });
 window.addEventListener("load", () => notify("ready"));

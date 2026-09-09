@@ -35,7 +35,7 @@ const {
 // Exactly 10% smaller than the previous 176 × 224 resting widget.
 const RESTING_SIZE = { width: 158, height: 202 };
 // Reading height is a floor: the renderer reports how tall the verbatim text needs the card to be.
-const READING_SIZE = { width: 660, height: 380 };
+const READING_SIZE = { width: 760, height: 540 };
 const SCREEN_MARGIN = 8;
 // ⌘⌥K / Ctrl+Alt+K: ⌘⇧K is "Delete Line" in VS Code and would be stolen from every editor.
 const SHORTCUT = "CommandOrControl+Alt+K";
@@ -655,7 +655,7 @@ function captureScreenshotAndQuit(demo = config.demo) {
     const previewName = demo ? "preview.png" : "resting-preview.png";
     await writeFile(path.join(__dirname, "..", previewName), preview.toPNG());
     app.quit();
-  }, 2600);
+  }, 4300);
 }
 
 function handleCommand(command) {

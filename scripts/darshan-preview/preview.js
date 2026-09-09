@@ -1,13 +1,17 @@
 const frame = document.querySelector("#darshan");
 const verse = document.querySelector("#verse");
-let desiredHeight = 380;
-function fit() { frame.style.height = `${Math.min(Math.max(380, desiredHeight), window.innerHeight - 90)}px`; }
+document.querySelector("#size").options[0].value = "760";
+let desiredHeight = 540;
+function fit() { frame.style.height = `${Math.min(Math.max(540, desiredHeight), window.innerHeight - 90)}px`; }
 function send(type) {
   frame.contentWindow.postMessage({ type, verse: verse.value }, location.origin);
 }
 document.querySelector("#invite").addEventListener("click", () => send("show"));
 document.querySelector("#withdraw").addEventListener("click", () => send("withdraw"));
 verse.addEventListener("change", () => send("show"));
+document.querySelectorAll("[data-motion]").forEach((button) => {
+  button.addEventListener("click", () => frame.contentWindow.postMessage({ type: "motion", action: button.dataset.motion }, location.origin));
+});
 document.querySelector("#size").addEventListener("change", (event) => {
   frame.style.width = `${event.target.value}px`;
   send("show");

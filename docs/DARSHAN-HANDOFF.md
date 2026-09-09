@@ -11,11 +11,14 @@ that merged baseline so its review diff contains only this work.
 
 ## Experience
 
-Kṛṣṇa glides in from the right of the transparent darshan window (0.95 s), with
-a brief gold threshold and halo. The speech surface enters, a short three-dot
-indicator appears, then the translation message is revealed at 1.1 s. There is
-no repeating motion of the figure while reading. Existing artwork is reused,
-consistent with Deep's recorded glide decision; this is not a sprite walk cycle.
+Deep superseded the original glide-only design on 2026-09-08/09. Kṛṣṇa now uses
+a full-body painted skeletal rig: articulated hips/knees, shoulders/elbows,
+head tilt, blink and cloth movement. Arrival takes 3.2 s before the verse appears.
+Finite teaching and explanation gestures settle into restrained breathing.
+Painterly, realistic and pixel-art atlases share the same choreography. The
+painterly blue/gold palette follows Deep's supplied visual reference. Full-length
+dhoti covers knees and calves; a shawl and overlapping fuller arms hide joins.
+See `CHARACTER-MOVEMENT.md` for the movement vocabulary and event combinations.
 
 The first message previews at most three lines with an explicit “Read full verse
 & purport” action. Tap the translation or press Enter after engaging the card to
@@ -29,8 +32,8 @@ including reduced-motion mode; repeated clicks cannot skip multiple entries.
 Scheduled and external `now` calls still cannot replace an open teaching.
 Explicit verse previews hide Next and never change the journey.
 
-End darshan (× or Escape) fades the message and glides Kṛṣṇa out. The native
-window hides after 0.9 s. Untouched readings withdraw three minutes after arrival;
+End darshan (× or Escape) fades the message, raises a farewell palm, turns and
+walks Kṛṣṇa out. The native window hides after 3.2 s. Untouched readings withdraw three minutes after arrival;
 opening the full verse cancels the timeout, including a supplied `--duration`.
 Next starts a fresh timeout. Old timers are cancelled on window recreation.
 New users see 1.1 on first launch; returning users wait for cadence or invitation.
@@ -48,8 +51,11 @@ New users see 1.1 on first launch; returning users wait for cadence or invitatio
 The existing `restingPosition` schema is preserved. Native vibrancy is disabled
 because it fills the transparent arrival stage; the card paints its own surface.
 Listening feedback moves to the tray tooltip; the idle window stays hidden.
-No dependency, Electron version, corpus, artwork, licensing, shell hook, or voice
-recognition implementation changes were made.
+No dependency, Electron version, corpus, licensing, shell hook, or voice
+recognition implementation changes were made. Original artwork is preserved;
+three new generated atlases are added. The renderer caches their keyed pixels
+once, remembers the style locally and cancels its loop while hidden or absent.
+Reduced motion draws a single settled pose without a continuous loop.
 
 ## Evidence
 
@@ -57,11 +63,11 @@ After `npm ci --ignore-scripts --offline --no-audit --no-fund`, local macOS,
 Node 24.13.0:
 
 ```text
-ℹ tests 100
-ℹ pass 99
+ℹ tests 107
+ℹ pass 106
 ℹ fail 0
 ℹ skipped 1
-ℹ duration_ms 8729.526167
+ℹ duration_ms 8653.281042
 ```
 
 The skipped test requires the optional compiled voice helper, absent in this
@@ -86,12 +92,18 @@ entries, long readings and withdrawal. Evidence:
 - [Long reading](evidence/darshan-long-expanded.png)
 - [After withdrawal](evidence/darshan-withdrawn.png)
 
-The compact 500px renderer had no horizontal overflow (354px message surface,
+The earlier glide-only compact 500px renderer had no horizontal overflow (354px message surface,
 354px scroll width). The long reading retained 1053px of scrollable content in a
 652px surface; keyboard navigation reached its bottom controls.
 
 Run `node scripts/preview-darshan.js` and open `http://127.0.0.1:4173` to replay.
 The harness's source button reports the validated URL without opening another tab.
+
+Articulated revision: browser-checked all three styles with full dhoti and shawl,
+and visible connected forearms in teaching/explanation poses. New screenshot
+evidence is `evidence/character-paint.png`, `evidence/character-realistic.png`,
+and `evidence/character-pixel.png`. These show appearance, not native performance.
+Final artwork generation prompts and local asset paths: `CHARACTER-ART-PROMPTS.md`.
 
 ## Display provenance (C3)
 

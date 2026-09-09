@@ -12,7 +12,7 @@ let phase = "absent";
 let expanded = false;
 
 function fitWindowToCard() {
-  window.krishna.resize(cardElement.scrollHeight + 32);
+  window.krishna.resize(Math.max(540, cardElement.scrollHeight + 32));
 }
 
 function revealMessage() {
@@ -22,6 +22,7 @@ function revealMessage() {
   document.body.dataset.phase = phase;
   document.querySelector("#messages").setAttribute("aria-busy", "false");
   nextElement.disabled = false;
+  window.krishnaCharacter?.play("teach");
   window.krishna.ready();
   fitWindowToCard();
 }
@@ -36,6 +37,7 @@ function showTeaching({ reflection: incoming, durationSeconds, preview = false, 
   document.body.classList.remove("listening", "expanded");
   document.body.classList.toggle("continuing", continuing);
   document.body.dataset.phase = phase;
+  window.krishnaCharacter?.play(continuing ? "idle" : "arriving");
   document.querySelector("#messages").setAttribute("aria-busy", "true");
   translationElement.textContent = reflection.translation;
   cardElement.classList.toggle("long", reflection.translation.split(/\s+/).length > 90);
@@ -54,7 +56,7 @@ function showTeaching({ reflection: incoming, durationSeconds, preview = false, 
     ? "Opens longer when you read more" : "A quiet moment · 3 minutes";
   cardElement.scrollTop = 0;
   fitWindowToCard();
-  revealTimer = setTimeout(revealMessage, reducedMotion.matches ? 0 : (continuing ? 320 : 1_100));
+  revealTimer = setTimeout(revealMessage, reducedMotion.matches ? 0 : (continuing ? 320 : window.KrishnaMotion.ARRIVAL_MS));
 }
 
 function expand() {
@@ -67,6 +69,7 @@ function expand() {
   expandElement.textContent = "Full verse open";
   document.querySelector("#timing-note").textContent = "Stay as long as you like";
   window.krishna.expand();
+  window.krishnaCharacter?.play("explain");
   fitWindowToCard();
 }
 
@@ -77,6 +80,7 @@ function collapse() {
   document.body.dataset.phase = phase;
   document.body.classList.remove("listening");
   nextElement.disabled = true;
+  window.krishnaCharacter?.play("withdrawing");
 }
 
 function dismiss() {
@@ -101,11 +105,14 @@ document.addEventListener("keydown", (event) => {
   if (event.repeat) return;
   if (event.key === "Escape") { event.preventDefault(); dismiss(); }
   // Native button Enter stays native, so source/next/dismiss are not hijacked.
-  if (event.key === "Enter" && !event.target.closest("button, a")) {
+  if (event.key === "Enter" && !event.target.closest("button, a, select")) {
     event.preventDefault();
     if (!expanded) expand();
   }
 });
 window.krishna.onShow(showTeaching);
 window.krishna.onCollapse(collapse);
-window.krishna.onListening((active) => document.body.classList.toggle("listening", active));
+window.krishna.onListening((active) => {
+  document.body.classList.toggle("listening", active);
+  if (phase === "present") window.krishnaCharacter?.play(active ? "listen" : "idle");
+});

@@ -7,7 +7,7 @@ const { EventEmitter } = require("node:events");
 const { createRequire } = require("node:module");
 const { readConfig } = require("../src/config");
 const { reflections, findVerseIndex } = require("../src/content");
-const { createDarshan } = require("../src/darshan");
+const { createDarshan, ARRIVAL_MS, WITHDRAWAL_MS, UNTOUCHED_MS } = require("../src/darshan");
 
 // Evaluate the actual main-process wiring against in-memory Electron doubles.
 // No Electron import, real window, native permission or production data writes.
@@ -101,7 +101,7 @@ test("first launch shows 1.1 without focus, next advances once, ending hides the
   assert.equal(h.shows()[0].payload.reflection, reflections[0]);
   assert.equal(win.visible, true);
   assert.equal(win.focused, false);
-  h.advance(1100);
+  h.advance(ARRIVAL_MS);
   h.ipc.emit("companion:ready");
   h.ipc.emit("companion:next"); h.ipc.emit("companion:next");
   assert.equal(h.shows().length, 2);
@@ -111,7 +111,7 @@ test("first launch shows 1.1 without focus, next advances once, ending hides the
   assert.equal(win.visible, true, "resume cannot hide or reset an active encounter");
   h.ipc.emit("companion:dismiss");
   h.ipc.emit("companion:next");
-  h.advance(900);
+  h.advance(WITHDRAWAL_MS);
   assert.equal(win.visible, false);
   assert.equal(h.shows().length, 2);
 });
@@ -136,14 +136,14 @@ test("specific verse previews cannot advance or alter the saved journey", async 
 test("expanded reading survives timeout; closing and recreating clears old timers", async () => {
   const h = await harness(["--demo", "--duration=2"]);
   h.ipc.emit("companion:expand");
-  h.advance(181_100);
+  h.advance(ARRIVAL_MS + UNTOUCHED_MS);
   assert.equal(h.windows[0].visible, true);
   h.ipc.emit("companion:dismiss");
   h.windows[0].dead = true; h.windows[0].emit("closed");
   h.command("now");
   const fresh = h.windows.at(-1);
   fresh.webContents.emit("did-finish-load");
-  h.advance(900);
+  h.advance(WITHDRAWAL_MS);
   assert.equal(fresh.visible, true, "withdrawal from old window cannot hide the new one");
 });
 
@@ -153,6 +153,6 @@ test("returning users remain absent until invited and ordinary now never skips a
   h.command("now"); h.command("now");
   assert.equal(h.shows().length, 1);
   assert.equal(h.shows()[0].payload.reflection, reflections[3]);
-  h.advance(181_100 + 900);
+  h.advance(ARRIVAL_MS + UNTOUCHED_MS + WITHDRAWAL_MS);
   assert.equal(h.windows[0].visible, false);
 });
