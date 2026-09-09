@@ -12,17 +12,6 @@ const files = new Map([
   ["/preview-bridge.js", ["scripts/darshan-preview/bridge.js", "text/javascript"]],
   ["/src/index.html", ["src/index.html", "text/html"]],
   ["/src/renderer.js", ["src/renderer.js", "text/javascript"]],
-  ["/src/character-motion.js", ["src/character-motion.js", "text/javascript"]],
-  ["/src/character.js", ["src/character.js", "text/javascript"]],
-  ["/assets/krishna-rig-paint.png", ["assets/krishna-rig-paint.png", "image/png"]],
-  ["/assets/krishna-rig-realistic.png", ["assets/krishna-rig-realistic.png", "image/png"]],
-  ["/assets/krishna-rig-pixel.png", ["assets/krishna-rig-pixel.png", "image/png"]],
-  ["/assets/krishna-heads-paint.png", ["assets/krishna-heads-paint.png", "image/png"]],
-  ["/assets/krishna-heads-realistic.png", ["assets/krishna-heads-realistic.png", "image/png"]],
-  ["/assets/krishna-heads-pixel.png", ["assets/krishna-heads-pixel.png", "image/png"]],
-  ["/assets/krishna-expressions-paint.png", ["assets/krishna-expressions-paint.png", "image/png"]],
-  ["/assets/krishna-expressions-realistic.png", ["assets/krishna-expressions-realistic.png", "image/png"]],
-  ["/assets/krishna-expressions-pixel.png", ["assets/krishna-expressions-pixel.png", "image/png"]],
   ["/src/styles.css", ["src/styles.css", "text/css"]],
   ["/assets/krishna.png", ["assets/krishna.png", "image/png"]]
 ]);

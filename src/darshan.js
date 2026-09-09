@@ -1,5 +1,6 @@
 // Encounter timers are Electron-free so tests never launch the real companion.
-const { ARRIVAL_MS, WITHDRAWAL_MS } = require("./character-motion");
+const ARRIVAL_MS = 1_100;
+const WITHDRAWAL_MS = 900;
 const UNTOUCHED_MS = 180_000;
 
 function createDarshan({ onWithdraw, onAbsent, schedule = setTimeout, cancel = clearTimeout }) {

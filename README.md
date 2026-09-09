@@ -1,10 +1,10 @@
 # Krishna Companion
 
-A quiet companion that visits during long terminal sessions. Start it once with `krshna`. On the first launch Kṛṣṇa walks into view for darshan; subsequent visits follow the 30-minute cadence or your invitation. A brief message indicator gives way to the next verse of *Bhagavad-gītā As It Is*, word for word.
+A quiet companion that visits during long terminal sessions. Start it once with `krshna`. On the first launch Kṛṣṇa glides into view for darshan; subsequent visits follow the 30-minute cadence or your invitation. A brief message indicator gives way to the next verse of *Bhagavad-gītā As It Is*, word for word.
 
 The first message previews up to three lines of the translation. Click it or “Read full verse & purport” to open the complete translation and a second message containing Śrīla Prabhupāda's purport opening. “Next verse” continues the saved sequence while Kṛṣṇa stays present. The × button or Escape ends the darshan with a gentle withdrawal. An untouched verse withdraws after three minutes; an expanded verse stays until you close it or choose the next verse. Long readings grow to the available display height, then scroll without discarding any text.
 
-Between darshans the companion window is hidden. A full-body painted rig walks with bending knees and gestures with articulated arms, then settles into restrained breathing while facing the reader. The motion correction is a review build: whole-head blink swaps and body-flattening turns are disabled; natural side turns still need consistent authored frames. Choose Painterly, Realistic or Pixel art below Kṛṣṇa; the local style preference never changes verse progress. Reduced-motion preferences disable the animation loop and show a settled pose. Drag Kṛṣṇa to place the darshan; the saved position survives restarts. Opening a darshan does not take keyboard focus, suspend your terminal, or stop a running process.
+Between darshans the companion window is hidden. The original single-image Kṛṣṇa figure glides in from the right, stays quietly present with the verse, and withdraws the same way. The generated articulated-rig experiment is parked as reference material for a future human animator. Reduced-motion preferences shorten the visual transition. Drag Kṛṣṇa to place the darshan; the saved position survives restarts. Opening a darshan does not take keyboard focus, suspend your terminal, or stop a running process.
 
 The journey begins at Chapter 1, text 1 and moves through all 700 verses in order (verses that Śrīla Prabhupāda translated together, such as 1.16-18, appear together). Progress is saved locally, so restarting the companion continues with the next teaching instead of choosing a random quote.
 
@@ -71,7 +71,7 @@ node scripts/preview-darshan.js
 # Open http://127.0.0.1:4173
 ```
 
-The preview uses the real renderer and corpus inside a simulated workspace. Replay the arrival, expand messages, advance verses, or try long and grouped verses. Desktop review includes enlarged live face and hand details: inspect Explain at 1800ms for the smile and 2420ms for the blink, or play at quarter speed. Smiles and blinks use local facial patches, not head swaps; hands retain their anatomical sides. This remains a visual-review build. Its source button displays the URL for inspection. It does not test native window focus, dragging, or voice.
+The preview uses the real renderer and corpus inside a simulated workspace. Replay the arrival, expand messages, advance verses, or try long and grouped verses. Its source button displays the URL for inspection. It does not test native window focus, dragging, or voice.
 
 To render a native `preview.png`, stop the companion first, then:
 

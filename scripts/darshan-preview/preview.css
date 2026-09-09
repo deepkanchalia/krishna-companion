@@ -8,11 +8,6 @@ header p { margin: 0; color: #a1afa5; font-size: 12px; }
 nav { position: relative; z-index: 3; display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 18px 48px; }
 nav button, select { padding: 9px 12px; border: 1px solid #b7ab8640; border-radius: 8px; background: #202b24; color: #e2dac7; font-size: 11px; cursor: pointer; }
 label { color: #a8b4ab; font-size: 10px; } select { margin-left: 6px; }
-nav[aria-label="Frame review"] { position: absolute; top: 340px; left: 48px; width: 480px; padding: 15px; border: 1px solid #b7ab8630; border-radius: 12px; background: #14201bec; }
-#review-time { width: 86px; padding: 8px; margin-left: 6px; color: #fff0d1; background: #202b24; border: 1px solid #b7ab8640; border-radius: 7px; }
-#detail-view { position: absolute; z-index: 3; top: 470px; left: 48px; width: 480px; height: 280px; background: #14201b; border: 1px solid #b7ab8630; border-radius: 12px; pointer-events: none; }
-@media (max-width: 1100px), (max-height: 780px) { #detail-view { display: none; } }
-.workspace-content { opacity: .3; }
 button:focus-visible, select:focus-visible { outline: 2px solid #e5c184; outline-offset: 3px; }
 .workspace { position: absolute; top: 280px; left: 48px; right: 48px; bottom: 55px; overflow: hidden; border: 1px solid #84968529; border-radius: 13px; background: #0d1510b3; box-shadow: 0 20px 60px #0003; }
 .window-chrome { display: flex; justify-content: space-between; padding: 12px 18px; border-bottom: 1px solid #8496851a; color: #8b9c8b; font: 10px monospace; }
@@ -22,6 +17,6 @@ button:focus-visible, select:focus-visible { outline: 2px solid #e5c184; outline
 .terminal-line { font: 14px monospace; color: #97a87c; }.terminal-line span { color: #748d79; }
 .lines { display: grid; gap: 12px; width: 38%; margin-top: 25px; }.lines i { height: 5px; width: 80%; background: #77927a15; border-radius: 4px; }.lines i:nth-child(2n) { width: 55%; }.lines i:nth-child(3n) { width: 95%; }
 .background-note { margin-top: 35px; color: #536a58; font: italic 16px Georgia, serif; }
-iframe { position: absolute; right: 20px; bottom: 38px; width: 760px; max-width: 100vw; height: 540px; border: 0; z-index: 2; }
+iframe { position: absolute; right: 20px; bottom: 38px; width: 660px; max-width: 100vw; height: 380px; border: 0; z-index: 2; }
 footer { position: absolute; bottom: 14px; left: 48px; right: 48px; display: flex; justify-content: space-between; gap: 12px; color: #8b9e91; font-size: 8px; letter-spacing: .03em; }
 @media (max-width: 760px) { header { padding: 24px; }.branch { display: none; }h1 { font-size: 28px; }nav { padding: 12px 24px; }.workspace { left: 24px; right: 24px; }iframe { right: 0; }footer { left: 24px; right: 24px; } }

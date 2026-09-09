@@ -17,7 +17,10 @@
     "!helpers/listen",
     "data/gita.json",
     "scripts",
-    "docs"
+    "!scripts/darshan-preview",
+    "!scripts/preview-darshan.js",
+    "docs",
+    "!experiments"
   ],
   "scripts": {
     "start": "electron .",
