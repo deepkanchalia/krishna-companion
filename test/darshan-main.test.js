@@ -147,6 +147,21 @@ test("expanded reading survives timeout; closing and recreating clears old timer
   assert.equal(fresh.visible, true, "withdrawal from old window cannot hide the new one");
 });
 
+test("a now on a not-yet-loaded window queues until the renderer is ready and advances once", async () => {
+  const h = await harness([], { nextVerseIndex: 3, history: [{ reference: reflections[2].reference, explanation: reflections[2].meaning }] });
+  // Recreate a window that has not finished loading: activate() builds it without a
+  // did-finish-load, so the renderer is not yet ready to receive companion:show.
+  h.windows[0].dead = true; h.windows[0].emit("closed");
+  h.app.emit("activate");
+  const fresh = h.windows.at(-1);
+  h.command("now");
+  assert.equal(fresh.sent.filter((e) => e.channel === "companion:show").length, 0, "nothing is sent before the renderer is ready");
+  assert.equal(h.writes.has("journey.json"), false, "the journey does not advance before delivery");
+  fresh.webContents.emit("did-finish-load");
+  assert.equal(fresh.sent.filter((e) => e.channel === "companion:show").length, 1, "the queued show is sent exactly once");
+  assert.equal(h.writes.get("journey.json").nextVerseIndex, 4, "the journey advances exactly once");
+});
+
 test("returning users remain absent until invited and ordinary now never skips an open verse", async () => {
   const h = await harness([], { nextVerseIndex: 3, history: [{ reference: reflections[2].reference, explanation: reflections[2].meaning }] });
   assert.equal(h.windows[0].visible, false);

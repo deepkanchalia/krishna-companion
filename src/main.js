@@ -88,6 +88,9 @@ let helperBuildStarted = false;
 let previewEncounter = false;
 let encounterDuration = 0;
 let readyForNext = false;
+// True once the current window's renderer has finished loading (did-finish-load), so
+// a companion:show it receives is not lost. Reset when the window is (re)created.
+let rendererReady = false;
 const darshan = createDarshan({
   onWithdraw: () => {
     if (!companionWindow || companionWindow.isDestroyed()) return;
@@ -299,14 +302,17 @@ function createWindow() {
     }
   });
 
+  rendererReady = false;
   companionWindow.setAlwaysOnTop(true, "floating");
   companionWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   companionWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   companionWindow.webContents.on("will-navigate", (event) => event.preventDefault());
+  companionWindow.webContents.on("did-finish-load", () => { rendererReady = true; });
   companionWindow.loadFile(path.join(__dirname, "index.html"));
   companionWindow.on("moved", rememberDraggedPosition);
   companionWindow.on("closed", () => {
     companionWindow = undefined;
+    rendererReady = false;
     // Reset expansion so a recreated window can show a teaching again; otherwise
     // isExpanded stays true and canShowTeaching refuses every future showCompanion.
     darshan.reset();
@@ -593,9 +599,12 @@ function restartCadence(minutes = config.intervalMinutes) {
 // Show a darshan for a `now` invocation. Recreate the window if the app is alive
 // without one; acknowledge (which blocks the prompt in the hook) and show only when
 // a window can actually display it, otherwise skip so the CLI exits 2 and the hook
-// passes the prompt through. When the window was just recreated its renderer is
-// still loading, so defer the reveal to did-finish-load — sending companion:show
-// before then would lose the teaching and flash a blank card.
+// passes the prompt through. Whenever the renderer has not finished loading — a
+// just-created window or a cold launch still in flight — defer the reveal to
+// did-finish-load: sending companion:show before then loses the teaching (and
+// advances the saved journey past a verse the reader never saw) and flashes a blank
+// card. nextReflection/saveJourney run inside reveal(), so the journey only advances
+// when the show is actually delivered to a ready renderer.
 function revealNow({ index, durationSeconds } = {}) {
   const recreated = !companionWindow || companionWindow.isDestroyed();
   if (recreated) createWindow();
@@ -613,8 +622,8 @@ function revealNow({ index, durationSeconds } = {}) {
     requestedVerseIndex = previousRequested;
     config.durationSeconds = previousDuration;
   };
-  if (recreated) companionWindow.webContents.once("did-finish-load", reveal);
-  else reveal();
+  if (rendererReady) reveal();
+  else companionWindow.webContents.once("did-finish-load", reveal);
 }
 
 // Apply a config handed in by a second launch to this running instance. Pure decision
