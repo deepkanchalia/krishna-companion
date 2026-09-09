@@ -31,7 +31,12 @@ function harness(reduced = false) {
   const callbacks = {};
   const timers = new Map();
   const context = {
-    document: { querySelector: element, body: element("body"), addEventListener: (type, fn) => { callbacks[type] = fn; } },
+    document: {
+      querySelector: element,
+      body: element("body"),
+      documentElement: { style: { setProperty() {} } },
+      addEventListener: (type, fn) => { callbacks[type] = fn; }
+    },
     window: {
       matchMedia: () => ({ matches: reduced }),
       krishna: {

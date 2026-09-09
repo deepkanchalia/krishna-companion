@@ -5,14 +5,34 @@ const sourceElement = document.querySelector("#source");
 const expandElement = document.querySelector("#expand");
 const nextElement = document.querySelector("#next");
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+const rootStyle = document.documentElement.style;
 let currentSource;
 let reflection;
 let revealTimer;
+let arrivalDelay = 0;
+let continuingDelay = 0;
 let phase = "absent";
 let expanded = false;
 
+// The card sits CARD_INSET px inside the window on each side; the renderer asks the
+// main process for a window tall enough to hold the card plus that inset.
+const CARD_INSET = 32;
+
 function fitWindowToCard() {
-  window.krishna.resize(cardElement.scrollHeight + 32);
+  window.krishna.resize(cardElement.scrollHeight + CARD_INSET);
+}
+
+// Turn the timings from the companion:show payload (src/darshan.js) into the CSS
+// custom properties styles.css reads. This is the only place durations enter the DOM.
+function applyMotionTimings({ arrivalMs, withdrawalMs, breathMs, settleMs, settlePx }) {
+  if (Number.isFinite(arrivalMs)) rootStyle.setProperty("--arrival", `${arrivalMs}ms`);
+  if (Number.isFinite(withdrawalMs)) rootStyle.setProperty("--withdraw", `${withdrawalMs}ms`);
+  if (Number.isFinite(breathMs)) rootStyle.setProperty("--breath", `${breathMs}ms`);
+  if (Number.isFinite(settleMs)) rootStyle.setProperty("--settle", `${settleMs}ms`);
+  if (Number.isFinite(settlePx)) rootStyle.setProperty("--settle-px", `${settlePx}px`);
+  // A continuing verse keeps the figure present, so its reveal only waits out the settle.
+  arrivalDelay = Number.isFinite(arrivalMs) ? arrivalMs : 0;
+  continuingDelay = Number.isFinite(settleMs) ? settleMs : 0;
 }
 
 function revealMessage() {
@@ -26,8 +46,9 @@ function revealMessage() {
   fitWindowToCard();
 }
 
-function showTeaching({ reflection: incoming, durationSeconds, preview = false, continuing = false }) {
+function showTeaching({ reflection: incoming, durationSeconds, preview = false, continuing = false, ...timings }) {
   clearTimeout(revealTimer);
+  applyMotionTimings(timings);
   reflection = incoming;
   currentSource = reflection.source;
   expanded = false;
@@ -54,7 +75,7 @@ function showTeaching({ reflection: incoming, durationSeconds, preview = false, 
     ? "Opens longer when you read more" : "A quiet moment · 3 minutes";
   cardElement.scrollTop = 0;
   fitWindowToCard();
-  revealTimer = setTimeout(revealMessage, reducedMotion.matches ? 0 : (continuing ? 320 : 1_100));
+  revealTimer = setTimeout(revealMessage, reducedMotion.matches ? 0 : (continuing ? continuingDelay : arrivalDelay));
 }
 
 function expand() {

@@ -3,11 +3,18 @@ let collapseCallback;
 let currentIndex = 0;
 let closeTimer;
 function notify(type, fields = {}) { parent.postMessage({ type, ...fields }, location.origin); }
+const motionTimings = {
+  arrivalMs: previewTimings.ARRIVAL_MS,
+  withdrawalMs: previewTimings.WITHDRAWAL_MS,
+  breathMs: previewTimings.BREATH_MS,
+  settleMs: previewTimings.SETTLE_MS,
+  settlePx: previewTimings.SETTLE_PX
+};
 function show(continuing = false) {
   clearTimeout(closeTimer);
-  showCallback({ reflection: previewReflections[currentIndex], durationSeconds: 0, continuing });
+  showCallback({ reflection: previewReflections[currentIndex], durationSeconds: 0, continuing, ...motionTimings });
   notify("status", { label: previewReflections[currentIndex].reference });
-  closeTimer = setTimeout(withdraw, 181_100);
+  closeTimer = setTimeout(withdraw, previewTimings.ARRIVAL_MS + previewTimings.UNTOUCHED_MS);
 }
 function withdraw() {
   clearTimeout(closeTimer);

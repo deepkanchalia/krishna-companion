@@ -4,6 +4,8 @@ const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 const { reflections } = require("../src/content");
+const { ARRIVAL_MS, WITHDRAWAL_MS, UNTOUCHED_MS, BREATH_MS, SETTLE_MS, SETTLE_PX } = require("../src/darshan");
+const timings = { ARRIVAL_MS, WITHDRAWAL_MS, UNTOUCHED_MS, BREATH_MS, SETTLE_MS, SETTLE_PX };
 const root = path.resolve(__dirname, "..");
 const files = new Map([
   ["/", ["scripts/darshan-preview/index.html", "text/html"]],
@@ -23,11 +25,17 @@ const server = http.createServer((request, response) => {
     response.end(`const previewReflections = ${JSON.stringify(reflections)};`);
     return;
   }
+  if (url.pathname === "/preview-timings.js") {
+    // The bridge reads darshan timings from here so no duration is written twice.
+    response.setHeader("Content-Type", "text/javascript; charset=utf-8");
+    response.end(`const previewTimings = ${JSON.stringify(timings)};`);
+    return;
+  }
   const entry = files.get(url.pathname);
   if (!entry) { response.writeHead(404); response.end(); return; }
   let body = fs.readFileSync(path.join(root, entry[0]));
   if (url.pathname === "/src/index.html") {
-    body = body.toString().replace('<script src="renderer.js">', '<script src="/preview-corpus.js"></script><script src="/preview-bridge.js"></script><script src="renderer.js">');
+    body = body.toString().replace('<script src="renderer.js">', '<script src="/preview-corpus.js"></script><script src="/preview-timings.js"></script><script src="/preview-bridge.js"></script><script src="renderer.js">');
   }
   response.setHeader("Content-Type", `${entry[1]}; charset=utf-8`);
   response.end(body);

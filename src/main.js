@@ -25,7 +25,14 @@ const { windowCanAcknowledge } = require("./ack");
 const { planSecondInstance } = require("./second-instance");
 const { shortcutUnavailableMessage } = require("./shortcut");
 const { resetOnWindowClosed } = require("./window-state");
-const { createDarshan } = require("./darshan");
+const {
+  createDarshan,
+  ARRIVAL_MS,
+  WITHDRAWAL_MS,
+  BREATH_MS,
+  SETTLE_MS,
+  SETTLE_PX
+} = require("./darshan");
 const {
   DEFAULT_VOICE_SETTINGS,
   createFrontmostAppGate,
@@ -37,6 +44,15 @@ const RESTING_SIZE = { width: 158, height: 202 };
 // Reading height is a floor: the renderer reports how tall the verbatim text needs the card to be.
 const READING_SIZE = { width: 660, height: 380 };
 const SCREEN_MARGIN = 8;
+// Every darshan timing comes from src/darshan.js. The renderer turns these into the
+// --arrival/--withdraw/--breath/--settle/--settle-px CSS custom properties.
+const MOTION_TIMINGS = {
+  arrivalMs: ARRIVAL_MS,
+  withdrawalMs: WITHDRAWAL_MS,
+  breathMs: BREATH_MS,
+  settleMs: SETTLE_MS,
+  settlePx: SETTLE_PX
+};
 // ⌘⌥K / Ctrl+Alt+K: ⌘⇧K is "Delete Line" in VS Code and would be stolen from every editor.
 const SHORTCUT = "CommandOrControl+Alt+K";
 const LISTEN_TIMEOUT_MS = 6_000;
@@ -336,6 +352,7 @@ function showCompanion(force = false) {
 
   companionWindow.webContents.send("companion:show", {
     ...nextReflection(),
+    ...MOTION_TIMINGS,
     durationSeconds: encounterDuration,
     preview: previewEncounter
   });
@@ -353,7 +370,7 @@ function showNextVerse() {
   readingHeight = READING_SIZE.height;
   // Only this explicit action may advance while a teaching is already open.
   companionWindow.webContents.send("companion:show", {
-    ...nextReflection(), durationSeconds: encounterDuration, continuing: true
+    ...nextReflection(), ...MOTION_TIMINGS, durationSeconds: encounterDuration, continuing: true
   });
 }
 
