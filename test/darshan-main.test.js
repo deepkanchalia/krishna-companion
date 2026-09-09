@@ -30,7 +30,7 @@ async function harness(argv = [], saved = null) {
   }
   class Window extends EventEmitter {
     constructor(options) {
-      super(); this.bounds = options; this.visible = false; this.focused = false; this.dead = false;
+      super(); this.bounds = options; this.createOptions = options; this.visible = false; this.focused = false; this.dead = false;
       this.sent = []; this.webContents = new EventEmitter();
       this.webContents.send = (channel, payload) => this.sent.push({ channel, payload });
       this.webContents.setWindowOpenHandler = () => {};
@@ -179,6 +179,7 @@ test("opening never takes focus; only an explicit engage focuses, and dismiss dr
   const h = await harness([], { nextVerseIndex: 3, history: [{ reference: reflections[2].reference, explanation: reflections[2].meaning }] });
   h.command("now");
   const win = h.windows.at(-1);
+  assert.equal(win.createOptions.focusable, false, "the window is constructed non-focusable");
   assert.equal(win.focusable, false, "opens non-focusable");
   assert.equal(win.visible, true, "shown with showInactive()");
   assert.equal(win.focused, false, "opening does not steal focus");

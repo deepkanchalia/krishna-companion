@@ -1,5 +1,5 @@
 // Encounter timers are Electron-free so tests never launch the real companion.
-// This module is the single source for every darshan timing: main.js sends them in
+// This module is the single source for the figure timings: main.js sends them in
 // the companion:show payload, the renderer turns them into CSS custom properties,
 // and the localhost preview bridge reads them too. No duration is written twice.
 const ARRIVAL_MS = 1_100;

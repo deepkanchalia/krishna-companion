@@ -97,7 +97,7 @@ test("absence and reduced motion have no breathing loop, and reduced motion disa
   const reduced = styles.match(/prefers-reduced-motion: reduce[\s\S]+?\n\}/)[0];
   assert.match(reduced, /animation: none; transform: scale\(1\);/);
   // The one-shot settle (on the present presence layer) is disabled under reduced motion.
-  assert.match(reduced, /body\[data-phase="present"\] \.presence \{ animation: none; \}/);
+  assert.match(reduced, /body:not\(\.continuing\)\[data-phase="present"\] \.presence \{ animation: none; \}/);
 });
 
 test("the arrive and withdraw keyframes slide the figure along X from the right edge", () => {
