@@ -336,6 +336,14 @@ function collapseCompanion() {
 }
 
 function showCompanion(force = false) {
+  // A forced request (now, shortcut, tray) during a withdrawal cancels the pending
+  // hide and re-arrives, rather than being acknowledged and then silently dropped
+  // while the withdrawal timer hides the window. reset() clears that timer and returns
+  // to absent; clearing isExpanded lets canShowTeaching and darshan.show proceed.
+  if (force && darshan.phase === "withdrawing") {
+    darshan.reset();
+    isExpanded = false;
+  }
   if (!canShowTeaching({ paused, isExpanded, force })) return false;
   if (!companionWindow || companionWindow.isDestroyed()) return false;
   if (!darshan.show(config.durationSeconds)) return false;

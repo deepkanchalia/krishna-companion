@@ -162,6 +162,19 @@ test("a now on a not-yet-loaded window queues until the renderer is ready and ad
   assert.equal(h.writes.get("journey.json").nextVerseIndex, 4, "the journey advances exactly once");
 });
 
+test("a now during withdrawal cancels the hide and re-arrives with the next verse", async () => {
+  const h = await harness([], { nextVerseIndex: 3, history: [{ reference: reflections[2].reference, explanation: reflections[2].meaning }] });
+  h.command("now");
+  const win = h.windows.at(-1);
+  h.advance(ARRIVAL_MS);
+  h.ipc.emit("companion:dismiss");   // begin the withdrawal
+  h.command("now");                  // interrupt within the withdrawal window
+  h.advance(WITHDRAWAL_MS);
+  assert.equal(win.visible, true, "the pending hide is cancelled and the darshan re-arrives");
+  const shows = win.sent.filter((e) => e.channel === "companion:show");
+  assert.equal(shows.at(-1).payload.reflection, reflections[4], "re-arrives with the next verse");
+});
+
 test("returning users remain absent until invited and ordinary now never skips an open verse", async () => {
   const h = await harness([], { nextVerseIndex: 3, history: [{ reference: reflections[2].reference, explanation: reflections[2].meaning }] });
   assert.equal(h.windows[0].visible, false);
