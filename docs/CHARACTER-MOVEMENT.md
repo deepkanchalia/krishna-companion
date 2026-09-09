@@ -73,6 +73,27 @@ front-facing center frame is enabled; remaining frames are not selected at runti
 An identity-consistent authored turnaround/in-between sequence is needed before
 enabling side turns. Motion still needs Deep's visual acceptance before release.
 
+## Hand and facial correction · 2026-09-09 · review only
+
+The relaxed lower-arm sources had been assigned to opposite screen sides.
+`ARM_BINDINGS` now explicitly maps Krishna's anatomical right hand to screen-left
+(thumb inward) and left hand to screen-right. This immutable mapping never changes
+during gestures. Beyond the 36px elbow-bend region, the distal forearm, wrist and
+fingers render in one rigid draw instead of independently sampled raster strips.
+
+Small registered eye and mouth patches animate a closed-lip smile and blink on
+the original front-facing head. Hair, crown, tilak, nose and head outline never
+swap. Blinks close over 110ms, hold for 30ms and open over 190ms, once per 5.3s;
+the facial clock survives action changes independently of the 0.8s body blend.
+The smile warms during arrival and gently varies while present. Reduced motion
+keeps open eyes and a fixed smile without a loop. No invented speech or lip sync.
+See `CHARACTER-EXPRESSIONS.md` for asset provenance and prompts.
+
+The desktop preview includes enlarged live face/hand crops of the actual canvas.
+Inspect Explain at 1800ms for the smile and 2420ms for closed eyes, in each style.
+The detail panel hides on small viewports. Tests and inspected frames do not
+constitute Deep's visual acceptance; natural side turns remain incomplete.
+
 ## Acceptance
 
 - Both knees and elbows visibly articulate; all three styles share the same poses.

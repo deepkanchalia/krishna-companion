@@ -71,7 +71,7 @@ node scripts/preview-darshan.js
 # Open http://127.0.0.1:4173
 ```
 
-The preview uses the real renderer and corpus inside a simulated workspace. Replay the arrival, expand messages, advance verses, or try long and grouped verses. Its source button displays the URL for inspection. It does not test native window focus, dragging, or voice.
+The preview uses the real renderer and corpus inside a simulated workspace. Replay the arrival, expand messages, advance verses, or try long and grouped verses. Desktop review includes enlarged live face and hand details: inspect Explain at 1800ms for the smile and 2420ms for the blink, or play at quarter speed. Smiles and blinks use local facial patches, not head swaps; hands retain their anatomical sides. This remains a visual-review build. Its source button displays the URL for inspection. It does not test native window focus, dragging, or voice.
 
 To render a native `preview.png`, stop the companion first, then:
 

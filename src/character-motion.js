@@ -8,16 +8,35 @@
   const WITHDRAWAL_MS = 3200;
   const STYLES = ["paint", "realistic", "pixel"];
   const ACTIONS = ["arriving", "teach", "explain", "listen", "idle", "withdrawing", "absent"];
+  // Pose names are screen-relative. With the backs of relaxed hands visible,
+  // thumbs point inward: Krishna's anatomical right hand is on screen-left.
+  const ARM_BINDINGS = Object.freeze({
+    leftArm: Object.freeze({ upper: "upperLeft", lower: "lowerRight", anatomical: "right", x: -38 }),
+    rightArm: Object.freeze({ upper: "upperRight", lower: "lowerLeft", anatomical: "left", x: 38 })
+  });
   const clamp = (v) => Math.max(0, Math.min(1, v));
   const smooth = (v) => { const x = clamp(v); return x * x * x * (10 + x * (-15 + 6 * x)); };
   const envelope = (t, duration) => smooth(t / 1000) * (1 - smooth((t - duration + 1300) / 1300));
+
+  function expression(action, elapsed, reduced = false) {
+    if (reduced) return { smile: .65, blink: 0 };
+    const t = Math.max(0, Number.isFinite(elapsed) ? elapsed : 0);
+    // Asymmetric close/reopen, separated by long open-eye intervals. No lip sync
+    // is invented for the text-only verse display.
+    const phase = t % 5300;
+    const blink = smooth((phase - 2300) / 110) * (1 - smooth((phase - 2440) / 190));
+    const greeting = action === "arriving" ? smooth((t - 1600) / 1200) : 1;
+    const warmth = ["teach", "explain", "listen"].includes(action) ? .8 : .65;
+    const smile = greeting * (warmth + .15 * Math.sin(t / 2700) ** 2);
+    return { smile, blink };
+  }
 
   function sample(action, elapsed, reduced = false) {
     const t = Math.max(0, Number.isFinite(elapsed) ? elapsed : 0);
     const p = { x: 0, y: 0, torso: 0, head: 0, gaze: 0,
       leftArm: .045, rightArm: -.045, leftElbow: .045, rightElbow: -.045,
       leftHip: 0, rightHip: 0, leftKnee: 0, rightKnee: 0,
-      sash: 0, visible: action !== "absent", facing: 1 };
+      sash: 0, visible: action !== "absent", facing: 1, ...expression(action, t, reduced) };
     if (reduced) { p.visible = !["absent", "withdrawing"].includes(action); return p; }
     p.y = Math.sin(t / 1500) * .28;
     p.head = Math.sin(t / 2100) * .006;
@@ -99,5 +118,5 @@
   function keyPixel(r, g, b) {
     return r > 130 && b > 130 && Math.min(r, b) - g > 70 ? 0 : 255;
   }
-  return { ARRIVAL_MS, WITHDRAWAL_MS, STYLES, ACTIONS, sample, blend, ribbon, keyPixel };
+  return { ARRIVAL_MS, WITHDRAWAL_MS, STYLES, ACTIONS, ARM_BINDINGS, sample, expression, blend, ribbon, keyPixel };
 });

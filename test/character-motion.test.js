@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { sample, blend, ribbon, STYLES, ACTIONS, ARRIVAL_MS, WITHDRAWAL_MS, keyPixel } = require("../src/character-motion");
+const { sample, blend, ribbon, expression, ARM_BINDINGS, STYLES, ACTIONS, ARRIVAL_MS, WITHDRAWAL_MS, keyPixel } = require("../src/character-motion");
 
 test("walking changes both hips and knees, and ends at a planted pose", () => {
   const a = sample("arriving", 200);
@@ -34,8 +34,34 @@ test("farewell moves gently and exits without mirroring or flattening the figure
 test("reduced motion is time-invariant; reading never swaps a whole head to blink", () => {
   for (const action of ACTIONS) assert.deepEqual(sample(action, 0, true), sample(action, 9900, true));
   assert.notEqual(sample("idle", 0).y, sample("idle", 600).y);
-  assert.equal(sample("idle", 5000).blink, undefined);
+  assert.equal(sample("idle", 5000).blink, 0);
   assert.equal(sample("idle", 5000).gaze, 0);
+});
+
+test("anatomical hands stay on their own side with inward relaxed thumbs", () => {
+  assert.deepEqual(ARM_BINDINGS.leftArm, { upper: "upperLeft", lower: "lowerRight", anatomical: "right", x: -38 });
+  assert.deepEqual(ARM_BINDINGS.rightArm, { upper: "upperRight", lower: "lowerLeft", anatomical: "left", x: 38 });
+  assert.ok(Object.isFrozen(ARM_BINDINGS.leftArm));
+  for (const bend of [-.45, 0, .45]) {
+    const distal = ribbon(126, 60, bend).filter(point => point.s >= 78);
+    assert.ok(distal.every(point => point.angle === bend), "wrist and fingers stay rigid");
+  }
+});
+
+test("smile and blink are bounded feature weights, with a brief closed-eye hold", () => {
+  assert.equal(expression("arriving", 0).smile, 0);
+  assert.ok(expression("arriving", 3200).smile > .65);
+  assert.equal(expression("idle", 2410).blink, 1);
+  assert.equal(expression("idle", 2440).blink, 1);
+  assert.equal(expression("idle", 2630).blink, 0);
+  for (const action of ACTIONS) {
+    for (let t = 0; t < 12000; t += 8) {
+      const face = expression(action, t);
+      assert.ok(face.smile >= 0 && face.smile <= 1);
+      assert.ok(face.blink >= 0 && face.blink <= 1);
+    }
+    assert.deepEqual(expression(action, 0, true), expression(action, 2410, true));
+  }
 });
 
 test("every sampled frame stays within restrained joint limits and changes continuously", () => {

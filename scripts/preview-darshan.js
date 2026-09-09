@@ -20,6 +20,9 @@ const files = new Map([
   ["/assets/krishna-heads-paint.png", ["assets/krishna-heads-paint.png", "image/png"]],
   ["/assets/krishna-heads-realistic.png", ["assets/krishna-heads-realistic.png", "image/png"]],
   ["/assets/krishna-heads-pixel.png", ["assets/krishna-heads-pixel.png", "image/png"]],
+  ["/assets/krishna-expressions-paint.png", ["assets/krishna-expressions-paint.png", "image/png"]],
+  ["/assets/krishna-expressions-realistic.png", ["assets/krishna-expressions-realistic.png", "image/png"]],
+  ["/assets/krishna-expressions-pixel.png", ["assets/krishna-expressions-pixel.png", "image/png"]],
   ["/src/styles.css", ["src/styles.css", "text/css"]],
   ["/assets/krishna.png", ["assets/krishna.png", "image/png"]]
 ]);

@@ -16,6 +16,7 @@ async function harness(reduced = false) {
     scale(x, y) { calls.push(["scale", x, y]); },
     drawImage() {}, beginPath() {}, ellipse() {}, fill() {}, fillRect() {},
     createLinearGradient: () => ({ addColorStop() {} }),
+    createRadialGradient: () => ({ addColorStop() {} }),
     getImageData: () => ({ data: new Uint8ClampedArray([255, 0, 255, 255]) }),
     putImageData() {}
   };
@@ -73,4 +74,19 @@ test("frame inspection freezes an exact time and ordinary playback cancels inspe
   h.player.play("withdrawing"); h.advance(16);
   assert.equal(h.canvas.dataset.action, "withdrawing");
   assert.equal(h.canvas.dataset.elapsed, "16");
+});
+
+test("changing action mid-blink keeps the facial clock independent of body blending", async () => {
+  const h = await harness();
+  h.player.play("arriving"); h.advance(2410);
+  assert.equal(h.canvas.dataset.blink, "1.000");
+  h.player.play("teach");
+  assert.equal(h.canvas.dataset.blink, "1.000");
+  h.advance(220);
+  assert.equal(h.canvas.dataset.blink, "0.000");
+  h.player.reviewPose("teach", 2420, 0);
+  assert.equal(h.canvas.dataset.blink, "1.000");
+  h.player.reviewPose("teach", 1800, 0);
+  assert.equal(h.canvas.dataset.blink, "0.000");
+  assert.ok(Number(h.canvas.dataset.smile) > .8);
 });

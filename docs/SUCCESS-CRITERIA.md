@@ -56,6 +56,16 @@ particular, the performance trace (M1.6), CPU sampling
 | UI3 | Every one of the 657 entries reaches the message renderer verbatim. Empty purports create no message. Tap and Enter expand; Escape during arrival cancels the pending reveal. | `test/renderer.test.js` | held |
 | UI4 | Untouched timeout is 180 seconds after arrival. Expanding cancels it, Next replaces it, double dismissal withdraws once, and window recreation cancels old timers. | `test/darshan.test.js`, `test/darshan-main.test.js` | held |
 
+### UI5 · hands and expressions (proposed)
+
+Hand sources stay on their anatomical sides in every action; wrist/finger geometry
+is rigid beyond the elbow bend. Smile/blink affect only local facial features.
+Blinks last 330ms per 5.3s and do not restart on action changes. Reduced motion
+keeps open eyes, a fixed smile and no loop. Regression checks are in
+`test/character-motion.test.js` and `test/character-runtime.test.js`. Inspect the
+enlarged face/hands at 1800ms and 2420ms in each style before visual approval.
+Status: proposed, awaiting Deep's visual acceptance.
+
 ## How to use this file
 
 1. Before writing a brief or a spec for a milestone, add its criteria here first with a number in every row.

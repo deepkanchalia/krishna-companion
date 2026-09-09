@@ -21,7 +21,13 @@ behavior and remaining acceptance. **Not release-ready:** natural side turns
 remain incomplete because generated frames changed crown orientation/identity.
 Only the front-facing frame is used. No merge or release is authorized.
 
-Latest test run: 113 tests, 112 passed, 0 failed, 1 optional helper skipped.
+Hand/face follow-up: corrected swapped relaxed lower-arm assignments, kept wrists
+and fingers rigid beyond elbow bends, and added local smile/blink patches in all
+three styles without swapping the base head. Desktop preview includes enlarged
+live face/hand details. See `CHARACTER-EXPRESSIONS.md`; UI5 still awaits Deep's
+visual acceptance. Side turns remain incomplete.
+
+Latest test run: 116 tests, 115 passed, 0 failed, 1 optional helper skipped.
 New runtime tests exercise loop cancellation and positive scaling; geometry tests
 sample every 8 ms and enforce angle/continuity bounds. These are regression
 checks, not a claim that the movement has received visual or devotional approval.
@@ -120,7 +126,14 @@ evidence is `evidence/character-paint.png`, `evidence/character-realistic.png`,
 and `evidence/character-pixel.png`. These show appearance, not native performance.
 Final artwork generation prompts and local asset paths: `CHARACTER-ART-PROMPTS.md`.
 
+Current browser frame evidence: `evidence/face-hands-paint-v2.png`,
+`evidence/face-hands-realistic-v2.png`, `evidence/face-hands-pixel-v2.png`.
+These are inspected static frames, not a native performance recording.
+
 ## Display provenance (C3)
+
+The enlarged preview adds only fixed chrome: LIVE FACE, HIS RIGHT, HIS LEFT and
+fixed inspection timestamps. No teaching text changed in the hand/face follow-up.
 
 Translation, purport opening, chapter and verse labels come exclusively from
 `src/content.js` / `data/gita.json` and are assigned using `textContent`. The source
