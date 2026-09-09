@@ -6,6 +6,17 @@ const DEFAULT_VOICE_SETTINGS = Object.freeze({
   holdMs: 2_000
 });
 
+// The only trigger-key names the hook accepts. Each is a real UiohookKey name, so a
+// value taken from settings.json is validated against this fixed list before it can
+// reach the hook or any display sink (C3); anything else falls back to the default.
+const SUPPORTED_VOICE_KEYS = Object.freeze([
+  "Space", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"
+]);
+
+function normalizeVoiceKey(key) {
+  return SUPPORTED_VOICE_KEYS.includes(key) ? key : DEFAULT_VOICE_SETTINGS.key;
+}
+
 const FRONTMOST_BUNDLE_IDS = new Set([
   "com.apple.Terminal",
   "com.googlecode.iterm2",
@@ -150,6 +161,8 @@ function observeHold({ eventSource, ...options }) {
 
 module.exports = {
   DEFAULT_VOICE_SETTINGS,
+  SUPPORTED_VOICE_KEYS,
+  normalizeVoiceKey,
   FRONTMOST_BUNDLE_IDS,
   createFrontmostAppGate,
   createHoldStateMachine,

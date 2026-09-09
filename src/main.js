@@ -34,6 +34,7 @@ const {
 } = require("./darshan");
 const {
   DEFAULT_VOICE_SETTINGS,
+  normalizeVoiceKey,
   createFrontmostAppGate,
   observeHold
 } = require("./voice-hold");
@@ -125,7 +126,9 @@ function readPersistentData() {
     }
   };
   settings.voice.enabled = settings.voice.enabled !== false;
-  settings.voice.key = typeof settings.voice.key === "string" ? settings.voice.key : DEFAULT_VOICE_SETTINGS.key;
+  // Validate the key against the fixed allow-list before it can reach the hook or any
+  // notice text: settings.json is untrusted input and must never reach a display sink (C3).
+  settings.voice.key = normalizeVoiceKey(settings.voice.key);
   settings.voice.holdMs = Number.isFinite(settings.voice.holdMs) && settings.voice.holdMs >= 250
     ? settings.voice.holdMs
     : DEFAULT_VOICE_SETTINGS.holdMs;
@@ -537,9 +540,11 @@ function startVoiceHook() {
     return;
   }
 
+  // settings.voice.key was validated against the allow-list at load, so it is a known
+  // token here; the notice never interpolates an arbitrary settings string (C3).
   const triggerKey = keyCodes[settings.voice.key];
   if (!Number.isInteger(triggerKey)) {
-    disableVoiceForLaunch(`Krishna Companion voice unavailable: unknown key ${settings.voice.key}.`, { log: true });
+    disableVoiceForLaunch("Krishna Companion voice unavailable: unsupported trigger key.", { log: true });
     return;
   }
 
