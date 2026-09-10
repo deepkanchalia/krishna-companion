@@ -17,14 +17,17 @@
     "!helpers/listen",
     "data/gita.json",
     "scripts",
-    "docs"
+    "!scripts/darshan-preview",
+    "!scripts/preview-darshan.js",
+    "docs",
+    "!docs/evidence",
+    "!experiments"
   ],
   "scripts": {
     "start": "electron .",
     "live": "node bin/krshna.js live",
     "demo": "electron . --demo",
     "preview": "electron . --demo --screenshot",
-    "preview:resting": "electron . --screenshot",
     "fetch": "node scripts/fetch-vedabase.js",
     "review:claude": "bash scripts/review-with-claude.sh",
     "build:helper": "bash scripts/build-helper.sh",

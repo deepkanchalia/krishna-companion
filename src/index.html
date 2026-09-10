@@ -3,26 +3,44 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'" />
     <title>Krishna Companion</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body>
-    <main class="companion" aria-live="polite">
-      <article class="card" aria-label="Krishna's next teaching">
-        <p id="translation" class="translation"></p>
-        <div class="rule" aria-hidden="true"><i></i><span>◆</span></div>
-        <p id="meaning" class="meaning"></p>
+  <body data-phase="absent">
+    <main class="companion" aria-label="Kṛṣṇa darshan">
+      <div class="threshold" aria-hidden="true"></div>
+      <article class="card" aria-label="Bhagavad-gītā reading" inert>
+        <header class="heading">
+          <span class="seal" aria-hidden="true">✧</span>
+          <div><p class="eyebrow">A moment of darshan</p><h1>Bhagavad-gītā <em>As It Is</em></h1></div>
+          <button id="dismiss" class="close" type="button" aria-label="End darshan" title="End darshan · Esc">×</button>
+        </header>
+        <p id="chapter" class="chapter"></p>
+        <div id="messages" class="messages" aria-live="polite" aria-busy="false">
+          <div class="typing" role="status" aria-label="Opening verse"><i></i><i></i><i></i></div>
+          <section class="message verse-message" aria-label="Verse translation">
+            <div class="message-label"><span id="reference"></span><span>Translation</span></div>
+            <p id="translation" class="translation"></p>
+            <button id="expand" class="expand" type="button" aria-expanded="false" aria-controls="translation purport">Read full verse &amp; purport</button>
+          </section>
+          <section id="purport" class="message purport-message" aria-label="Purport opening" hidden>
+            <p class="message-label">Śrīla Prabhupāda · Purport opening</p>
+            <p id="meaning" class="meaning"></p>
+          </section>
+        </div>
         <footer>
-          <button id="source" class="source" type="button"></button>
-          <button id="dismiss" class="dismiss" type="button">Continue <span>↵</span></button>
+          <button id="source" class="source" type="button">Bhaktivedanta VedaBase ↗</button>
+          <button id="next" class="next" type="button">Next verse <span aria-hidden="true">→</span></button>
         </footer>
-        <div class="timer" aria-hidden="true"><i></i></div>
+        <p id="timing-note" class="timing-note"></p>
       </article>
-
-      <div class="figure" title="Drag Kṛṣṇa to move him" aria-label="Drag Krishna to move the companion">
-        <img src="../assets/krishna.png" alt="Kṛṣṇa as Arjuna's charioteer" draggable="false" />
+      <div class="presence">
+        <div class="halo" aria-hidden="true"></div>
+        <div class="figure" title="Drag to place the darshan" aria-label="Drag Krishna to move the darshan">
+          <img src="../assets/krishna.png" alt="Kṛṣṇa as Arjuna's charioteer" draggable="false" />
+        </div>
+        <div class="presence-caption"><span>Kṛṣṇa</span><small id="session-note">One verse at a time</small></div>
       </div>
     </main>
     <script src="renderer.js"></script>

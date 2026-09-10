@@ -50,9 +50,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts
-      - name: npm pack --dry-run must not ship helpers/listen or assets/candidates
+      - name: npm pack --dry-run must not ship binaries, candidates, experiments, evidence or preview tooling
         run: |
           npm pack --dry-run 2>&1 | tee pack.txt
-          if grep -E '(^|[[:space:]])helpers/listen([[:space:]]|$)|assets/candidates' pack.txt; then
-            echo "tarball contains a compiled helper or artwork candidates"; exit 1
+          if grep -E '(^|[[:space:]])helpers/listen([[:space:]]|$)|assets/candidates|experiments/|scripts/darshan-preview|scripts/preview-darshan\.js|docs/evidence' pack.txt; then
+            echo "tarball contains a compiled helper, artwork candidates, experiments, evidence, or preview tooling"; exit 1
           fi

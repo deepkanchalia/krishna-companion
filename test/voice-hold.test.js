@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { EventEmitter } = require("node:events");
-const { observeHold } = require("../src/voice-hold");
+const { observeHold, normalizeVoiceKey, DEFAULT_VOICE_SETTINGS } = require("../src/voice-hold");
 
 const SPACE = 57;
 const LETTER_A = 30;
@@ -88,4 +88,16 @@ test("a disallowed frontmost app blocks the hold", () => {
   harness.events.emit("keydown", { keycode: SPACE });
   harness.advanceTo(2_000);
   assert.equal(harness.counts().triggered, 0);
+});
+
+test("normalizeVoiceKey accepts only allow-listed keys and never passes untrusted text through", () => {
+  assert.equal(normalizeVoiceKey("Space"), "Space");
+  assert.equal(normalizeVoiceKey("F5"), "F5");
+  // Anything not on the fixed allow-list falls back to the default, so no arbitrary
+  // settings.json string can reach the hook or a notice (C3).
+  assert.equal(normalizeVoiceKey("Enter"), DEFAULT_VOICE_SETTINGS.key);
+  assert.equal(normalizeVoiceKey("<script>alert(1)</script>"), DEFAULT_VOICE_SETTINGS.key);
+  assert.equal(normalizeVoiceKey(""), DEFAULT_VOICE_SETTINGS.key);
+  assert.equal(normalizeVoiceKey(undefined), DEFAULT_VOICE_SETTINGS.key);
+  assert.equal(normalizeVoiceKey(42), DEFAULT_VOICE_SETTINGS.key);
 });
