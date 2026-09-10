@@ -1,41 +1,47 @@
-# Darshan glide and micro-motion
+# Darshan walk animation
 
-Branch: `codex/darshan-message-animation`. This branch is the M1 darshan UI slice
+Branch history: darshan foundation (merged as 7ae55ad), then the walk animation. This branch is the M1 darshan UI slice
 plus the window and timer wiring it needs. It is not a claim that every M1 native
 acceptance check has passed; the rows it does and does not claim are listed below.
 
 ## What the branch does
 
 - The native companion window is hidden between darshans.
-- A single figure, `assets/krishna.png`, glides horizontally in from the right; the
-  three-line translation bubble reveals after the arrival delay.
-- While arriving or present, the image breathes on a 4-second ease-in-out scale
-  from 1.000 to 1.012 and back. There is no JavaScript animation loop.
-- On arrival the figure plays one 6 px ease-out settle over 400 ms. A continuing
-  (Next verse) darshan keeps the figure in place and does not re-settle.
-- Blink is not implemented. The parked heads atlas
-  (`assets/candidates/rig/krishna-heads-realistic.png`) contains no closed-eyes
-  frame, and its heads sit about 38 px off the shipped figure's eye line at
-  rendered 1x size, far beyond the 1 px alignment tolerance, so no aligned blink
-  overlay is possible.
+- The figure is a flipbook of frames from one generated video of a single Krishna
+  painting: `assets/anim/{walkin,idle,teach,farewell}.webp` plus `manifest.js`
+  (per-frame source rects and scene offsets). `src/sprite-player.js` plays them on a
+  canvas; `src/renderer.js` maps darshan phases to segments. The three-line
+  translation bubble reveals when the walk-in ends.
+- While present the idle segment loops ping-pong at 8 fps (breathing, blinks, a
+  slight head turn). The only frame loop is the sprite player's; it stops on absent,
+  hidden tab, or reduced motion.
+- Opening the purport plays the teaching gesture once, then idle. Withdrawal plays
+  the farewell (raised palm, turn, walk out) and clears the canvas. A continuing (Next
+  verse) darshan keeps the idle loop running.
+- Reduced motion and a hidden tab show one eyes-open still (idle frame 6).
+- Rebuilding the sheets: `scripts/anim/build-sheets.py <frames_dir> assets/anim --segments ...`
+  after extracting frames from the source clip with ffmpeg; the clip prompt and segment
+  bounds are recorded at the top of that script. Without `assets/anim/manifest.js` the
+  renderer falls back to the single still and the CSS slide.
 - Tap the translation or press Enter after engaging the card to expand the full
   translation and purport opening. Verbatim corpus strings are never rewritten.
 - Next verse advances exactly one corpus entry and keeps the figure present.
 - An untouched verse withdraws after 180 seconds following arrival. Expansion
   cancels that timeout; Next starts a new one.
-- Withdrawal glides right and the native window hides after the withdrawal delay.
-- Reduced motion shows the fixed image with no breathing loop and no settle.
 
 ## Where the numbers live
 
-`src/darshan.js` is the single source for every darshan timing: `ARRIVAL_MS`,
-`WITHDRAWAL_MS`, `UNTOUCHED_MS`, `BREATH_MS`, `SETTLE_MS`, and `SETTLE_PX`.
-`src/main.js` sends `{ arrivalMs, withdrawalMs, breathMs, settleMs, settlePx }` in
-the `companion:show` payload. `src/renderer.js` writes them to the
+Two files hold the numbers. `assets/anim/manifest.js` holds the segment lengths
+(walk-in 25 frames at 12 fps = 2083 ms, farewell 46 at 12 fps = 3833 ms, idle and
+teach frame counts and rates). `src/darshan.js` holds the bounds and the fallback
+values: `ARRIVAL_MS` 2200 and `WITHDRAWAL_MS` 4000 (upper bounds on the two
+segments, used by the untouched timer and the native hide), `UNTOUCHED_MS`, and the
+`BREATH_MS`, `SETTLE_MS`, `SETTLE_PX` used only by the CSS fallback when no manifest
+is present. `src/main.js` sends `{ arrivalMs, withdrawalMs, breathMs, settleMs,
+settlePx }` in the `companion:show` payload; `src/renderer.js` writes them to the
 `--arrival`, `--withdraw`, `--breath`, `--settle`, and `--settle-px` CSS custom
-properties, and `src/styles.css` reads only those variables for the figure
-animations. The localhost preview serves the same constants so no duration is
-written twice.
+properties, which the fallback animations and the halo/caption fades read. The
+localhost preview serves the same constants.
 
 `src/main.js` owns saved placement, the hidden-window lifecycle, focus gating,
 readiness, verse progression, and native hiding. Opening uses `showInactive()` and
@@ -58,23 +64,19 @@ switch entries, including the long and grouped ones.
 
 ## Evidence
 
-`docs/evidence/` holds screenshots captured from the localhost preview at
-1470×956, for entry 14.22-25 (the tallest combined text):
-
-- `darshan-translation.png` — stage one, the three-line translation.
-- `darshan-long-expanded.png` — stage two, the expanded reading.
-- `darshan-withdrawn.png` — after withdrawal, the empty resting state.
-
-Run `npm test` for the automated evidence; `test/micro-motion.test.js`,
-`test/darshan.test.js`, `test/renderer.test.js`, and `test/darshan-main.test.js`
-cover the timings, CSS variables, corpus verbatimness, and window wiring. Tests
-never launch Electron or request a macOS permission. `npm pack --dry-run` shows
-no rig candidates, experiments, preview tooling, evidence, or compiled helper.
+- `docs/evidence/anim-walkin.png`: mid-stride entry at the right edge (preview, 1470×776).
+- `docs/evidence/anim-present.png`: standing with the three-line card.
+- `docs/evidence/anim-teach.png`: teaching-gesture frame rendered from the sheet.
+- `docs/evidence/anim-farewell.png`: walking out to the right.
+- `docs/evidence/anim-absent.png`: cleared after the farewell.
+- A GIF of one full darshan was recorded in the localhost preview and attached to the pull request discussion rather than committed (3 MB of history).
+- Native checks still owed: screen recording on the Electron window, frame trace during the walk-in, 5-minute CPU sample while absent, and a resident-memory number (the four decoded sheets hold roughly 66 MB while the app runs).
+- Known polish, not done: a withdrawal that starts during the walk-in plays the farewell from the resting spot, so the figure jumps there first; a window hidden and shown again during a one-shot segment (walk-in, gesture, farewell) restarts that segment from its first frame; a walk-in that exceeds the 2.2 s bound only happens if a sheet had to decode on demand (a load that never completes gives up after 8 s).
 
 ## Which M1 rows are claimed
 
 Claimed by this branch, with automated or renderer evidence: the two-stage bubble
-(M1.5), the single-image arrival, breathing, and withdrawal (M1.6), the absent and
+(M1.5), the walk-in, idle loop, teaching gesture, farewell, and withdrawal (M1.6), the absent and
 reduced-motion behaviour (M1.7), the 180-second untouched timeout (M1.8), and the
 micro-motion row (UI5). The always-on criteria touched are display provenance
 (C3), focus behaviour (C8), and network isolation (C10).

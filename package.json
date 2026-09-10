@@ -21,7 +21,9 @@
     "!scripts/preview-darshan.js",
     "docs",
     "!docs/evidence",
-    "!experiments"
+    "!experiments",
+    "!scripts/anim",
+    "!assets/anim/manifest.json"
   ],
   "scripts": {
     "start": "electron .",
