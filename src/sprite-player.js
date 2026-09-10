@@ -67,18 +67,21 @@
   // line and the walk covers real distance.
   // `pad` keeps a floor margin so frames whose feet sit a few px below the resting
   // line (a planted step) are not clipped.
-  function placement(manifest, segName, index, cw, ch, pad = 10) {
+  function placement(manifest, segName, index, cw, ch, pad = 14) {
     const seg = manifest.segments[segName];
     const rest = manifest.segments.idle.frames[0];
-    const tallest = Math.max(...Object.values(manifest.segments).map((s) => s.cell[1]));
-    const s = (ch - pad) / tallest;
+    const all = Object.values(manifest.segments).flatMap((s) => s.frames);
+    // Map the scene's full vertical extent (highest head to lowest foot across every
+    // frame of every segment) onto the box once, so each frame keeps its true scene
+    // position and none can leave the box.
+    const sceneTop = Math.min(...all.map((g) => g.oy));
+    const sceneBottom = Math.max(...all.map((g) => g.oy + g.h));
+    const s = (ch - pad) / (sceneBottom - sceneTop);
     const f = seg.frames[index];
-    const restBottom = rest.oy + rest.h;
     const dx = (f.ox - rest.ox) * s;
-    const dyBottom = ((f.oy + f.h) - restBottom) * s;
     const w = f.w * s, h = f.h * s;
     const x = cw / 2 - (rest.w * s) / 2 + dx;
-    const y = (ch - pad) + dyBottom - h;
+    const y = (f.oy - sceneTop) * s;
     return { x, y, w, h, scale: s };
   }
 

@@ -43,7 +43,7 @@ krshna stop
 
 ## Figure style
 
-Three figures ship, each a flipbook cut from one generated clip: `realistic` (default), `cartoon`, and `painterly`. Pick one from the tray menu under Figure, or:
+Five figures ship, each a flipbook cut from one generated clip: `realistic` (default), `cartoon`, `painterly`, and two Mahabharat-style figures, `gyan` (the teacher) and `warrior` (a powerful presence, no armour). Pick one from the tray menu under Figure, or:
 
 ```bash
 krshna style cartoon
