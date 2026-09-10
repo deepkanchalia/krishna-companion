@@ -7,6 +7,9 @@ function send(type) {
 }
 document.querySelector("#invite").addEventListener("click", () => send("show"));
 document.querySelector("#withdraw").addEventListener("click", () => send("withdraw"));
+document.querySelector("#style").addEventListener("change", (event) => {
+  frame.contentWindow.postMessage({ type: "style", style: event.target.value }, location.origin);
+});
 verse.addEventListener("change", () => send("show"));
 document.querySelector("#size").addEventListener("change", (event) => {
   frame.style.width = `${event.target.value}px`;

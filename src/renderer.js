@@ -19,17 +19,20 @@ let withdrawTimer;
 // Sprite flipbook (src/sprite-player.js + assets/anim/manifest.js). Optional: when the
 // manifest or the player is missing the CSS slide and the still image are used instead.
 const spriteCanvas = document.querySelector(".sprite");
-const animManifest = window.KRISHNA_ANIM;
 const Sprite = window.KrishnaSprite;
-const spriteReady = Boolean(spriteCanvas && animManifest && Sprite && Sprite.validateManifest(animManifest).length === 0);
+// One manifest per figure style (assets/anim/<style>/), assembled into manifest.js. A
+// build with a single manifest still works: it becomes the only style.
+const animStyles = window.KRISHNA_ANIM_STYLES
+  || (window.KRISHNA_ANIM ? { [window.KRISHNA_ANIM_DEFAULT_STYLE || "default"]: window.KRISHNA_ANIM } : null);
+const defaultStyle = window.KRISHNA_ANIM_DEFAULT_STYLE || (animStyles ? Object.keys(animStyles)[0] : null);
+const spriteReady = Boolean(spriteCanvas && Sprite && animStyles && defaultStyle
+  && Sprite.validateManifest(animStyles[defaultStyle]).length === 0);
+let animManifest = spriteReady ? animStyles[defaultStyle] : null;
+let currentStyle = spriteReady ? defaultStyle : null;
 let player = null;
 
-function initSprite() {
-  if (!spriteReady) return;
-  // The class goes on first so the canvas is displayed and measurable; the player sizes
-  // its backing store from the live CSS size on every draw.
-  document.body.classList.add("sprite");
-  player = Sprite.createSpritePlayer(animManifest, {
+function createPlayer(manifest) {
+  const created = Sprite.createSpritePlayer(manifest, {
     canvas: spriteCanvas,
     loadImage: (file) => { const img = new Image(); img.decoding = "async"; img.src = `../assets/anim/${file}`; return img; },
     raf: (fn) => window.requestAnimationFrame(fn),
@@ -37,7 +40,30 @@ function initSprite() {
     now: () => performance.now(),
     pixelRatio: () => window.devicePixelRatio || 1
   });
-  player.preload();
+  created.preload();
+  return created;
+}
+
+function initSprite() {
+  if (!spriteReady) return;
+  // The class goes on first so the canvas is displayed and measurable; the player sizes
+  // its backing store from the live CSS size on every draw.
+  document.body.classList.add("sprite");
+  player = createPlayer(animManifest);
+}
+
+// Switch the figure style: unknown or invalid names are ignored, a present darshan
+// changes on the spot (the idle loop restarts in the new style).
+function selectStyle(name) {
+  if (!spriteReady || !name || name === currentStyle) return;
+  const manifest = animStyles[name];
+  if (!manifest || Sprite.validateManifest(manifest).length > 0) return;
+  if (player) player.stop();
+  currentStyle = name;
+  animManifest = manifest;
+  player = createPlayer(manifest);
+  document.body.dataset.style = name;
+  if (phase !== "absent") syncSprite();
 }
 
 function setAbsent() {
@@ -108,9 +134,10 @@ function revealMessage() {
   fitWindowToCard();
 }
 
-function showTeaching({ reflection: incoming, durationSeconds, preview = false, continuing = false, ...timings }) {
+function showTeaching({ reflection: incoming, durationSeconds, preview = false, continuing = false, style, ...timings }) {
   clearTimeout(revealTimer);
   applyMotionTimings(timings);
+  if (style) selectStyle(style);
   reflection = incoming;
   currentSource = reflection.source;
   expanded = false;
@@ -205,3 +232,4 @@ if (reducedMotion.addEventListener) reducedMotion.addEventListener("change", syn
 initSprite();
 window.krishna.onShow(showTeaching);
 window.krishna.onCollapse(collapse);
+if (window.krishna.onStyle) window.krishna.onStyle(selectStyle);

@@ -8,11 +8,17 @@ const { reflections } = require("../src/content");
 const { isValidHistoryEntry } = require("../src/journey");
 const { waitForAck } = require("../src/ack");
 const { readJson: readJsonQuarantine } = require("../src/store");
+const { FIGURE_STYLES } = require("../src/config");
 
 const projectRoot = path.resolve(__dirname, "..");
 const rawCommand = (process.argv[2] || "live").toLowerCase();
 const voiceAction = (process.argv[3] || "").toLowerCase();
-const command = rawCommand === "voice" ? `voice-${voiceAction}` : rawCommand.replace(/^\//, "");
+// `krshna voice on|off` and `krshna style <name>` fold into the single-word commands the
+// app accepts (voice-on, style-cartoon); the style name is validated below against
+// FIGURE_STYLES, the one list shared with the app.
+const command = rawCommand === "voice" ? `voice-${voiceAction}`
+  : rawCommand === "style" ? `style-${voiceAction}`
+  : rawCommand.replace(/^\//, "");
 
 // Resolve the home directory through KRSHNA_HOME first so tests (and Windows, where
 // os.homedir ignores $HOME) can redirect every home-rooted path to a temp directory.
@@ -390,6 +396,7 @@ Krishna Companion
   krshna context     Recall the last explanation and next verse
   krshna voice on    Enable hold-Space voice
   krshna voice off   Disable hold-Space voice
+  krshna style <name>  Figure style: ${FIGURE_STYLES.join(" | ")}
   krshna stop        Stop the companion
   krshna install     Add /krshna, terminal status, and the Claude Code voice hook
   krshna uninstall   Remove the zsh integration and the Claude Code voice hook
@@ -397,6 +404,22 @@ Krishna Companion
 }
 
 function main() {
+  // `krshna style <name>`: the name must be one of FIGURE_STYLES (the app's own list);
+  // a valid one is forwarded to the running companion like any other command.
+  if (command.startsWith("style-") && command !== "style-") {
+    const styleName = command.slice("style-".length);
+    if (!FIGURE_STYLES.includes(styleName)) {
+      console.error(`Unknown figure style: ${styleName}. Use: krshna style ${FIGURE_STYLES.join("|")}`);
+      process.exitCode = 1;
+      return;
+    }
+    if (!readState().live) {
+      console.log("Kṛṣṇa Companion is not running. Start it with: krshna");
+      return;
+    }
+    launch(command);
+    return;
+  }
   switch (command) {
     case "status":
       printStatus();
@@ -438,6 +461,10 @@ function main() {
       break;
     case "voice-":
       console.error("Usage: krshna voice on|off");
+      process.exitCode = 1;
+      break;
+    case "style-":
+      console.error(`Usage: krshna style ${FIGURE_STYLES.join("|")}`);
       process.exitCode = 1;
       break;
     default:

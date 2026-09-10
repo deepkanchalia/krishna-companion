@@ -7,8 +7,10 @@ acceptance check has passed; the rows it does and does not claim are listed belo
 ## What the branch does
 
 - The native companion window is hidden between darshans.
-- The figure is a flipbook of frames from one generated video of a single Krishna
-  painting: `assets/anim/{walkin,idle,teach,farewell}.webp` plus `manifest.js`
+- The figure is a flipbook of frames from one generated video per style: three
+  styles (realistic, cartoon, painterly) under `assets/anim/<style>/{walkin,idle,teach,farewell}.webp`,
+  assembled into one `manifest.js` (`KRISHNA_ANIM_STYLES` plus the default). The style is
+  `settings.figure.style`, chosen from the tray Figure menu or `krshna style <name>`, and
   (per-frame source rects and scene offsets). `src/sprite-player.js` plays them on a
   canvas; `src/renderer.js` maps darshan phases to segments. The three-line
   translation bubble reveals when the walk-in ends.
@@ -19,7 +21,10 @@ acceptance check has passed; the rows it does and does not claim are listed belo
   the farewell (raised palm, turn, walk out) and clears the canvas. A continuing (Next
   verse) darshan keeps the idle loop running.
 - Reduced motion and a hidden tab show one eyes-open still (idle frame 6).
-- Rebuilding the sheets: `scripts/anim/build-sheets.py <frames_dir> assets/anim --segments ...`
+- Rebuilding the sheets: `scripts/anim/analyze-clip.py` to find segment bounds, then
+  `scripts/anim/build-sheets.py <frames_dir> assets/anim/<style> --prefix <style>/ [--matte rembg] --segments ...`,
+  then `scripts/anim/assemble-manifest.py assets/anim realistic`. The painterly clip needed the
+  AI matte because its background was not a clean green.
   after extracting frames from the source clip with ffmpeg; the clip prompt and segment
   bounds are recorded at the top of that script. Without `assets/anim/manifest.js` the
   renderer falls back to the single still and the CSS slide.

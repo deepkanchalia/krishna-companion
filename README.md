@@ -41,6 +41,16 @@ krshna stop
 
 `krshna install` (run in the quickstart above) adds a literal `/krshna` command and a persistent `🪶 Kṛṣṇa · 30m` right-prompt to zsh. Open a new terminal, then `/krshna` summons a teaching. `/krshna pause`, `/krshna resume`, and `/krshna stop` work as expected. The unprefixed `krshna` command remains the portable option across shells and terminal agents. `krshna uninstall` removes both the zsh integration block and the Claude Code hook again, leaving the rest of your `.zshrc` untouched.
 
+## Figure style
+
+Three figures ship, each a flipbook cut from one generated clip: `realistic` (default), `cartoon`, and `painterly`. Pick one from the tray menu under Figure, or:
+
+```bash
+krshna style cartoon
+```
+
+The choice is saved in `settings.json` and applies at once, even while Kṛṣṇa is present. Sheets live under `assets/anim/<style>/`; `scripts/anim/` holds the pipeline that cut them (frame extraction, chroma key or AI matte, sheet assembly).
+
 ## Voice
 
 On macOS, keep Terminal or an editor frontmost and hold Space for two seconds. The menu-bar icon's tooltip reports listening; say “Hare Kṛṣṇa” to open the next teaching, then release Space. The key is only observed, never swallowed, so the frontmost app still receives it normally. Supported apps are Terminal, iTerm2, Warp, Ghostty, Alacritty, kitty, WezTerm, VS Code, Cursor, Zed, JetBrains IDEs, Xcode, and Windsurf.

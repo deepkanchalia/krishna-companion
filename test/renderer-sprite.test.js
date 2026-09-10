@@ -6,7 +6,8 @@ const vm = require("node:vm");
 const { reflections } = require("../src/content");
 const Sprite = require("../src/sprite-player");
 
-const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "assets", "anim", "manifest.json"), "utf8"));
+const combined = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "assets", "anim", "manifest.json"), "utf8"));
+const manifest = combined.styles[combined.default];
 
 // Drives the shipped renderer with the real manifest and the real sprite planning
 // functions, but a recording player, so every phase transition is observable without
@@ -30,6 +31,7 @@ function harness({ reduced = false, hidden = false } = {}) {
     return elements.get(name);
   }
   const calls = [];
+  const playersCreated = [];
   let currentSegment = null;
   let endCallback = null;
   const player = {
@@ -42,7 +44,7 @@ function harness({ reduced = false, hidden = false } = {}) {
     isPlaying: () => currentSegment !== null
   };
   const timers = new Map(); let timerId = 0;
-  const bridge = { onShow: null, onCollapse: null, calls: [] };
+  const bridge = { onShow: null, onCollapse: null, onStyle: null, calls: [] };
   const context = {
     document: {
       querySelector: element, body: element("body"), documentElement: { style: { setProperty() {} } },
@@ -52,10 +54,12 @@ function harness({ reduced = false, hidden = false } = {}) {
       matchMedia: () => ({ matches: reduced, addEventListener() {} }),
       krishna: {
         resize() {}, ready() {}, expand() { bridge.calls.push("expand"); }, next() {}, dismiss() { bridge.calls.push("dismiss"); }, engage() {}, openSource() {},
-        onShow: (fn) => { bridge.onShow = fn; }, onCollapse: (fn) => { bridge.onCollapse = fn; }, onListening() {}
+        onShow: (fn) => { bridge.onShow = fn; }, onCollapse: (fn) => { bridge.onCollapse = fn; }, onStyle: (fn) => { bridge.onStyle = fn; }, onListening() {}
       },
       KRISHNA_ANIM: manifest,
-      KrishnaSprite: { ...Sprite, createSpritePlayer: () => player },
+      KRISHNA_ANIM_STYLES: combined.styles,
+      KRISHNA_ANIM_DEFAULT_STYLE: combined.default,
+      KrishnaSprite: { ...Sprite, createSpritePlayer: (m) => { playersCreated.push(m.style); return player; } },
       requestAnimationFrame() {}, cancelAnimationFrame() {}, devicePixelRatio: 2
     },
     performance: { now: () => 0 },
@@ -66,7 +70,9 @@ function harness({ reduced = false, hidden = false } = {}) {
   };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "src", "renderer.js"), "utf8"), context);
   return {
-    calls, player, bridge, timers, body: element("body"),
+    calls, player, bridge, timers, playersCreated, body: element("body"),
+    setStyle: (name) => bridge.onStyle(name),
+    showStyled: (style) => bridge.onShow({ reflection: reflections[46], durationSeconds: 0, continuing: false, style, arrivalMs: 2200, withdrawalMs: 4000, breathMs: 4000, settleMs: 400, settlePx: 6 }),
     endSegment: () => { const cb = endCallback; const name = currentSegment; currentSegment = null; endCallback = null; if (cb) cb(name); },
     show: (continuing = false) => bridge.onShow({ reflection: reflections[46], durationSeconds: 0, continuing, arrivalMs: 2200, withdrawalMs: 4000, breathMs: 4000, settleMs: 400, settlePx: 6 }),
     collapse: () => bridge.onCollapse(),
@@ -95,6 +101,23 @@ test("a darshan walks in, stands, teaches on expand, and leaves to absence", () 
   assert.equal(h.body.dataset.phase, "absent");
   assert.equal(h.calls.at(-1), "clear");
   assert.equal(h.player.current(), null);
+});
+
+test("the figure style follows the show payload and the style message; unknown names are ignored", () => {
+  const h = harness();
+  assert.deepEqual(h.playersCreated, [combined.default], "starts on the default style");
+  h.showStyled("cartoon");
+  assert.equal(h.playersCreated.at(-1), "cartoon", "the show payload selects the cartoon manifest");
+  assert.equal(h.body.dataset.style, "cartoon");
+  assert.equal(h.player.current(), "walkin");
+  h.endSegment();
+  h.setStyle("painterly"); // a present darshan switches on the spot and keeps standing
+  assert.equal(h.playersCreated.at(-1), "painterly");
+  assert.equal(h.player.current(), "idle");
+  const before = h.playersCreated.length;
+  h.setStyle("nope");
+  h.setStyle("painterly");
+  assert.equal(h.playersCreated.length, before, "unknown or unchanged styles create no player");
 });
 
 test("a continuing verse keeps the idle loop; nothing re-walks", () => {

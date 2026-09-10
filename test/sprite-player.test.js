@@ -5,19 +5,26 @@ const path = require("node:path");
 const vm = require("node:vm");
 const Sprite = require("../src/sprite-player");
 
-const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "assets", "anim", "manifest.json"), "utf8"));
+const { FIGURE_STYLES, DEFAULT_FIGURE_STYLE } = require("../src/config");
+const combined = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "assets", "anim", "manifest.json"), "utf8"));
+const manifest = combined.styles[combined.default];
 
-test("the shipped manifest is complete and internally consistent", () => {
-  assert.deepEqual(Sprite.validateManifest(manifest), []);
-  for (const name of ["walkin", "idle", "teach", "farewell"]) {
-    const seg = manifest.segments[name];
-    assert.ok(seg, `${name} segment`);
-    assert.ok(fs.existsSync(path.join(__dirname, "..", "assets", "anim", seg.file)), `${name} sheet file`);
+test("every figure style ships a complete, consistent manifest and its four sheets", () => {
+  assert.equal(combined.default, DEFAULT_FIGURE_STYLE);
+  assert.deepEqual(Object.keys(combined.styles).sort(), [...FIGURE_STYLES].sort());
+  for (const [style, m] of Object.entries(combined.styles)) {
+    assert.deepEqual(Sprite.validateManifest(m), [], `${style} manifest`);
+    for (const name of ["walkin", "idle", "teach", "farewell"]) {
+      const seg = m.segments[name];
+      assert.ok(seg, `${style} ${name} segment`);
+      assert.ok(seg.file.startsWith(`${style}/`), `${style} ${name} sheet path is inside its style folder`);
+      assert.ok(fs.existsSync(path.join(__dirname, "..", "assets", "anim", seg.file)), `${style} ${name} sheet file`);
+    }
+    assert.equal(m.segments.idle.loop, true);
+    assert.equal(m.segments.idle.pingpong, true);
+    assert.equal(m.segments.walkin.loop, false);
+    assert.equal(m.segments.farewell.loop, false);
   }
-  assert.equal(manifest.segments.idle.loop, true);
-  assert.equal(manifest.segments.idle.pingpong, true);
-  assert.equal(manifest.segments.walkin.loop, false);
-  assert.equal(manifest.segments.farewell.loop, false);
 });
 
 test("manifest.js is the manifest.json shipped as a script (CSP forbids fetch)", () => {
@@ -25,6 +32,8 @@ test("manifest.js is the manifest.json shipped as a script (CSP forbids fetch)",
   const sandbox = { window: {} };
   vm.runInNewContext(source, sandbox);
   // The sandbox gives objects a different prototype, so compare the serialised form.
+  assert.equal(JSON.stringify(sandbox.window.KRISHNA_ANIM_STYLES), JSON.stringify(combined.styles));
+  assert.equal(sandbox.window.KRISHNA_ANIM_DEFAULT_STYLE, combined.default);
   assert.equal(JSON.stringify(sandbox.window.KRISHNA_ANIM), JSON.stringify(manifest));
 });
 
@@ -51,7 +60,8 @@ test("frame timing: once segments end, loops wrap, ping-pong reverses", () => {
   assert.equal(Sprite.durationMs(manifest.segments.walkin), Math.round(manifest.segments.walkin.frames.length / 12 * 1000));
 });
 
-test("walk-in enters from the right and ends on the resting spot; farewell leaves to the right", () => {
+for (const [style, styleManifest] of Object.entries(combined.styles)) test(`${style}: walk-in enters from the right and ends on the resting spot; farewell leaves to the right`, () => {
+  const manifest = styleManifest;
   const cw = 220, ch = 286;
   const walk = manifest.segments.walkin.frames.length;
   const first = Sprite.placement(manifest, "walkin", 0, cw, ch);
