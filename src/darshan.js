@@ -2,8 +2,10 @@
 // This module is the single source for the figure timings: main.js sends them in
 // the companion:show payload, the renderer turns them into CSS custom properties,
 // and the localhost preview bridge reads them too. No duration is written twice.
-const ARRIVAL_MS = 1_100;
-const WITHDRAWAL_MS = 900;
+// Arrival and withdrawal now last as long as the walk-in and farewell sprite
+// segments (assets/anim/manifest.js); the CSS slide is the fallback without sprites.
+const ARRIVAL_MS = 2_200;
+const WITHDRAWAL_MS = 3_200;
 const UNTOUCHED_MS = 180_000;
 // Micro-motion (M1.6/UI5): breathing period, and the one-shot arrival settle bob.
 const BREATH_MS = 4_000;

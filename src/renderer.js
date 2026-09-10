@@ -13,6 +13,55 @@ let arrivalDelay = 0;
 let continuingDelay = 0;
 let phase = "absent";
 let expanded = false;
+let continuingVerse = false;
+
+// Sprite flipbook (src/sprite-player.js + assets/anim/manifest.js). Optional: when the
+// manifest or the player is missing the CSS slide and the still image are used instead.
+const spriteCanvas = document.querySelector(".sprite");
+const animManifest = window.KRISHNA_ANIM;
+const Sprite = window.KrishnaSprite;
+const spriteReady = Boolean(spriteCanvas && animManifest && Sprite && Sprite.validateManifest(animManifest).length === 0);
+let player = null;
+
+function initSprite() {
+  if (!spriteReady) return;
+  const ratio = window.devicePixelRatio || 1;
+  const rect = spriteCanvas.getBoundingClientRect ? spriteCanvas.getBoundingClientRect() : { width: 220, height: 286 };
+  spriteCanvas.width = Math.round((rect.width || 220) * ratio);
+  spriteCanvas.height = Math.round((rect.height || 286) * ratio);
+  player = Sprite.createSpritePlayer(animManifest, {
+    canvas: spriteCanvas,
+    loadImage: (file) => { const img = new Image(); img.decoding = "async"; img.src = `../assets/anim/${file}`; return img; },
+    raf: (fn) => window.requestAnimationFrame(fn),
+    caf: (id) => window.cancelAnimationFrame(id),
+    now: () => performance.now()
+  });
+  document.body.classList.add("sprite");
+}
+
+// Keep the flipbook in step with the darshan phase. Absent: nothing drawn, no frame
+// loop. Hidden tab or reduced motion: one still frame, no loop.
+function syncSprite() {
+  if (!player) return;
+  if (phase === "absent") { player.clear(); return; }
+  if (document.hidden || reducedMotion.matches) { player.still("idle", 0); return; }
+  const segment = Sprite.segmentForPhase(phase, { continuing: continuingVerse });
+  if (!segment) { player.clear(); return; }
+  if (player.current() === segment) return;
+  player.play(segment, onSegmentEnd);
+}
+
+function onSegmentEnd(name) {
+  if (!player) return;
+  if (name === "farewell") { player.clear(); return; }
+  const next = Sprite.nextAfter(name);
+  if (next && (phase === "present" || phase === "arriving")) player.play(next, onSegmentEnd);
+}
+
+function playGesture() {
+  if (!player || phase !== "present" || document.hidden || reducedMotion.matches) return;
+  player.play(Sprite.EXPAND_GESTURE, onSegmentEnd);
+}
 
 // The card sits CARD_INSET px inside the window on each side; the renderer asks the
 // main process for a window tall enough to hold the card plus that inset.
@@ -40,6 +89,7 @@ function revealMessage() {
   if (phase !== "arriving") return;
   phase = "present";
   document.body.dataset.phase = phase;
+  syncSprite();
   document.querySelector("#messages").setAttribute("aria-busy", "false");
   nextElement.disabled = false;
   window.krishna.ready();
@@ -53,10 +103,12 @@ function showTeaching({ reflection: incoming, durationSeconds, preview = false, 
   currentSource = reflection.source;
   expanded = false;
   phase = "arriving";
+  continuingVerse = continuing;
   cardElement.inert = false;
   document.body.classList.remove("expanded");
   document.body.classList.toggle("continuing", continuing);
   document.body.dataset.phase = phase;
+  syncSprite();
   document.querySelector("#messages").setAttribute("aria-busy", "true");
   translationElement.textContent = reflection.translation;
   cardElement.classList.toggle("long", reflection.translation.split(/\s+/).length > 90);
@@ -75,7 +127,9 @@ function showTeaching({ reflection: incoming, durationSeconds, preview = false, 
     ? "Opens longer when you read more" : "A quiet moment · 3 minutes";
   cardElement.scrollTop = 0;
   fitWindowToCard();
-  revealTimer = setTimeout(revealMessage, reducedMotion.matches ? 0 : (continuing ? continuingDelay : arrivalDelay));
+  // With sprites the message waits for the walk-in to finish; otherwise the CSS slide.
+  const arrival = player && !continuing ? Sprite.durationMs(animManifest.segments.walkin) : arrivalDelay;
+  revealTimer = setTimeout(revealMessage, reducedMotion.matches ? 0 : (continuing ? continuingDelay : arrival));
 }
 
 function expand() {
@@ -88,6 +142,7 @@ function expand() {
   expandElement.textContent = "Full verse open";
   document.querySelector("#timing-note").textContent = "Stay as long as you like";
   window.krishna.expand();
+  playGesture();
   fitWindowToCard();
 }
 
@@ -97,6 +152,7 @@ function collapse() {
   cardElement.inert = true;
   document.body.dataset.phase = phase;
   nextElement.disabled = true;
+  syncSprite();
 }
 
 function dismiss() {
@@ -126,5 +182,8 @@ document.addEventListener("keydown", (event) => {
     if (!expanded) expand();
   }
 });
+document.addEventListener("visibilitychange", syncSprite);
+if (reducedMotion.addEventListener) reducedMotion.addEventListener("change", syncSprite);
+initSprite();
 window.krishna.onShow(showTeaching);
 window.krishna.onCollapse(collapse);
