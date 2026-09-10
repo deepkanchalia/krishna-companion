@@ -1,10 +1,10 @@
 # Krishna Companion
 
-A quiet companion that visits during long terminal sessions. Start it once with `krshna`. On the first launch Kṛṣṇa glides into view for darshan; subsequent visits follow the 30-minute cadence or your invitation. A brief message indicator gives way to the next verse of *Bhagavad-gītā As It Is*, word for word.
+A quiet companion that visits during long terminal sessions. Start it once with `krshna`. On the first launch Kṛṣṇa walks into view for darshan; subsequent visits follow the 30-minute cadence or your invitation. A brief message indicator gives way to the next verse of *Bhagavad-gītā As It Is*, word for word.
 
 The first message previews up to three lines of the translation. Click it or “Read full verse & purport” to open the complete translation and a second message containing Śrīla Prabhupāda's purport opening. “Next verse” continues the saved sequence while Kṛṣṇa stays present. The × button or Escape ends the darshan with a gentle withdrawal. An untouched verse withdraws after three minutes; an expanded verse stays until you close it or choose the next verse. Long readings grow to the available display height, then scroll without discarding any text.
 
-Between darshans the companion window is hidden. The original single-image Kṛṣṇa figure glides in from the right, stays quietly present with a four-second breathing scale, and withdraws the same way. The generated articulated-rig experiment is parked as reference material for a future human animator. Reduced-motion preferences show the fixed image without a loop. Drag Kṛṣṇa to place the darshan; the saved position survives restarts. Opening a darshan does not take keyboard focus, suspend your terminal, or stop a running process.
+Between darshans the companion window is hidden. Kṛṣṇa walks in from the right, stands breathing quietly while the verse is read, raises a teaching hand when you open the purport, and takes his leave with a raised palm before walking out. The motion is a flipbook of frames cut from one generated video of a single painting (`assets/anim`); nothing is drawn by rotating parts, and no frame loop runs while he is absent.
 
 The journey begins at Chapter 1, text 1 and moves through all 700 verses in order (verses that Śrīla Prabhupāda translated together, such as 1.16-18, appear together). Progress is saved locally, so restarting the companion continues with the next teaching instead of choosing a random quote.
 

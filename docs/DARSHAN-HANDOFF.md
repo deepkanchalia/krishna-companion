@@ -1,4 +1,4 @@
-# Darshan glide and micro-motion
+# Darshan walk animation
 
 Branch: `codex/darshan-message-animation`. This branch is the M1 darshan UI slice
 plus the window and timer wiring it needs. It is not a claim that every M1 native
@@ -7,17 +7,22 @@ acceptance check has passed; the rows it does and does not claim are listed belo
 ## What the branch does
 
 - The native companion window is hidden between darshans.
-- A single figure, `assets/krishna.png`, glides horizontally in from the right; the
-  three-line translation bubble reveals after the arrival delay.
-- While arriving or present, the image breathes on a 4-second ease-in-out scale
-  from 1.000 to 1.012 and back. There is no JavaScript animation loop.
-- On arrival the figure plays one 6 px ease-out settle over 400 ms. A continuing
-  (Next verse) darshan keeps the figure in place and does not re-settle.
-- Blink is not implemented. The parked heads atlas
-  (`assets/candidates/rig/krishna-heads-realistic.png`) contains no closed-eyes
-  frame, and its heads sit about 38 px off the shipped figure's eye line at
-  rendered 1x size, far beyond the 1 px alignment tolerance, so no aligned blink
-  overlay is possible.
+- The figure is a flipbook of frames from one generated video of a single Krishna
+  painting: `assets/anim/{walkin,idle,teach,farewell}.webp` plus `manifest.js`
+  (per-frame source rects and scene offsets). `src/sprite-player.js` plays them on a
+  canvas; `src/renderer.js` maps darshan phases to segments. The three-line
+  translation bubble reveals when the walk-in ends.
+- While present the idle segment loops ping-pong at 8 fps (breathing, blinks, a
+  slight head turn). The only frame loop is the sprite player's; it stops on absent,
+  hidden tab, or reduced motion.
+- Opening the purport plays the teaching gesture once, then idle. Withdrawal plays
+  the farewell (raised palm, turn, walk out) and clears the canvas. A continuing (Next
+  verse) darshan keeps the idle loop running.
+- Reduced motion and a hidden tab show one eyes-open still (idle frame 6).
+- Rebuilding the sheets: `scripts/anim/build-sheets.py <frames_dir> assets/anim --segments ...`
+  after extracting frames from the source clip with ffmpeg; the clip prompt and segment
+  bounds are recorded at the top of that script. Without `assets/anim/manifest.js` the
+  renderer falls back to the single still and the CSS slide.
 - Tap the translation or press Enter after engaging the card to expand the full
   translation and purport opening. Verbatim corpus strings are never rewritten.
 - Next verse advances exactly one corpus entry and keeps the figure present.
