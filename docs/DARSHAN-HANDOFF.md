@@ -67,7 +67,8 @@ switch entries, including the long and grouped ones.
 - `docs/evidence/anim-farewell.png`: walking out to the right.
 - `docs/evidence/anim-absent.png`: cleared after the farewell.
 - `docs/evidence/darshan-walk.gif`: one full darshan recorded in the localhost preview.
-- Native checks still owed: screen recording on the Electron window, frame trace during the walk-in, 5-minute CPU sample while absent.
+- Native checks still owed: screen recording on the Electron window, frame trace during the walk-in, 5-minute CPU sample while absent, and a resident-memory number (the four decoded sheets hold roughly 66 MB while the app runs).
+- Known polish, not done: a withdrawal that starts during the walk-in plays the farewell from the resting spot, so the figure jumps there first; a window hidden and shown again mid-farewell restarts the farewell from its first frame.
 
 ## Which M1 rows are claimed
 

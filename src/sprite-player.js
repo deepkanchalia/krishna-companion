@@ -168,6 +168,7 @@
         if (!manifest.segments[name]) return false;
         active = { name, startedAt: now(), onEnd };
         lastIndex = -1;
+        stillToken++; // a still that is still decoding must not paint over this segment
         image(name);
         if (frameHandle === null) frameHandle = raf(tick);
         return true;
