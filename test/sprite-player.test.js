@@ -62,7 +62,7 @@ test("walk-in enters from the right and ends on the resting spot; farewell leave
   assert.ok(Math.abs(last.x - rest.x) < 12, "ends within 12 px of the resting spot");
   const fw = manifest.segments.farewell.frames.length;
   const gone = Sprite.placement(manifest, "farewell", fw - 1, cw, ch);
-  assert.ok(gone.x > rest.x + 60, "farewell ends to the right");
+  assert.ok(gone.x >= cw, "farewell ends fully beyond the right edge of the canvas");
   // feet stay near the canvas floor across every segment: a planted step may sit a few
   // px below the resting line, a lifted foot above it, never clipped by the canvas.
   for (const name of Object.keys(manifest.segments)) {

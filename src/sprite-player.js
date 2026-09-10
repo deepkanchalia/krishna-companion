@@ -149,9 +149,10 @@
       frameHandle = null;
       if (!active) return;
       const seg = manifest.segments[active.name];
-      const img = image(active.name);
-      // A sheet that failed to load ends its segment at once so the darshan continues.
-      if (failed(img)) {
+      // A segment removed from the manifest mid-play, or a sheet that failed to load,
+      // ends at once so the darshan continues and the completion callback still fires.
+      const img = seg ? image(active.name) : null;
+      if (!seg || failed(img)) {
         const finished = active; active = null;
         if (finished.onEnd) finished.onEnd(finished.name);
         return;
