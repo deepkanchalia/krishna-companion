@@ -2,7 +2,7 @@ let showCallback;
 let collapseCallback;
 let styleCallback;
 let currentIndex = 0;
-let currentStyle = window.KRISHNA_ANIM_DEFAULT_STYLE || "realistic";
+let previewStyle = window.KRISHNA_ANIM_DEFAULT_STYLE || "realistic";
 let closeTimer;
 function notify(type, fields = {}) { parent.postMessage({ type, ...fields }, location.origin); }
 const motionTimings = {
@@ -14,7 +14,7 @@ const motionTimings = {
 };
 function show(continuing = false) {
   clearTimeout(closeTimer);
-  showCallback({ reflection: previewReflections[currentIndex], durationSeconds: 0, continuing, style: currentStyle, ...motionTimings });
+  showCallback({ reflection: previewReflections[currentIndex], durationSeconds: 0, continuing, style: previewStyle, ...motionTimings });
   notify("status", { label: previewReflections[currentIndex].reference });
   closeTimer = setTimeout(withdraw, previewTimings.ARRIVAL_MS + previewTimings.UNTOUCHED_MS);
 }
@@ -48,8 +48,8 @@ window.addEventListener("message", (event) => {
   }
   if (event.data.type === "withdraw") withdraw();
   if (event.data.type === "style" && window.KRISHNA_ANIM_STYLES && window.KRISHNA_ANIM_STYLES[event.data.style]) {
-    currentStyle = event.data.style;
-    if (styleCallback) styleCallback(currentStyle);
+    previewStyle = event.data.style;
+    if (styleCallback) styleCallback(previewStyle);
   }
 });
 window.addEventListener("load", () => notify("ready"));
