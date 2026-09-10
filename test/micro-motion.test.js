@@ -9,10 +9,15 @@ const rendererSource = fs.readFileSync(path.join(__dirname, "../src/renderer.js"
 const index = fs.readFileSync(path.join(__dirname, "../src/index.html"), "utf8");
 const styles = fs.readFileSync(path.join(__dirname, "../src/styles.css"), "utf8");
 
-test("the shipped figure is one original image with no articulated runtime", () => {
+test("the figure is one original still plus a flipbook of generated frames; no cut-out rig", () => {
   assert.equal((index.match(/<img\b/g) || []).length, 1);
   assert.match(index, /<img src="\.\.\/assets\/krishna\.png"/);
-  assert.doesNotMatch(index, /<canvas\b|character-motion|character\.js|character-style/);
+  assert.equal((index.match(/<canvas class="sprite"/g) || []).length, 1);
+  assert.match(index, /<script src="\.\.\/assets\/anim\/manifest\.js">/);
+  assert.match(index, /<script src="sprite-player\.js">/);
+  // Motion comes only from video frames of one identity, never from rotated parts.
+  assert.doesNotMatch(index, /character-motion|character\.js|character-style/);
+  assert.doesNotMatch(rendererSource, /character-motion|rotate\(|ribbon/);
 });
 
 test("arrival, breathing and withdrawal are single-image transforms driven by CSS variables", () => {
@@ -86,9 +91,19 @@ test("the companion:show handler sets the darshan timing variables from src/dars
   });
 });
 
-test("the renderer runs no requestAnimationFrame loop, so nothing animates while absent", () => {
-  assert.doesNotMatch(rendererSource, /requestAnimationFrame/);
+test("the only frame loop is the sprite player's, and it is cleared while absent", () => {
+  // The renderer hands requestAnimationFrame to the player once, in the env it builds;
+  // it never runs a loop of its own, and absence clears the player (test/sprite-player.test.js
+  // proves the player requests no frames after stop/clear).
+  assert.equal((rendererSource.match(/requestAnimationFrame/g) || []).length, 1);
+  assert.match(rendererSource, /raf: \(fn\) => window\.requestAnimationFrame\(fn\)/);
   assert.doesNotMatch(rendererSource, /setInterval/);
+  assert.match(rendererSource, /if \(phase === "absent"\) \{ player\.clear\(\); return; \}/);
+  // The still is the player's default eyes-open frame (STILL_FRAME), never frame 0.
+  assert.match(rendererSource, /if \(document\.hidden \|\| reducedMotion\.matches\) \{ player\.still\(\); return; \}/);
+  assert.doesNotMatch(rendererSource, /still\("idle", 0\)/);
+  assert.match(rendererSource, /player\.preload\(\)/);
+  assert.match(rendererSource, /if \(name === "farewell"\) \{ if \(phase === "withdrawing"\) setAbsent\(\)/);
 });
 
 test("absence and reduced motion have no breathing loop, and reduced motion disables the settle", () => {

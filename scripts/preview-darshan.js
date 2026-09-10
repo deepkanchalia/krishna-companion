@@ -15,7 +15,13 @@ const files = new Map([
   ["/src/index.html", ["src/index.html", "text/html"]],
   ["/src/renderer.js", ["src/renderer.js", "text/javascript"]],
   ["/src/styles.css", ["src/styles.css", "text/css"]],
-  ["/assets/krishna.png", ["assets/krishna.png", "image/png"]]
+  ["/assets/krishna.png", ["assets/krishna.png", "image/png"]],
+  ["/src/sprite-player.js", ["src/sprite-player.js", "text/javascript"]],
+  ["/assets/anim/manifest.js", ["assets/anim/manifest.js", "text/javascript"]],
+  ["/assets/anim/walkin.webp", ["assets/anim/walkin.webp", "image/webp"]],
+  ["/assets/anim/idle.webp", ["assets/anim/idle.webp", "image/webp"]],
+  ["/assets/anim/teach.webp", ["assets/anim/teach.webp", "image/webp"]],
+  ["/assets/anim/farewell.webp", ["assets/anim/farewell.webp", "image/webp"]]
 ]);
 const server = http.createServer((request, response) => {
   const url = new URL(request.url, "http://127.0.0.1");
