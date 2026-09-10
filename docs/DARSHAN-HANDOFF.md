@@ -1,6 +1,6 @@
 # Darshan walk animation
 
-Branch: `codex/darshan-message-animation`. This branch is the M1 darshan UI slice
+Branch history: darshan foundation (merged as 7ae55ad), then the walk animation. This branch is the M1 darshan UI slice
 plus the window and timer wiring it needs. It is not a claim that every M1 native
 acceptance check has passed; the rows it does and does not claim are listed below.
 
@@ -28,8 +28,6 @@ acceptance check has passed; the rows it does and does not claim are listed belo
 - Next verse advances exactly one corpus entry and keeps the figure present.
 - An untouched verse withdraws after 180 seconds following arrival. Expansion
   cancels that timeout; Next starts a new one.
-- Withdrawal glides right and the native window hides after the withdrawal delay.
-- Reduced motion shows the fixed image with no breathing loop and no settle.
 
 ## Where the numbers live
 
@@ -63,23 +61,18 @@ switch entries, including the long and grouped ones.
 
 ## Evidence
 
-`docs/evidence/` holds screenshots captured from the localhost preview at
-1470×956, for entry 14.22-25 (the tallest combined text):
-
-- `darshan-translation.png` — stage one, the three-line translation.
-- `darshan-long-expanded.png` — stage two, the expanded reading.
-- `darshan-withdrawn.png` — after withdrawal, the empty resting state.
-
-Run `npm test` for the automated evidence; `test/micro-motion.test.js`,
-`test/darshan.test.js`, `test/renderer.test.js`, and `test/darshan-main.test.js`
-cover the timings, CSS variables, corpus verbatimness, and window wiring. Tests
-never launch Electron or request a macOS permission. `npm pack --dry-run` shows
-no rig candidates, experiments, preview tooling, evidence, or compiled helper.
+- `docs/evidence/anim-walkin.png`: mid-stride entry at the right edge (preview, 1470×776).
+- `docs/evidence/anim-present.png`: standing with the three-line card.
+- `docs/evidence/anim-teach.png`: teaching-gesture frame rendered from the sheet.
+- `docs/evidence/anim-farewell.png`: walking out to the right.
+- `docs/evidence/anim-absent.png`: cleared after the farewell.
+- `docs/evidence/darshan-walk.gif`: one full darshan recorded in the localhost preview.
+- Native checks still owed: screen recording on the Electron window, frame trace during the walk-in, 5-minute CPU sample while absent.
 
 ## Which M1 rows are claimed
 
 Claimed by this branch, with automated or renderer evidence: the two-stage bubble
-(M1.5), the single-image arrival, breathing, and withdrawal (M1.6), the absent and
+(M1.5), the walk-in, idle loop, teaching gesture, farewell, and withdrawal (M1.6), the absent and
 reduced-motion behaviour (M1.7), the 180-second untouched timeout (M1.8), and the
 micro-motion row (UI5). The always-on criteria touched are display provenance
 (C3), focus behaviour (C8), and network isolation (C10).

@@ -87,14 +87,22 @@
     let active = null; // { name, startedAt, onEnd }
     let frameHandle = null;
     let lastIndex = -1;
+    let stillToken = 0; // a later still() or clear() cancels a pending still paint
 
     function image(name) {
       if (!images[name]) {
         const img = loadImage(manifest.segments[name].file);
-        if (img && typeof img.addEventListener === "function") img.addEventListener("load", () => { img.__ready = true; });
+        if (img && typeof img.addEventListener === "function") {
+          img.addEventListener("load", () => { img.__ready = true; });
+          img.addEventListener("error", () => { img.__failed = true; });
+        }
         images[name] = img;
       }
       return images[name];
+    }
+
+    function failed(img) {
+      return img.__failed === true || (img.complete === true && !img.naturalWidth && img.__ready !== true);
     }
 
     // Decode every sheet up front so the first darshan does not stall mid-walk.
@@ -102,17 +110,26 @@
       for (const name of Object.keys(manifest.segments)) image(name);
     }
 
+    // Keep the backing store matched to the element's current CSS size (it changes with
+    // the compact media query) so the figure is never squashed or clipped.
+    function fitBacking() {
+      const cw = canvas.clientWidth || canvas.width, ch = canvas.clientHeight || canvas.height;
+      const ratio = env.pixelRatio ? env.pixelRatio() : 1;
+      const bw = Math.round(cw * ratio), bh = Math.round(ch * ratio);
+      if (canvas.width !== bw || canvas.height !== bh) { canvas.width = bw; canvas.height = bh; }
+      return { cw, ch, ratio };
+    }
+
     function draw(name, index) {
       const seg = manifest.segments[name];
       const f = seg.frames[index];
       const ctx = canvas.getContext("2d");
-      const cw = canvas.clientWidth || canvas.width, ch = canvas.clientHeight || canvas.height;
+      const { cw, ch, ratio } = fitBacking();
       const p = placement(manifest, name, index, cw, ch);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       const img = image(name);
       if (!loaded(img)) return;
-      const r = canvas.width / cw; // device pixel ratio backing
-      ctx.drawImage(img, f.sx, f.sy, f.w, f.h, p.x * r, p.y * r, p.w * r, p.h * r);
+      ctx.drawImage(img, f.sx, f.sy, f.w, f.h, p.x * ratio, p.y * ratio, p.w * ratio, p.h * ratio);
     }
 
     function loaded(img) {
@@ -123,8 +140,15 @@
       frameHandle = null;
       if (!active) return;
       const seg = manifest.segments[active.name];
+      const img = image(active.name);
+      // A sheet that failed to load ends its segment at once so the darshan continues.
+      if (failed(img)) {
+        const finished = active; active = null;
+        if (finished.onEnd) finished.onEnd(finished.name);
+        return;
+      }
       // A sheet still decoding must not eat frames: hold the clock until it is ready.
-      if (!loaded(image(active.name))) {
+      if (!loaded(img)) {
         active.startedAt = now();
         frameHandle = raf(tick);
         return;
@@ -151,7 +175,8 @@
       still(name = "idle", index = STILL_FRAME) {
         this.stop();
         const img = image(name);
-        const paint = () => draw(name, index);
+        const token = ++stillToken;
+        const paint = () => { if (token === stillToken) draw(name, index); };
         if (loaded(img)) paint(); else if (typeof img.addEventListener === "function") img.addEventListener("load", paint, { once: true });
       },
       preload,
@@ -161,6 +186,7 @@
       },
       clear() {
         this.stop();
+        stillToken++;
         canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
       },
       isPlaying() { return active !== null; },

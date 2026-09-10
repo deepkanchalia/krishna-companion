@@ -99,7 +99,11 @@ test("the only frame loop is the sprite player's, and it is cleared while absent
   assert.match(rendererSource, /raf: \(fn\) => window\.requestAnimationFrame\(fn\)/);
   assert.doesNotMatch(rendererSource, /setInterval/);
   assert.match(rendererSource, /if \(phase === "absent"\) \{ player\.clear\(\); return; \}/);
-  assert.match(rendererSource, /if \(document\.hidden \|\| reducedMotion\.matches\) \{ player\.still\("idle", 0\); return; \}/);
+  // The still is the player's default eyes-open frame (STILL_FRAME), never frame 0.
+  assert.match(rendererSource, /if \(document\.hidden \|\| reducedMotion\.matches\) \{ player\.still\(\); return; \}/);
+  assert.doesNotMatch(rendererSource, /still\("idle", 0\)/);
+  assert.match(rendererSource, /player\.preload\(\)/);
+  assert.match(rendererSource, /if \(name === "farewell"\) \{ if \(phase === "withdrawing"\) setAbsent\(\)/);
 });
 
 test("absence and reduced motion have no breathing loop, and reduced motion disables the settle", () => {

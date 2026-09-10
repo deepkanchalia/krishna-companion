@@ -76,6 +76,36 @@ test("walk-in enters from the right and ends on the resting spot; farewell leave
   }
 });
 
+test("a sheet that fails to load ends its segment instead of spinning, and a stale still never paints", () => {
+  const drawn = [];
+  const ctx = { clearRect() {}, drawImage: (...a) => drawn.push(a) };
+  const canvas = { width: 440, height: 572, clientWidth: 220, clientHeight: 286, getContext: () => ctx };
+  let clock = 0; const rafs = []; const listeners = {};
+  const brokenImage = { complete: false, naturalWidth: 0, addEventListener: (type, fn) => { (listeners[type] = listeners[type] || []).push(fn); } };
+  const env = { canvas, loadImage: () => brokenImage, raf: (fn) => { rafs.push(fn); return rafs.length; }, caf: () => {}, now: () => clock };
+  const player = Sprite.createSpritePlayer(manifest, env);
+  const ended = [];
+  player.play("farewell", (n) => ended.push(n));
+  // decoding still pending: the clock holds and nothing is drawn
+  for (let i = 0; i < 5 && rafs.length; i++) { clock += 16; rafs.shift()(); }
+  assert.deepEqual(ended, []);
+  assert.equal(drawn.length, 0);
+  // the browser reports a load error: the segment ends on the next frame
+  listeners.error.forEach((fn) => fn());
+  clock += 16; rafs.shift()();
+  assert.deepEqual(ended, ["farewell"]);
+  assert.equal(player.isPlaying(), false);
+  assert.equal(rafs.length, 0, "no frame requests remain");
+  // a still requested before the sheet loads must not paint after clear()
+  const pending = { complete: false, naturalWidth: 0, addEventListener: (type, fn) => { (listeners["still-" + type] = listeners["still-" + type] || []).push(fn); } };
+  const player2 = Sprite.createSpritePlayer(manifest, { ...env, loadImage: () => pending });
+  player2.still();
+  player2.clear();
+  pending.complete = true; pending.naturalWidth = 1760;
+  (listeners["still-load"] || []).forEach((fn) => fn());
+  assert.equal(drawn.length, 0, "cancelled still did not paint");
+});
+
 test("the player draws only while a segment plays and stops cleanly", () => {
   const drawn = [];
   const ctx = { clearRect() {}, drawImage: (...a) => drawn.push(a) };

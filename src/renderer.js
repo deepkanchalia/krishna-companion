@@ -14,6 +14,7 @@ let continuingDelay = 0;
 let phase = "absent";
 let expanded = false;
 let continuingVerse = false;
+let withdrawTimer;
 
 // Sprite flipbook (src/sprite-player.js + assets/anim/manifest.js). Optional: when the
 // manifest or the player is missing the CSS slide and the still image are used instead.
@@ -25,18 +26,25 @@ let player = null;
 
 function initSprite() {
   if (!spriteReady) return;
-  const ratio = window.devicePixelRatio || 1;
-  const rect = spriteCanvas.getBoundingClientRect ? spriteCanvas.getBoundingClientRect() : { width: 220, height: 286 };
-  spriteCanvas.width = Math.round((rect.width || 220) * ratio);
-  spriteCanvas.height = Math.round((rect.height || 286) * ratio);
+  // The class goes on first so the canvas is displayed and measurable; the player sizes
+  // its backing store from the live CSS size on every draw.
+  document.body.classList.add("sprite");
   player = Sprite.createSpritePlayer(animManifest, {
     canvas: spriteCanvas,
     loadImage: (file) => { const img = new Image(); img.decoding = "async"; img.src = `../assets/anim/${file}`; return img; },
     raf: (fn) => window.requestAnimationFrame(fn),
     caf: (id) => window.cancelAnimationFrame(id),
-    now: () => performance.now()
+    now: () => performance.now(),
+    pixelRatio: () => window.devicePixelRatio || 1
   });
-  document.body.classList.add("sprite");
+  player.preload();
+}
+
+function setAbsent() {
+  phase = "absent";
+  document.body.dataset.phase = phase;
+  clearTimeout(withdrawTimer);
+  if (player) player.clear();
 }
 
 // Keep the flipbook in step with the darshan phase. Absent: nothing drawn, no frame
@@ -44,7 +52,9 @@ function initSprite() {
 function syncSprite() {
   if (!player) return;
   if (phase === "absent") { player.clear(); return; }
-  if (document.hidden || reducedMotion.matches) { player.still("idle", 0); return; }
+  // A hidden window mid-withdrawal is as good as gone: clear rather than freeze a frame.
+  if (phase === "withdrawing" && document.hidden) { player.clear(); return; }
+  if (document.hidden || reducedMotion.matches) { player.still(); return; }
   const segment = Sprite.segmentForPhase(phase, { continuing: continuingVerse });
   if (!segment) { player.clear(); return; }
   if (player.current() === segment) return;
@@ -53,7 +63,9 @@ function syncSprite() {
 
 function onSegmentEnd(name) {
   if (!player) return;
-  if (name === "farewell") { player.clear(); return; }
+  if (name === "farewell") { if (phase === "withdrawing") setAbsent(); else player.clear(); return; }
+  // The message reveals when the walk-in actually ends (the timer is only a fallback).
+  if (name === "walkin" && phase === "arriving") revealMessage();
   const next = Sprite.nextAfter(name);
   if (next && (phase === "present" || phase === "arriving")) player.play(next, onSegmentEnd);
 }
@@ -127,8 +139,10 @@ function showTeaching({ reflection: incoming, durationSeconds, preview = false, 
     ? "Opens longer when you read more" : "A quiet moment · 3 minutes";
   cardElement.scrollTop = 0;
   fitWindowToCard();
-  // With sprites the message waits for the walk-in to finish; otherwise the CSS slide.
-  const arrival = player && !continuing ? Sprite.durationMs(animManifest.segments.walkin) : arrivalDelay;
+  // With sprites the walk-in's end reveals the message (onSegmentEnd); this timer is a
+  // fallback with slack for sheet decoding. Otherwise the CSS slide timing applies.
+  clearTimeout(withdrawTimer);
+  const arrival = player && !continuing ? Sprite.durationMs(animManifest.segments.walkin) + 800 : arrivalDelay;
   revealTimer = setTimeout(revealMessage, reducedMotion.matches ? 0 : (continuing ? continuingDelay : arrival));
 }
 
@@ -153,6 +167,10 @@ function collapse() {
   document.body.dataset.phase = phase;
   nextElement.disabled = true;
   syncSprite();
+  // Absent follows the farewell; if the loop cannot finish (hidden, failed sheet), a
+  // timer with slack still clears the figure.
+  clearTimeout(withdrawTimer);
+  if (player) withdrawTimer = setTimeout(setAbsent, Sprite.durationMs(animManifest.segments.farewell) + 800);
 }
 
 function dismiss() {

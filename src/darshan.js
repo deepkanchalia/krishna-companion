@@ -1,9 +1,10 @@
 // Encounter timers are Electron-free so tests never launch the real companion.
 // This module is the single source for the figure timings: main.js sends them in
 // the companion:show payload, the renderer turns them into CSS custom properties,
-// and the localhost preview bridge reads them too. No duration is written twice.
-// Arrival and withdrawal now last as long as the walk-in and farewell sprite
-// segments (assets/anim/manifest.js); the CSS slide is the fallback without sprites.
+// and the localhost preview bridge reads them too. ARRIVAL_MS and WITHDRAWAL_MS are
+// upper bounds for the walk-in (25 frames at 12 fps = 2083 ms) and farewell (38 at
+// 12 fps = 3167 ms) sprite segments in assets/anim/manifest.js, rounded up to leave
+// room for sheet decoding; the CSS slide uses the same values as its fallback.
 const ARRIVAL_MS = 2_200;
 const WITHDRAWAL_MS = 3_200;
 const UNTOUCHED_MS = 180_000;
