@@ -31,7 +31,7 @@ test("records which options a launch actually provided", () => {
   });
 });
 
-test("teachings stay open by default and duration is opt-in", () => {
+test("duration defaults to the encounter policy and an explicit override is preserved", () => {
   assert.equal(readConfig([]).durationSeconds, 0);
   assert.equal(readConfig(["--duration=18"]).durationSeconds, 18);
 });

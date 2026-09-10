@@ -1,5 +1,6 @@
 const DEFAULT_INTERVAL_MINUTES = 30;
-// The reader closes the teaching. A positive --duration opts into auto-close.
+// Zero uses the darshan's three-minute untouched timeout. A positive value
+// overrides that timeout; opening the full verse always cancels it (darshan.js).
 const DEFAULT_DURATION_SECONDS = 0;
 
 // The bounds readConfig clamps to, named once so the second-instance validator can reuse
