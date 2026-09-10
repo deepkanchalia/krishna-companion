@@ -1,7 +1,7 @@
 {
   "name": "krishna-companion",
   "version": "0.2.0",
-  "description": "A quiet Bhagavad-gītā As It Is companion for long terminal sessions.",
+  "description": "A quiet Bhagavad-g\u012bt\u0101 As It Is companion for long terminal sessions.",
   "main": "src/main.js",
   "bin": {
     "krshna": "bin/krshna.js",
@@ -21,7 +21,8 @@
     "!scripts/preview-darshan.js",
     "docs",
     "!docs/evidence",
-    "!experiments"
+    "!experiments",
+    "!scripts/anim"
   ],
   "scripts": {
     "start": "electron .",
