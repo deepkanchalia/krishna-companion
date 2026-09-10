@@ -20,6 +20,8 @@
   // Resting frame for reduced motion / hidden tab: an eyes-open frame of the idle loop
   // (frame 0 falls inside a blink in the source clip).
   const STILL_FRAME = 6;
+  // Longest a segment waits for its sheet to decode before giving up on it.
+  const LOAD_TIMEOUT_MS = 8_000;
 
   // Sequence of segments to play after the current one ends.
   function nextAfter(segment) {
@@ -113,23 +115,30 @@
     // Keep the backing store matched to the element's current CSS size (it changes with
     // the compact media query) so the figure is never squashed or clipped.
     function fitBacking() {
-      const cw = canvas.clientWidth || canvas.width, ch = canvas.clientHeight || canvas.height;
       const ratio = env.pixelRatio ? env.pixelRatio() : 1;
-      const bw = Math.round(cw * ratio), bh = Math.round(ch * ratio);
-      if (canvas.width !== bw || canvas.height !== bh) { canvas.width = bw; canvas.height = bh; }
-      return { cw, ch, ratio };
+      const laidOut = canvas.clientWidth > 0 && canvas.clientHeight > 0;
+      if (laidOut) {
+        const bw = Math.round(canvas.clientWidth * ratio), bh = Math.round(canvas.clientHeight * ratio);
+        if (canvas.width !== bw || canvas.height !== bh) { canvas.width = bw; canvas.height = bh; }
+      }
+      // Without layout (display:none) the backing store is left as it is; never derive
+      // a new size from it, which would compound the ratio on every draw.
+      const cw = laidOut ? canvas.clientWidth : canvas.width / ratio;
+      const ch = laidOut ? canvas.clientHeight : canvas.height / ratio;
+      return { cw, ch, sx: canvas.width / cw, sy: canvas.height / ch };
     }
 
     function draw(name, index) {
       const seg = manifest.segments[name];
       const f = seg.frames[index];
       const ctx = canvas.getContext("2d");
-      const { cw, ch, ratio } = fitBacking();
+      const { cw, ch, sx, sy } = fitBacking();
       const p = placement(manifest, name, index, cw, ch);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       const img = image(name);
       if (!loaded(img)) return;
-      ctx.drawImage(img, f.sx, f.sy, f.w, f.h, p.x * ratio, p.y * ratio, p.w * ratio, p.h * ratio);
+      // Independent x/y scales: rounding the backing store can make them differ slightly.
+      ctx.drawImage(img, f.sx, f.sy, f.w, f.h, p.x * sx, p.y * sy, p.w * sx, p.h * sy);
     }
 
     function loaded(img) {
@@ -147,8 +156,16 @@
         if (finished.onEnd) finished.onEnd(finished.name);
         return;
       }
-      // A sheet still decoding must not eat frames: hold the clock until it is ready.
+      // A sheet still decoding must not eat frames: hold the clock until it is ready,
+      // but never for longer than LOAD_TIMEOUT_MS; after that the segment ends as failed.
       if (!loaded(img)) {
+        if (active.holdSince === undefined) active.holdSince = now();
+        if (now() - active.holdSince > LOAD_TIMEOUT_MS) {
+          img.__failed = true;
+          const finished = active; active = null;
+          if (finished.onEnd) finished.onEnd(finished.name);
+          return;
+        }
         active.startedAt = now();
         frameHandle = raf(tick);
         return;

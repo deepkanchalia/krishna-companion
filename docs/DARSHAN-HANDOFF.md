@@ -31,14 +31,17 @@ acceptance check has passed; the rows it does and does not claim are listed belo
 
 ## Where the numbers live
 
-`src/darshan.js` is the single source for every darshan timing: `ARRIVAL_MS`,
-`WITHDRAWAL_MS`, `UNTOUCHED_MS`, `BREATH_MS`, `SETTLE_MS`, and `SETTLE_PX`.
-`src/main.js` sends `{ arrivalMs, withdrawalMs, breathMs, settleMs, settlePx }` in
-the `companion:show` payload. `src/renderer.js` writes them to the
+Two files hold the numbers. `assets/anim/manifest.js` holds the segment lengths
+(walk-in 25 frames at 12 fps = 2083 ms, farewell 46 at 12 fps = 3833 ms, idle and
+teach frame counts and rates). `src/darshan.js` holds the bounds and the fallback
+values: `ARRIVAL_MS` 2200 and `WITHDRAWAL_MS` 4000 (upper bounds on the two
+segments, used by the untouched timer and the native hide), `UNTOUCHED_MS`, and the
+`BREATH_MS`, `SETTLE_MS`, `SETTLE_PX` used only by the CSS fallback when no manifest
+is present. `src/main.js` sends `{ arrivalMs, withdrawalMs, breathMs, settleMs,
+settlePx }` in the `companion:show` payload; `src/renderer.js` writes them to the
 `--arrival`, `--withdraw`, `--breath`, `--settle`, and `--settle-px` CSS custom
-properties, and `src/styles.css` reads only those variables for the figure
-animations. The localhost preview serves the same constants so no duration is
-written twice.
+properties, which the fallback animations and the halo/caption fades read. The
+localhost preview serves the same constants.
 
 `src/main.js` owns saved placement, the hidden-window lifecycle, focus gating,
 readiness, verse progression, and native hiding. Opening uses `showInactive()` and
@@ -66,9 +69,9 @@ switch entries, including the long and grouped ones.
 - `docs/evidence/anim-teach.png`: teaching-gesture frame rendered from the sheet.
 - `docs/evidence/anim-farewell.png`: walking out to the right.
 - `docs/evidence/anim-absent.png`: cleared after the farewell.
-- `docs/evidence/darshan-walk.gif`: one full darshan recorded in the localhost preview.
+- A GIF of one full darshan was recorded in the localhost preview and attached to the pull request discussion rather than committed (3 MB of history).
 - Native checks still owed: screen recording on the Electron window, frame trace during the walk-in, 5-minute CPU sample while absent, and a resident-memory number (the four decoded sheets hold roughly 66 MB while the app runs).
-- Known polish, not done: a withdrawal that starts during the walk-in plays the farewell from the resting spot, so the figure jumps there first; a window hidden and shown again mid-farewell restarts the farewell from its first frame.
+- Known polish, not done: a withdrawal that starts during the walk-in plays the farewell from the resting spot, so the figure jumps there first; a window hidden and shown again during a one-shot segment (walk-in, gesture, farewell) restarts that segment from its first frame; a walk-in that exceeds the 2.2 s bound only happens if a sheet had to decode on demand (a load that never completes gives up after 8 s).
 
 ## Which M1 rows are claimed
 
