@@ -41,6 +41,7 @@ const {
 } = require("./voice-hold");
 const { createVoiceRuntime } = require("./voice-runtime");
 const { buildTrayMenuTemplate } = require("./tray");
+const { createWindowGeometry } = require("./window-geometry");
 
 // Exactly 10% smaller than the previous 176 × 224 resting widget.
 const RESTING_SIZE = { width: 158, height: 202 };
@@ -226,53 +227,24 @@ function saveSettings() {
   writeJson(settingsPath, settings);
 }
 
-function displayForPoint(point) {
-  return screen.getDisplayNearestPoint({ x: Math.round(point.x), y: Math.round(point.y) });
-}
+// Window placement lives in window-geometry.js. It re-clamps the resting position each
+// time and hands it back so this file can remember it; computeBounds carries that memory.
+const geometry = createWindowGeometry({
+  screen,
+  restingSize: RESTING_SIZE,
+  readingSize: READING_SIZE,
+  screenMargin: SCREEN_MARGIN
+});
 
-function defaultRestingPosition() {
-  const { workArea } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-  return {
-    x: Math.round(workArea.x + workArea.width - RESTING_SIZE.width - SCREEN_MARGIN),
-    y: Math.round(workArea.y + workArea.height - RESTING_SIZE.height - SCREEN_MARGIN)
-  };
-}
-
-function clampedRestingPosition(position = restingPosition || defaultRestingPosition()) {
-  const display = displayForPoint({
-    x: position.x + RESTING_SIZE.width / 2,
-    y: position.y + RESTING_SIZE.height / 2
-  });
-  const { workArea } = display;
-  return {
-    x: Math.min(Math.max(position.x, workArea.x), workArea.x + workArea.width - RESTING_SIZE.width),
-    y: Math.min(Math.max(position.y, workArea.y), workArea.y + workArea.height - RESTING_SIZE.height)
-  };
-}
-
-function widgetBounds(expanded) {
-  restingPosition = clampedRestingPosition();
-  if (!expanded) return { ...restingPosition, ...RESTING_SIZE };
-
-  const display = displayForPoint(restingPosition);
-  const { workArea } = display;
-  const height = Math.min(readingHeight, workArea.height - SCREEN_MARGIN * 2);
-  const width = Math.min(READING_SIZE.width, workArea.width - SCREEN_MARGIN * 2);
-  const desired = {
-    x: restingPosition.x - (width - RESTING_SIZE.width),
-    y: restingPosition.y - (height - RESTING_SIZE.height)
-  };
-  return {
-    width,
-    height,
-    x: Math.min(Math.max(desired.x, workArea.x), workArea.x + workArea.width - width),
-    y: Math.min(Math.max(desired.y, workArea.y), workArea.y + workArea.height - height)
-  };
+function computeBounds(expanded) {
+  const result = geometry.widgetBounds({ expanded, restingPosition, readingHeight });
+  restingPosition = result.restingPosition;
+  return result.bounds;
 }
 
 function setWidgetBounds(expanded) {
   programmaticMove = true;
-  companionWindow.setBounds(widgetBounds(expanded), false);
+  companionWindow.setBounds(computeBounds(expanded), false);
   setTimeout(() => { programmaticMove = false; }, PROGRAMMATIC_MOVE_RESET_MS);
 }
 
@@ -294,18 +266,17 @@ function nextReflection() {
 
 function rememberDraggedPosition() {
   if (programmaticMove || !companionWindow || companionWindow.isDestroyed()) return;
-  const [x, y] = companionWindow.getPosition();
-  const [width, height] = companionWindow.getSize();
-  restingPosition = isExpanded
-    ? { x: x + width - RESTING_SIZE.width, y: y + height - RESTING_SIZE.height }
-    : { x, y };
-  restingPosition = clampedRestingPosition(restingPosition);
+  restingPosition = geometry.draggedRestingPosition({
+    position: companionWindow.getPosition(),
+    size: companionWindow.getSize(),
+    expanded: isExpanded
+  });
   saveSettings();
 }
 
 function createWindow() {
   companionWindow = new BrowserWindow({
-    ...widgetBounds(false),
+    ...computeBounds(false),
     show: false,
     frame: false,
     transparent: true,
@@ -730,7 +701,7 @@ ipcMain.on("companion:resize", (_event, height) => {
   if (!Number.isFinite(height)) return;
   readingHeight = Math.max(READING_SIZE.height, Math.ceil(height));
   // Avoid needless native moves while measuring an unchanged message.
-  const bounds = widgetBounds(true);
+  const bounds = computeBounds(true);
   const current = companionWindow.getBounds();
   if (Object.keys(bounds).some((key) => bounds[key] !== current[key])) setWidgetBounds(true);
 });
