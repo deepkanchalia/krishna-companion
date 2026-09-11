@@ -25,7 +25,8 @@ acceptance check has passed; the rows it does and does not claim are listed belo
   verse) darshan keeps the idle loop running.
 - Reduced motion and a hidden tab show one eyes-open still (idle frame 6).
 - The card is Krishna's thought: two bubbles trail from its edge to his head, it wears
-  an opaque charcoal glass, and the halo behind him breathes a golden light.
+  an opaque charcoal glass, and a soft, uneven golden light drifts slowly behind his head
+  and shoulders while the figure itself carries a warm glow.
 - Clip record. Every style except `pixel` comes from one 15 s image-to-video generation
   (minimax-h3, 1344x768, 24 fps, green background requested; the painterly clip ignored
   it and was matted with rembg) of a single Krishna figure walking in from the right,
