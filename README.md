@@ -43,7 +43,7 @@ krshna stop
 
 ## Figure style
 
-Six figures ship: five are flipbooks cut from one generated clip each, `realistic` (default), `cartoon`, `painterly`, and two Mahabharat-style figures, `gyan` (the teacher) and `warrior` (a powerful presence, no armour); `pixel` is the warrior redrawn as pixel art (`scripts/anim/pixelate-style.py`, one shared 32-colour palette, drawn without smoothing). Pick one from the tray menu under Figure, or:
+Six figures ship: five are flipbooks cut from one generated clip each, `realistic` (default), `cartoon`, `painterly`, and two Mahabharat-style figures, `gyan` (the teacher) and `warrior` (a powerful presence, no armour); `pixel` is the warrior redrawn as pixel art (`scripts/anim/pixelate-style.py`, one shared 24-colour palette, sheets written lossless, drawn without smoothing). Pick one from the tray menu under Figure, or:
 
 ```bash
 krshna style cartoon

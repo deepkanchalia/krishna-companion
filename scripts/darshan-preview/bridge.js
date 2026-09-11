@@ -52,4 +52,4 @@ window.addEventListener("message", (event) => {
     if (styleCallback) styleCallback(previewStyle);
   }
 });
-window.addEventListener("load", () => notify("ready"));
+window.addEventListener("load", () => notify("ready", { styles: Object.keys(window.KRISHNA_ANIM_STYLES || {}) }));

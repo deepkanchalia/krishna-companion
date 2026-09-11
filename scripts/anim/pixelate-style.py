@@ -7,7 +7,7 @@ every segment (--colors entries), given a hard-edged alpha, outlined in a dark
 line along the silhouette and along strong interior edges (the hard-shaded,
 outlined look of hand-drawn pixel art), and scaled back up with
 nearest-neighbour so the frame rects and scene offsets stay exactly those of
-the source style: the motion, the placement math and the tests are unchanged.
+the source style (sheets are written lossless so the palette survives): the motion, the placement math and the tests are unchanged.
 The player switches off image smoothing for a style whose manifest carries
 `pixelated: true`.
 
@@ -80,7 +80,15 @@ def outline(rgb, alpha, edge_threshold, strength):
     return Image.fromarray(out.astype(np.uint8), 'RGB')
 
 
-def pixelate(frame, palette, args):
+def pixelate(frame, palette, args, anchor=(0, 0)):
+    # The art grid is anchored to the scene, not to each frame's crop: pad the crop by the
+    # frame's scene offset modulo the factor so blocks land on the same scene grid in every
+    # frame and never shift between frames.
+    px, py = anchor[0] % args.factor, anchor[1] % args.factor
+    if px or py:
+        padded = Image.new('RGBA', (frame.width + px, frame.height + py), (0, 0, 0, 0))
+        padded.paste(frame, (px, py))
+        frame = padded
     s = small(boost(frame, args.saturation, args.contrast), args.factor)
     alpha = s.getchannel('A').point(lambda a: 255 if a >= 128 else 0)
     rgb = Image.new('RGB', s.size, OUTLINE)
@@ -90,7 +98,11 @@ def pixelate(frame, palette, args):
         snapped = outline(snapped, alpha, args.edge, args.line)
     out = snapped.convert('RGBA')
     out.putalpha(alpha)
-    return out.resize(frame.size, Image.NEAREST)
+    out = out.resize((s.width * args.factor, s.height * args.factor), Image.NEAREST)
+    # back to the frame's own size (partial blocks at the far edges are dropped)
+    canvas = Image.new('RGBA', frame.size, (0, 0, 0, 0))
+    canvas.paste(out, (0, 0))
+    return canvas.crop((px, py, frame.width, frame.height))
 
 
 def main():
@@ -103,7 +115,6 @@ def main():
     ap.add_argument('--outline', action=argparse.BooleanOptionalAction, default=True)
     ap.add_argument('--edge', type=int, default=36, help='luminance step that draws an interior line')
     ap.add_argument('--line', type=float, default=0.7, help='how dark an interior line is, 0..1')
-    ap.add_argument('--quality', type=int, default=82)
     args = ap.parse_args()
     manifest = json.load(open(os.path.join(args.src, 'manifest.json')))
     sheets = frames(manifest, args.src)
@@ -115,12 +126,14 @@ def main():
         out = Image.new('RGBA', sheet.size, (0, 0, 0, 0))
         for f in seg['frames']:
             box = (f['sx'], f['sy'], f['sx'] + f['w'], f['sy'] + f['h'])
-            out.paste(pixelate(sheet.crop(box), palette, args), box)
-        out.save(os.path.join(args.out, f'{name}.webp'), 'WEBP', quality=args.quality, method=6)
+            out.paste(pixelate(sheet.crop(box), palette, args, (f['ox'], f['oy'])), box)
+        # lossless: a lossy encode would smear the palette back into thousands of colours
+        out.save(os.path.join(args.out, f'{name}.webp'), 'WEBP', lossless=True, method=6)
         seg['file'] = prefix + f'{name}.webp'
     manifest['pixelated'] = True
     manifest['derivedFrom'] = os.path.basename(os.path.normpath(args.src))
     manifest['pixelFactor'] = args.factor
+    manifest['lossless'] = True
     json.dump(manifest, open(os.path.join(args.out, 'manifest.json'), 'w'), indent=1)
     total = sum(os.path.getsize(os.path.join(args.out, p)) for p in os.listdir(args.out))
     print(f'{args.out}: factor {args.factor}, {args.colors} colours, outline {args.outline}, {total // 1024} KB')

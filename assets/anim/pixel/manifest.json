@@ -1100,5 +1100,6 @@
  },
  "pixelated": true,
  "derivedFrom": "warrior",
- "pixelFactor": 3
+ "pixelFactor": 3,
+ "lossless": true
 }

@@ -113,6 +113,7 @@ test("the figure style follows the show payload and the style message; unknown n
   h.endSegment();
   h.setStyle("painterly"); // a present darshan switches on the spot and keeps standing
   assert.equal(h.playersCreated.at(-1), "painterly");
+  assert.deepEqual(h.calls.slice(-3), ["clear", "preload", "play:idle"], "the old player is cleared before the new one plays");
   assert.equal(h.player.current(), "idle");
   const before = h.playersCreated.length;
   h.setStyle("nope");

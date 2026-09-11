@@ -6,6 +6,7 @@ const vm = require("node:vm");
 const Sprite = require("../src/sprite-player");
 
 const { FIGURE_STYLES, DEFAULT_FIGURE_STYLE } = require("../src/config");
+const { ARRIVAL_MS, WITHDRAWAL_MS } = require("../src/darshan");
 const combined = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "assets", "anim", "manifest.json"), "utf8"));
 const manifest = combined.styles[combined.default];
 
@@ -20,6 +21,8 @@ test("every figure style ships a complete, consistent manifest and its four shee
       assert.ok(seg.file.startsWith(`${style}/`), `${style} ${name} sheet path is inside its style folder`);
       assert.ok(fs.existsSync(path.join(__dirname, "..", "assets", "anim", seg.file)), `${style} ${name} sheet file`);
     }
+    assert.ok(Sprite.durationMs(m.segments.walkin) <= ARRIVAL_MS, `${style} walk-in within ARRIVAL_MS`);
+    assert.ok(Sprite.durationMs(m.segments.farewell) <= WITHDRAWAL_MS, `${style} farewell within WITHDRAWAL_MS`);
     assert.equal(m.segments.idle.loop, true);
     assert.equal(m.segments.idle.pingpong, true);
     assert.equal(m.segments.walkin.loop, false);
@@ -81,9 +84,7 @@ for (const [style, styleManifest] of Object.entries(combined.styles)) test(`${st
       const p = Sprite.placement(manifest, name, i, cw, ch);
       assert.ok(p.y + p.h <= ch, `${name} frame ${i} feet inside the canvas`);
       assert.ok(p.y + p.h > ch - 45, `${name} frame ${i} feet near the floor`);
-      // A frame still entirely beyond the right edge is not drawn on screen, so its head
-      // may overshoot by a few px while a foot is lifted; visible frames may not.
-      if (p.x < cw) assert.ok(p.y >= -1, `${name} frame ${i} head inside the canvas`);
+      assert.ok(p.y >= 0, `${name} frame ${i} head inside the canvas`);
     }
   }
 });
@@ -145,6 +146,7 @@ test("a pixel-art style is drawn without image smoothing; every other style with
   const env = { canvas, loadImage: () => ({ complete: true, naturalWidth: 1 }), raf: () => 1, caf() {}, now: () => 0 };
   assert.equal(combined.styles.pixel.pixelated, true);
   assert.equal(combined.styles.pixel.derivedFrom, "warrior");
+  assert.equal(combined.styles.pixel.lossless, true, "pixel sheets are written lossless so the palette survives");
   Sprite.createSpritePlayer(combined.styles.pixel, env).still();
   Sprite.createSpritePlayer(combined.styles.warrior, env).still();
   assert.deepEqual(smoothing, [false, true]);

@@ -50,6 +50,7 @@ function initSprite() {
   // its backing store from the live CSS size on every draw.
   document.body.classList.add("sprite");
   player = createPlayer(animManifest);
+  applySpriteTimings();
 }
 
 // Switch the figure style: unknown or invalid names are ignored, a present darshan
@@ -58,12 +59,25 @@ function selectStyle(name) {
   if (!spriteReady || !name || name === currentStyle) return;
   const manifest = animStyles[name];
   if (!manifest || Sprite.validateManifest(manifest).length > 0) return;
-  if (player) player.stop();
+  // clear(), not stop(): a still queued on a sheet that has not decoded yet must not
+  // paint the old style over the new one.
+  if (player) player.clear();
   currentStyle = name;
   animManifest = manifest;
   player = createPlayer(manifest);
   document.body.dataset.style = name;
+  applySpriteTimings();
   if (phase !== "absent") syncSprite();
+  // The fallback timers were armed from the previous style's segment lengths; the
+  // restarted segment needs its own.
+  if (phase === "arriving" && !continuingVerse) {
+    clearTimeout(revealTimer);
+    revealTimer = setTimeout(revealMessage, reducedMotion.matches ? 0 : Sprite.durationMs(manifest.segments.walkin) + 800);
+  }
+  if (phase === "withdrawing") {
+    clearTimeout(withdrawTimer);
+    withdrawTimer = setTimeout(setAbsent, Sprite.durationMs(manifest.segments.farewell) + 800);
+  }
 }
 
 function setAbsent() {
@@ -120,6 +134,16 @@ function applyMotionTimings({ arrivalMs, withdrawalMs, breathMs, settleMs, settl
   // A continuing verse keeps the figure present, so its reveal only waits out the settle.
   arrivalDelay = Number.isFinite(arrivalMs) ? arrivalMs : 0;
   continuingDelay = Number.isFinite(settleMs) ? settleMs : 0;
+  applySpriteTimings();
+}
+
+// With sprites on, the halo and caption fade over the selected style's own walk-in and
+// farewell (they differ per style); ARRIVAL_MS and WITHDRAWAL_MS remain the upper bounds
+// the timers use.
+function applySpriteTimings() {
+  if (!player) return;
+  rootStyle.setProperty("--arrival", `${Sprite.durationMs(animManifest.segments.walkin)}ms`);
+  rootStyle.setProperty("--withdraw", `${Sprite.durationMs(animManifest.segments.farewell)}ms`);
 }
 
 function revealMessage() {

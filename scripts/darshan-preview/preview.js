@@ -28,6 +28,12 @@ window.addEventListener("resize", fit);
 window.addEventListener("message", (event) => {
   if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
   if (event.data.type === "ready") {
+    // The figure list comes from the renderer's manifest, never typed here.
+    if (Array.isArray(event.data.styles) && event.data.styles.length) {
+      const wanted = params.get("style") || styleSelect.value;
+      styleSelect.replaceChildren(...event.data.styles.map((name) => Object.assign(document.createElement("option"), { value: name, textContent: name[0].toUpperCase() + name.slice(1) })));
+      if (event.data.styles.includes(wanted)) styleSelect.value = wanted;
+    }
     frame.contentWindow.postMessage({ type: "style", style: styleSelect.value }, location.origin);
     send("show");
   }

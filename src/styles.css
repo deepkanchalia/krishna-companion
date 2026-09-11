@@ -22,19 +22,21 @@ button:disabled { cursor: default; opacity: .5; }
   padding: 26px 28px 24px; border: 0; border-radius: 28px 28px 8px 28px;
   /* Frosted glass: a sheen from the top-left, a warm glow at the top-right corner, a
      translucent dark body that lets the desktop show faintly, and a thin bright rim. */
-  /* Opaque so scripture reads over any window; the glass is in the sheen, the rim and
-     the glint layer (first), which the arrival sweeps across the card once. */
-  background: linear-gradient(115deg, transparent 42%, #fff1d014 50%, transparent 58%) 200% 0 / 260% 100% no-repeat, linear-gradient(135deg, #ffe9b822, #ffe9b808 38%, transparent 62%), radial-gradient(ellipse at 100% 0, #f0b45a3a, transparent 60%), linear-gradient(150deg, #4a3521fb, #261a10fd);
+  /* Opaque so scripture reads over any window. Layers, top to bottom: sheen; a fade to
+     the base colour toward the bottom so the verse sits on calm ground; golden dust
+     clouds (assets/card-sky.webp, an original tileable texture) that drift while present;
+     a warm corner light; the base. Backgrounds never scroll with the content, so the
+     clouds cover the whole card however long the purport is. */
+  background: linear-gradient(135deg, #ffe9b822, #ffe9b808 38%, transparent 62%), linear-gradient(180deg, #261a1000 45%, #261a10b8 100%), url(../assets/card-sky.webp) 0 0 / 400px 400px repeat, radial-gradient(ellipse at 100% 0, #f0b45a3a, transparent 60%), linear-gradient(150deg, #4a3521fb, #261a10fd);
   box-shadow: 0 18px 40px #0007, 0 2px 8px #0004, inset 0 1px #ffffff2e, inset 0 0 0 1px #ffffff0d, inset 0 -1px #ffffff08;
   opacity: 0; transform: translate(24px, 12px) scale(.96); transform-origin: bottom right;
   transition: opacity .3s ease, transform .5s var(--ease);
   pointer-events: none; scrollbar-width: thin; scrollbar-color: #a8946b66 transparent;
   -webkit-app-region: no-drag;
 }
-/* Golden dust clouds under the text (assets/card-sky.webp, an original tileable
-   texture): faint, drifting, fading out toward the bottom so the verse sits on calm ground. */
-.sky { position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: url(../assets/card-sky.webp) 0 0 / 400px 400px repeat; opacity: 1; -webkit-mask-image: linear-gradient(180deg, #000 0%, #000d 50%, #0006 100%); mask-image: linear-gradient(180deg, #000 0%, #000d 50%, #0006 100%); animation: sky-drift 120s linear infinite; pointer-events: none; }
-@keyframes sky-drift { from { background-position: 0 0; } to { background-position: 400px -400px; } }
+/* The one-shot light that sweeps the glass on arrival. A positioned child of the card
+   (it scrolls with the content, which does not matter for a 1.5 s sweep at arrival). */
+.glint { position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: linear-gradient(115deg, transparent 42%, #fff1d014 50%, transparent 58%) 200% 0 / 260% 100% no-repeat; pointer-events: none; }
 .heading { display: flex; align-items: center; gap: 10px; }
 .seal { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border: 0; border-radius: 50%; background: radial-gradient(circle, #e7c98a24, transparent 72%); color: var(--gold); font-size: 24px; }
 .eyebrow { margin: 0 0 5px; color: var(--gold); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; }
@@ -88,20 +90,24 @@ body[data-phase="withdrawing"] .thought i:first-child { transition-delay: .04s; 
 body[data-phase="withdrawing"] .thought i:last-child { transition-delay: .14s; }
 body[data-phase="present"] .thought i:first-child { animation: bob 5.2s ease-in-out .6s infinite; }
 body[data-phase="present"] .thought i:last-child { animation: bob 4.1s ease-in-out infinite; }
-body:not(.continuing)[data-phase="arriving"] .card { animation: glint 1.5s ease-out .7s both; }
-body[data-phase="present"] .card { animation: card-float 7s ease-in-out infinite; }
+body:not(.continuing)[data-phase="arriving"] .glint { animation: glint 1.5s ease-out .7s both; }
+body[data-phase="present"] .card { animation: card-float 7s ease-in-out infinite, sky-drift 120s linear infinite; }
 body[data-phase="present"] .seal { animation: seal-glow 4.5s ease-in-out infinite; }
 body:not(.continuing)[data-phase="arriving"] .eyebrow { animation: rise .5s var(--ease) .55s both; }
 body:not(.continuing)[data-phase="arriving"] h1 { animation: rise .5s var(--ease) .62s both; }
 body:not(.continuing)[data-phase="arriving"] .chapter { animation: rise .5s var(--ease) .7s both; }
-@keyframes glint { from { background-position: 200% 0, 0 0, 0 0, 0 0; } to { background-position: -60% 0, 0 0, 0 0, 0 0; } }
+@keyframes glint { from { background-position: 200% 0; } to { background-position: -60% 0; } }
+@keyframes sky-drift { from { background-position: 0 0, 0 0, 0 0, 0 0, 0 0; } to { background-position: 0 0, 0 0, 400px -400px, 0 0, 0 0; } }
 @keyframes card-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -3px; } }
 @keyframes bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -2px; } }
 @keyframes seal-glow { 0%, 100% { box-shadow: 0 0 0 0 #e7c98a00; } 50% { box-shadow: 0 0 18px 2px #e7c98a2e; } }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 /* The pixel figure gets 16px of headroom so its scale can snap to three device pixels per
-   art block on a 2x display (the tallest warrior frame needs 301px at that snap). */
+   art block on a 2x display (the tallest warrior frame needs 301px at that snap). At that
+   snap he stands about a tenth taller than the other figures and his feet sit a few px
+   lower; the halo's top follows so the oval stays centred on him. */
 body[data-style="pixel"] .figure { inset: -16px 0 46px; }
+body[data-style="pixel"] .halo { top: -6px; }
 .presence { position: absolute; z-index: 2; right: 2px; bottom: 0; width: var(--presence-width); height: 332px; pointer-events: none; opacity: 0; transform: translateX(240px); }
 .figure { position: absolute; inset: 0 0 46px; cursor: grab; pointer-events: auto; -webkit-app-region: drag; }
 .figure:active { cursor: grabbing; }

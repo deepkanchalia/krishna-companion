@@ -2,7 +2,7 @@
 """Combine per-style manifests under assets/anim/<style>/manifest.json into one
 assets/anim/manifest.js the renderer can load under connect-src 'none'.
 
-window.KRISHNA_ANIM_STYLES = { realistic: {...}, cartoon: {...}, painterly: {...} }
+window.KRISHNA_ANIM_STYLES = { <style>: {...} } for every assets/anim/<style>/manifest.json
 window.KRISHNA_ANIM = the default style's manifest (backward compatible)
 Usage: assemble-manifest.py <assets/anim dir> <default style>
 """
