@@ -22,9 +22,10 @@ button:disabled { cursor: default; opacity: .5; }
   padding: 26px 28px 24px; border: 0; border-radius: 28px 28px 8px 28px;
   /* Frosted glass: a sheen from the top-left, a warm glow at the top-right corner, a
      translucent dark body that lets the desktop show faintly, and a thin bright rim. */
-  background: linear-gradient(135deg, #ffffff16, #ffffff06 38%, transparent 62%), radial-gradient(ellipse at 100% 0, #9a834f30, transparent 60%), linear-gradient(150deg, #2c3129dc, #151a18e8);
-  box-shadow: 0 18px 40px #0007, 0 2px 8px #0004, inset 0 1px #ffffff2a, inset 0 0 0 1px #ffffff0c;
-  backdrop-filter: blur(22px) saturate(1.25); -webkit-backdrop-filter: blur(22px) saturate(1.25);
+  /* Opaque so scripture reads over any window; the glass is in the sheen, the rim and
+     the glint layer (first), which the arrival sweeps across the card once. */
+  background: linear-gradient(115deg, transparent 42%, #ffffff10 50%, transparent 58%) 200% 0 / 260% 100% no-repeat, linear-gradient(135deg, #ffffff18, #ffffff06 38%, transparent 62%), radial-gradient(ellipse at 100% 0, #9a834f30, transparent 60%), linear-gradient(150deg, #2c3129fb, #151a18fd);
+  box-shadow: 0 18px 40px #0007, 0 2px 8px #0004, inset 0 1px #ffffff2e, inset 0 0 0 1px #ffffff0d, inset 0 -1px #ffffff08;
   opacity: 0; transform: translate(24px, 12px) scale(.96); transform-origin: bottom right;
   transition: opacity .3s ease, transform .5s var(--ease);
   pointer-events: none; scrollbar-width: thin; scrollbar-color: #a8946b66 transparent;
@@ -36,7 +37,9 @@ button:disabled { cursor: default; opacity: .5; }
 h1 { margin: 0; font-family: "Iowan Old Style", Georgia, serif; font-size: 19px; font-weight: 400; }
 h1 em { color: var(--muted); font-size: 14px; }
 .close { align-self: flex-start; margin: -9px -9px 0 auto; padding: 5px 10px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font-size: 23px; }
-.close:hover { color: var(--ivory); background: #ffffff0d; }
+.close { transition: color .2s ease, background .2s ease, transform .35s var(--ease); }
+.close:hover { color: var(--ivory); background: #ffffff0d; transform: rotate(90deg); }
+.close:active { transform: rotate(90deg) scale(.9); }
 .chapter { margin: 17px 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
 .messages { position: relative; }
 .message { padding: 0; border: 0; border-radius: 0; background: transparent; }
@@ -46,7 +49,8 @@ h1 em { color: var(--muted); font-size: 14px; }
 .translation { margin: 0; color: var(--ivory); font-family: "Iowan Old Style", Baskerville, Georgia, serif; font-size: 22px; line-height: 1.42; user-select: text; overflow-wrap: anywhere; }
 .expanded .card.long .translation { font-size: 18px; line-height: 1.45; }
 body:not(.expanded) .translation { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
-.expand { display: inline-block; margin-top: 14px; padding: 4px 0; border: 0; border-bottom: 1px solid #d6ba8050; background: transparent; color: var(--gold); font-size: 10px; }
+.expand { display: inline-block; margin-top: 14px; padding: 4px 0; border: 0; border-bottom: 1px solid #d6ba8050; background: transparent; color: var(--gold); font-size: 10px; transition: border-color .25s ease, translate .25s var(--ease); }
+.expand:hover { border-color: #e5c184; translate: 0 -1px; }
 .expanded .expand { color: var(--muted); border-color: transparent; cursor: default; }
 .purport-message { padding-top: 20px; background: linear-gradient(90deg, #e7c98a2e, transparent 60%) top / 100% 1px no-repeat; animation: message-arrive .4s var(--ease) both; }
 .meaning { margin: 0; color: #ddd4c3; font-size: 12px; line-height: 1.8; white-space: pre-line; user-select: text; }
@@ -54,21 +58,43 @@ body:not(.expanded) .translation { display: -webkit-box; -webkit-line-clamp: 3; 
 .source { padding: 7px 0; border: 0; background: transparent; color: var(--muted); font-size: 9px; text-align: left; line-height: 1.5; }
 .source:hover { color: var(--ivory); }
 .next { flex: none; padding: 11px 16px; border: 0; border-radius: 100px; background: #e2c18a1c; color: var(--ivory); font-size: 11px; }
-.next span { padding-left: 8px; color: var(--gold); }
-.next:hover { background: #e2c18a28; }
+.next { transition: background .25s ease, transform .25s var(--ease), box-shadow .25s ease; }
+.next span { display: inline-block; padding-left: 8px; color: var(--gold); transition: translate .25s var(--ease); }
+.next:hover { background: #e2c18a28; box-shadow: 0 4px 14px #0004; }
+.next:hover span { translate: 3px 0; }
+.next:active { transform: scale(.97); }
 .timing-note { margin: 13px 0 0; color: #b1a58f; font-size: 9px; text-align: right; }
 .typing { position: absolute; top: 14px; left: 16px; display: flex; gap: 5px; padding: 12px 17px; border: 0; border-radius: 16px 16px 4px 16px; background: #f6e2b90c; visibility: hidden; }
 .typing i { height: 4px; width: 4px; border-radius: 50%; background: var(--gold); }
 /* The card is Krishna's thought: two bubbles trail from its edge toward his head and share
    its surface and its timing. They live outside the card because the card clips overflow. */
-.thought { position: absolute; z-index: 3; right: calc(var(--presence-width) - 58px); bottom: 262px; width: 52px; height: 44px; opacity: 0; transform: translate(24px, 12px); transition: opacity .3s ease, transform .5s var(--ease); pointer-events: none; }
-.thought i { position: absolute; border-radius: 50%; background: linear-gradient(135deg, #ffffff1c, transparent 60%), linear-gradient(150deg, #2c3129dc, #151a18e8); box-shadow: 0 6px 14px #0006, inset 0 1px #ffffff2a, inset 0 0 0 1px #ffffff0c; backdrop-filter: blur(22px) saturate(1.25); -webkit-backdrop-filter: blur(22px) saturate(1.25); }
+.thought { position: absolute; z-index: 3; right: calc(var(--presence-width) - 58px); bottom: 262px; width: 52px; height: 44px; pointer-events: none; }
+.thought i { position: absolute; border-radius: 50%; background: linear-gradient(135deg, #ffffff1e, transparent 60%), linear-gradient(150deg, #2c3129fb, #151a18fd); box-shadow: 0 6px 14px #0006, inset 0 1px #ffffff2e, inset 0 0 0 1px #ffffff0d; opacity: 0; transform: scale(.3); transition: opacity .35s ease, transform .6s cubic-bezier(.34, 1.56, .64, 1); }
 .thought i:first-child { left: 0; bottom: 0; width: 20px; height: 20px; }
 .thought i:last-child { right: 0; top: 0; width: 11px; height: 11px; }
-body[data-phase="arriving"] .thought, body[data-phase="present"] .thought { opacity: 1; transform: none; }
-body[data-phase="arriving"] .thought { transition-delay: .5s; }
-body.continuing[data-phase="arriving"] .thought { transition-delay: 0s; }
-body[data-phase="withdrawing"] .thought { transition-duration: .25s; opacity: 0; transform: translate(22px, 8px); }
+/* A thought forms from the head outward: the small bubble, the large one, then the card;
+   on withdrawal it dissolves the other way. While present, card and bubbles breathe on
+   the `translate` property so the arrival transform is untouched. */
+body[data-phase="arriving"] .thought i, body[data-phase="present"] .thought i { opacity: 1; transform: none; }
+body[data-phase="arriving"] .thought i:last-child { transition-delay: .22s; }
+body[data-phase="arriving"] .thought i:first-child { transition-delay: .36s; }
+body.continuing[data-phase="arriving"] .thought i { transition-delay: 0s; }
+body[data-phase="withdrawing"] .thought i { transition: opacity .2s ease, transform .25s ease-in; opacity: 0; transform: scale(.3); }
+body[data-phase="withdrawing"] .thought i:first-child { transition-delay: .04s; }
+body[data-phase="withdrawing"] .thought i:last-child { transition-delay: .14s; }
+body[data-phase="present"] .thought i:first-child { animation: bob 5.2s ease-in-out .6s infinite; }
+body[data-phase="present"] .thought i:last-child { animation: bob 4.1s ease-in-out infinite; }
+body:not(.continuing)[data-phase="arriving"] .card { animation: glint 1.5s ease-out .7s both; }
+body[data-phase="present"] .card { animation: card-float 7s ease-in-out infinite; }
+body[data-phase="present"] .seal { animation: seal-glow 4.5s ease-in-out infinite; }
+body:not(.continuing)[data-phase="arriving"] .eyebrow { animation: rise .5s var(--ease) .55s both; }
+body:not(.continuing)[data-phase="arriving"] h1 { animation: rise .5s var(--ease) .62s both; }
+body:not(.continuing)[data-phase="arriving"] .chapter { animation: rise .5s var(--ease) .7s both; }
+@keyframes glint { from { background-position: 200% 0, 0 0, 0 0, 0 0; } to { background-position: -60% 0, 0 0, 0 0, 0 0; } }
+@keyframes card-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -3px; } }
+@keyframes bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -2px; } }
+@keyframes seal-glow { 0%, 100% { box-shadow: 0 0 0 0 #e7c98a00; } 50% { box-shadow: 0 0 18px 2px #e7c98a2e; } }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 /* The pixel figure gets 16px of headroom so its scale can snap to three device pixels per
    art block on a 2x display (the tallest warrior frame needs 301px at that snap). */
 body[data-style="pixel"] .figure { inset: -16px 0 46px; }
