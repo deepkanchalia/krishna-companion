@@ -74,11 +74,19 @@ function createVoiceRuntime({
       // Input Monitoring may already be sufficient for this hook.
     }
 
-    // spawn does not throw when the helper is missing; it emits an "error" event, handled
-    // by the child.once("error") listener below. So no try/catch is needed around it.
-    const child = spawn(helperPath, [`--timeout=${listenTimeoutMs}`], {
-      stdio: ["pipe", "pipe", "ignore"]
-    });
+    // A missing helper surfaces as an asynchronous "error" event (handled below), but a
+    // helper that is present and not executable for this machine (ENOEXEC, a wrong
+    // architecture) makes spawn throw synchronously; that must disable voice for the launch
+    // too, or every completed hold would rethrow and re-raise the Accessibility prompt.
+    let child;
+    try {
+      child = spawn(helperPath, [`--timeout=${listenTimeoutMs}`], {
+        stdio: ["pipe", "pipe", "ignore"]
+      });
+    } catch {
+      disableForLaunch("Krishna Companion voice is unavailable for this launch.", { log: true });
+      return false;
+    }
 
     const session = { child, buffer: "", timeout: undefined };
     listeningSession = session;

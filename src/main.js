@@ -42,7 +42,6 @@ const {
 const { createVoiceRuntime } = require("./voice-runtime");
 const { buildTrayMenuTemplate } = require("./tray");
 const { createWindowGeometry } = require("./window-geometry");
-const { appDataDirectory } = require("./paths");
 
 // Exactly 10% smaller than the previous 176 × 224 resting widget.
 const RESTING_SIZE = { width: 158, height: 202 };
@@ -119,16 +118,19 @@ const darshan = createDarshan({
 const instanceLock = app.requestSingleInstanceLock(config);
 if (!instanceLock) app.quit();
 
-// The core loop must never die silently: a stray rejection or thrown error writes one
-// sanitised line to stderr (safeLabel strips control bytes and caps length so an error
-// message built from untrusted text cannot inject a newline or escape sequence) and the
-// tray stays alive. We never rethrow — crashing would take the whole companion down.
-process.on("unhandledRejection", (reason) => {
-  process.stderr.write(`Krishna Companion unhandled rejection: ${safeLabel(reason?.message || reason, 200)}\n`);
-});
-process.on("uncaughtException", (error) => {
-  process.stderr.write(`Krishna Companion uncaught exception: ${safeLabel(error?.message || error, 200)}\n`);
-});
+// A stray rejection or thrown error writes one sanitised line to stderr (safeLabel strips
+// control bytes and caps length so an error message built from untrusted text cannot
+// inject a newline or escape sequence). Before startup has finished (no tray yet) the
+// process exits non-zero: registering these handlers suppresses Electron's own error
+// dialog, and a swallowed startup failure would leave an invisible process with no tray,
+// no window and a CLI that keeps reporting "not running". Once the tray exists the
+// companion stays alive; crashing then would take the whole loop down.
+function reportStrayError(kind, error) {
+  process.stderr.write(`Krishna Companion ${kind}: ${safeLabel(error?.message || error, 200)}\n`);
+  if (!tray) app.exit(1);
+}
+process.on("unhandledRejection", (reason) => reportStrayError("unhandled rejection", reason));
+process.on("uncaughtException", (error) => reportStrayError("uncaught exception", error));
 
 // Files that were found corrupt and moved aside during this launch. Turned into one
 // startup notification so the reader learns their originals were kept, not lost.
@@ -557,6 +559,9 @@ function captureScreenshotAndQuit(demo = config.demo) {
       await writeFile(path.join(__dirname, "..", previewName), preview.toPNG());
     } catch (error) {
       process.stderr.write(`Krishna Companion could not save the preview: ${safeLabel(error?.message || error, 200)}\n`);
+      // A failed capture must be visible to a script that ran `npm run preview`.
+      app.exit(1);
+      return;
     } finally {
       // Whatever happened above, the screenshot launch must terminate.
       app.quit();
@@ -657,10 +662,11 @@ if (instanceLock) app.on("second-instance", (_event, _argv, _directory, addition
 });
 
 if (instanceLock) app.whenReady().then(() => {
-  // Resolve the data directory through src/paths.js, the single source the CLI also uses,
-  // so the app and `krshna` never disagree about where state lives. In production this is
-  // the same location as Electron's default userData (app name "krishna-companion").
-  const userData = appDataDirectory();
+  // Electron's userData is the app's directory of record; src/paths.js reconstructs the
+  // same default for the CLI and documents the platform rules, and the CLI's tests point
+  // KRSHNA_HOME at a temp directory. The app itself never follows HOME or KRSHNA_HOME, so
+  // a launch from a modified environment cannot move the user's state.
+  const userData = app.getPath("userData");
   statePath = path.join(userData, "state.json");
   journeyPath = path.join(userData, "journey.json");
   settingsPath = path.join(userData, "settings.json");

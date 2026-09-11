@@ -174,8 +174,11 @@ function installZsh() {
   const backup = `${zshrc}.krshna-backup`;
   // Refresh the backup on every install so it tracks the user's current .zshrc, but store
   // it with our own block stripped: a restore must return their file, not one that already
-  // carries our integration.
-  if (fs.existsSync(zshrc)) fs.writeFileSync(backup, zshWithoutBlock(existing).content);
+  // carries our integration. The backup keeps the original's file mode.
+  if (fs.existsSync(zshrc)) {
+    fs.writeFileSync(backup, zshWithoutBlock(existing).content);
+    fs.chmodSync(backup, fs.statSync(zshrc).mode & 0o777);
+  }
 
   const startIndex = existing.indexOf(ZSH_START);
   const endIndex = existing.indexOf(ZSH_END, startIndex);
@@ -326,10 +329,17 @@ function installClaudeHook() {
   const backupFile = `${settingsFile}.krshna-backup`;
   // Refresh the backup on every install so it tracks the user's current settings, but with
   // our own hook stripped, so a restore returns their file rather than one already carrying
-  // our hook. If the file has no hook list, copy it as-is.
+  // our hook. A file that does not parse, or whose hooks are not in the shape Claude Code
+  // expects, never replaces the last good backup: install is about to fail on it, and the
+  // previous snapshot is then the only clean copy.
   if (fs.existsSync(settingsFile)) {
     const current = readJsonFile(settingsFile, null);
-    if (current && Array.isArray(current.hooks?.UserPromptSubmit)) {
+    const hooksValid = current && typeof current === "object"
+      && (current.hooks === undefined || (current.hooks && typeof current.hooks === "object" && !Array.isArray(current.hooks)))
+      && (current.hooks?.UserPromptSubmit === undefined || Array.isArray(current.hooks.UserPromptSubmit));
+    if (!hooksValid) {
+      // leave the existing backup alone
+    } else if (Array.isArray(current.hooks?.UserPromptSubmit)) {
       const { result } = stripKrshnaHooks(current.hooks.UserPromptSubmit);
       const backup = { ...current, hooks: { ...current.hooks, UserPromptSubmit: result } };
       if (backup.hooks.UserPromptSubmit.length === 0) delete backup.hooks.UserPromptSubmit;
@@ -356,16 +366,19 @@ function installClaudeHook() {
 }
 
 function uninstallClaudeHook() {
+  let removed = false;
   updateJsonFile(claudeSettingsFile(), null, (settings) => {
     if (!settings || !Array.isArray(settings.hooks?.UserPromptSubmit)) return undefined;
     // Remove every marker match regardless of the Node or checkout path that wrote it.
     const { result, changed } = stripKrshnaHooks(settings.hooks.UserPromptSubmit);
     if (!changed) return undefined;
+    removed = true;
     settings.hooks.UserPromptSubmit = result;
     if (settings.hooks.UserPromptSubmit.length === 0) delete settings.hooks.UserPromptSubmit;
     if (Object.keys(settings.hooks).length === 0) delete settings.hooks;
     return settings;
   });
+  return removed;
 }
 
 function install() {
@@ -392,16 +405,19 @@ function install() {
 }
 
 function uninstall() {
-  uninstallClaudeHook();
+  const removedHook = uninstallClaudeHook();
   const removedZsh = uninstallZsh();
-  console.log("Removed the Krishna Companion Claude Code voice hook.");
+  console.log(removedHook
+    ? "Removed the Krishna Companion Claude Code voice hook."
+    : "No Krishna Companion hook was present in Claude Code settings.");
   console.log(removedZsh
     ? "Removed the zsh integration block from ~/.zshrc."
     : "No zsh integration block was present in ~/.zshrc.");
-  // Point the user at the backups install kept, so they can restore their originals by hand.
+  // Point the user at the snapshots install kept (taken before the most recent install,
+  // with our own block or hook stripped), so they can restore by hand if they want.
   const backups = [`${claudeSettingsFile()}.krshna-backup`, `${zshrcFile()}.krshna-backup`].filter((file) => fs.existsSync(file));
   if (backups.length > 0) {
-    console.log(`Your original files were backed up at: ${backups.join(", ")} (left in place).`);
+    console.log(`Snapshots from before the last install are at: ${backups.join(", ")} (left in place).`);
   }
 }
 

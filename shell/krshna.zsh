@@ -6,12 +6,14 @@ function '/krshna' {
 
 function _krshna_prompt_segment {
   local state_dir state_file line live pid paused next_at seg
-  # Source of truth for this path is src/paths.js (appDataDirectory), shared by the app
-  # and the CLI. A shell cannot import it, so this reconstructs the same location by hand;
-  # keep the two in step. (Windows has no zsh prompt segment, so only these two cases.)
+  # The platform rules for this path live in src/paths.js (appDataDirectory), which the
+  # CLI uses; a shell cannot import it, so this mirrors them by hand, including the
+  # KRSHNA_HOME override the CLI's tests use. Keep the two in step. (Windows has no zsh
+  # prompt segment, so only these two cases.)
+  local home="${KRSHNA_HOME:-$HOME}"
   case "$OSTYPE" in
-    darwin*) state_dir="$HOME/Library/Application Support/krishna-companion" ;;
-    *) state_dir="${XDG_CONFIG_HOME:-$HOME/.config}/krishna-companion" ;;
+    darwin*) state_dir="$home/Library/Application Support/krishna-companion" ;;
+    *) state_dir="${XDG_CONFIG_HOME:-$home/.config}/krishna-companion" ;;
   esac
   state_file="$state_dir/state.json"
   [[ -r "$state_file" ]] || return

@@ -26,7 +26,7 @@ function holdHarness({ frontmost = true } = {}) {
       return id;
     },
     cancelSchedule: (id) => timers.delete(id),
-    isFrontmostAllowed: () => { gateCalls += 1; return frontmost; },
+    isFrontmostAllowed: () => { gateCalls += 1; return typeof frontmost === "function" ? frontmost() : frontmost; },
     onTrigger: () => { triggered += 1; },
     onRelease: () => { released += 1; }
   });
@@ -85,11 +85,17 @@ test("OS key-repeat does not reset the hold timer", () => {
   assert.equal(harness.counts().triggered, 1);
 });
 
-test("a disallowed frontmost app blocks the hold", () => {
-  const harness = holdHarness({ frontmost: false });
+test("a disallowed frontmost app blocks the hold, and the next hold in an allowed app works", () => {
+  let allowed = false;
+  const harness = holdHarness({ frontmost: () => allowed });
   harness.events.emit("keydown", { keycode: SPACE });
   harness.advanceTo(2_000);
   assert.equal(harness.counts().triggered, 0);
+  harness.events.emit("keyup", { keycode: SPACE });
+  allowed = true;
+  harness.events.emit("keydown", { keycode: SPACE });
+  harness.advanceTo(4_000);
+  assert.equal(harness.counts().triggered, 1, "no cancelled state leaks into the next hold");
 });
 
 test("keydown never consults the frontmost gate; hold completion does", () => {

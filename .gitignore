@@ -5,3 +5,7 @@ dist/
 .claude/
 data/cache/
 helpers/listen
+__pycache__/
+*.py[cod]
+*.log
+.env*
