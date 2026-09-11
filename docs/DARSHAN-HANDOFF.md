@@ -88,7 +88,7 @@ switch entries, including the long and grouped ones.
 - `docs/evidence/anim-farewell.png`: walking out to the right.
 - `docs/evidence/anim-absent.png`: cleared after the farewell.
 - A GIF of one full darshan was recorded in the localhost preview and attached to the pull request discussion rather than committed (3 MB of history).
-- Native checks still owed: screen recording on the Electron window, frame trace during the walk-in, 5-minute CPU sample while absent, and a resident-memory number (the four decoded sheets hold roughly 66 MB while the app runs).
+- Native checks still owed: screen recording on the Electron window, frame trace during the walk-in, 5-minute CPU sample while absent, and a resident-memory number (the selected style's four decoded sheets hold 64 to 81 MiB depending on the style; switching styles releases the previous set).
 - Known polish, not done: a withdrawal that starts during the walk-in plays the farewell from the resting spot, so the figure jumps there first; a window hidden and shown again during a one-shot segment (walk-in, gesture, farewell) restarts that segment from its first frame; a walk-in that exceeds the 2.2 s bound only happens if a sheet had to decode on demand (a load that never completes gives up after 8 s).
 
 ## Which M1 rows are claimed
