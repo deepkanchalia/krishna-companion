@@ -52,9 +52,9 @@ process.stdin.on("end", () => {
     // pass the prompt through (nothing on stdout) and exit. Staying alive for the
     // escalation keeps the child from being orphaned; total budget stays under 6.6 s.
     process.stderr.write("krshna-hook: companion did not acknowledge within 6 s\n");
-    try { child.kill("SIGTERM"); } catch {}
+    try { child.kill("SIGTERM"); } catch { /* already exited */ }
     setTimeout(() => {
-      try { child.kill("SIGKILL"); } catch {}
+      try { child.kill("SIGKILL"); } catch { /* already exited */ }
       process.exit(0);
     }, 500);
   }, ACK_TIMEOUT_MS);

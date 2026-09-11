@@ -665,7 +665,7 @@ function revealNow({ index, durationSeconds } = {}) {
 // Apply a config handed in by a second launch to this running instance. Pure decision
 // in second-instance.js; this only carries it out.
 function applySecondInstance(incoming) {
-  const { actions, rejected } = planSecondInstance(incoming, { intervalMinutes: config.intervalMinutes });
+  const { actions, rejected } = planSecondInstance(incoming);
   for (const { field, reason } of rejected) {
     console.error(`Krishna Companion: ignored invalid second-instance ${field} (${reason})`);
   }

@@ -99,7 +99,7 @@ function sanitizeIncoming(config) {
 // Pure: returns the actions the running instance should take AND the list of rejected
 // fields ({ field, reason }). The caller (src/main.js) prints one stderr line per rejected
 // field; nothing here writes to stderr, so it stays testable without capturing output.
-function planSecondInstance(incoming, currentState = {}) {
+function planSecondInstance(incoming) {
   const actions = [];
   if (!incoming || typeof incoming !== "object") return { actions, rejected: [] };
 
