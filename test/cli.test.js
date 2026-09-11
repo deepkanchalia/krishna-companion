@@ -134,7 +134,11 @@ test("install refuses a malformed settings.json: exit 1, one line, .zshrc untouc
   assert.equal(kept.length, 1, "the malformed settings file was moved aside, not deleted");
 });
 
-test("install does not crash when a corrupt settings.json cannot be moved aside", (t) => {
+test("install does not crash when a corrupt settings.json cannot be moved aside", {
+  // Relies on a 0o500 directory blocking the quarantine rename; root ignores that mode,
+  // so the rename would succeed and the "cannot move aside" path never run.
+  skip: process.getuid && process.getuid() === 0 ? "root bypasses the read-only directory mode" : false
+}, (t) => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-install-ro-"));
   t.after(() => { try { fs.chmodSync(path.join(home, ".claude"), 0o700); } catch { /* already */ } });
   t.after(() => fs.rmSync(home, { recursive: true, force: true }));
@@ -246,6 +250,32 @@ test("zsh prompt segment does not assign to read-only special parameters", {
   });
 
   assert.equal(output, "%F{yellow}🪶 Kṛṣṇa · paused%f");
+});
+
+test("zsh prompt segment reads state from KRSHNA_HOME when it differs from HOME", {
+  skip: zshAvailable() ? false : "requires zsh on PATH"
+}, (t) => {
+  const krshnaHome = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-zsh-kh-"));
+  const otherHome = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-zsh-home-"));
+  t.after(() => fs.rmSync(krshnaHome, { recursive: true, force: true }));
+  t.after(() => fs.rmSync(otherHome, { recursive: true, force: true }));
+
+  // State lives only under KRSHNA_HOME; HOME points at an empty directory. If the segment
+  // read HOME instead of KRSHNA_HOME it would find nothing and print an empty prompt.
+  const stateDirectory = process.platform === "darwin"
+    ? path.join(krshnaHome, "Library", "Application Support", "krishna-companion")
+    : path.join(krshnaHome, ".config", "krishna-companion");
+  fs.mkdirSync(stateDirectory, { recursive: true });
+  fs.writeFileSync(path.join(stateDirectory, "state.json"), JSON.stringify({ live: true, pid: process.pid, paused: false }, null, 2));
+
+  const integration = path.join(__dirname, "..", "shell", "krshna.zsh");
+  const env = { ...process.env, HOME: otherHome, KRSHNA_HOME: krshnaHome };
+  delete env.XDG_CONFIG_HOME; // force the linux fallback onto KRSHNA_HOME/.config
+  const output = execFileSync("zsh", [
+    "-f", "-c", 'source "$1"; _krshna_prompt_segment', "zsh", integration
+  ], { encoding: "utf8", env });
+
+  assert.equal(output, "%F{yellow}🪶 Kṛṣṇa · soon%f", "the segment resolves its state through KRSHNA_HOME");
 });
 
 test("krshna style validates the name against the app's style list", () => {

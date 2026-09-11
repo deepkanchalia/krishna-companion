@@ -32,6 +32,7 @@
     "demo": "electron . --demo",
     "preview": "electron . --demo --screenshot",
     "fetch": "node scripts/fetch-vedabase.js",
+    "lint": "eslint .",
     "review:claude": "bash scripts/review-with-claude.sh",
     "build:helper": "bash scripts/build-helper.sh",
     "postinstall": "node -e \"try{require.resolve('@electron/rebuild')}catch{process.exit(0)};require('child_process').execFileSync('electron-rebuild',['-f','-w','uiohook-napi'],{stdio:'inherit'})\"",
@@ -55,6 +56,9 @@
     "uiohook-napi": "1.5.5"
   },
   "devDependencies": {
-    "@electron/rebuild": "3.7.2"
+    "@electron/rebuild": "3.7.2",
+    "@eslint/js": "9.39.5",
+    "eslint": "9.39.5",
+    "globals": "^17.12.0"
   }
 }

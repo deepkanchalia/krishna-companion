@@ -15,6 +15,10 @@ let phase = "absent";
 let expanded = false;
 let continuingVerse = false;
 let withdrawTimer;
+// Slack added to a sprite segment's nominal duration before we act on its completion
+// (reveal the message, treat arrival as done, clear after farewell): the last frames may
+// still be decoding, so we wait a little past the computed run to avoid a visible snap.
+const DECODE_SLACK_MS = 800;
 
 // Sprite flipbook (src/sprite-player.js + assets/anim/manifest.js). Optional: when the
 // manifest or the player is missing the CSS slide and the still image are used instead.
@@ -45,7 +49,14 @@ function createPlayer(manifest) {
 }
 
 function initSprite() {
-  if (!spriteReady) return;
+  if (!spriteReady) {
+    // No sprite manifest: fall back to the single still image and the CSS slide. The 1.4 MB
+    // PNG is loaded only here, so a normal sprite launch never fetches it. index.html ships
+    // the <img> without a src (and keeps its alt text) precisely so this stays lazy.
+    const fallbackImage = document.querySelector(".figure img");
+    if (fallbackImage) fallbackImage.src = "../assets/krishna.png";
+    return;
+  }
   // The class goes on first so the canvas is displayed and measurable; the player sizes
   // its backing store from the live CSS size on every draw.
   document.body.classList.add("sprite");
@@ -79,7 +90,7 @@ function selectStyle(name, { force = false } = {}) {
   // restarted segment needs its own.
   if (phase === "arriving" && !continuingVerse) {
     clearTimeout(revealTimer);
-    revealTimer = setTimeout(revealMessage, reducedMotion.matches ? 0 : Sprite.durationMs(manifest.segments.walkin) + 800);
+    revealTimer = setTimeout(revealMessage, reducedMotion.matches ? 0 : Sprite.durationMs(manifest.segments.walkin) + DECODE_SLACK_MS);
   }
 }
 
@@ -200,7 +211,7 @@ function showTeaching({ reflection: incoming, durationSeconds, preview = false, 
   // With sprites the walk-in's end reveals the message (onSegmentEnd); this timer is a
   // fallback with slack for sheet decoding. Otherwise the CSS slide timing applies.
   clearTimeout(withdrawTimer);
-  const arrival = player && !continuing ? Sprite.durationMs(animManifest.segments.walkin) + 800 : arrivalDelay;
+  const arrival = player && !continuing ? Sprite.durationMs(animManifest.segments.walkin) + DECODE_SLACK_MS : arrivalDelay;
   revealTimer = setTimeout(revealMessage, reducedMotion.matches ? 0 : (continuing ? continuingDelay : arrival));
 }
 
@@ -228,7 +239,7 @@ function collapse() {
   // Absent follows the farewell; if the loop cannot finish (hidden, failed sheet), a
   // timer with slack still clears the figure.
   clearTimeout(withdrawTimer);
-  if (player) withdrawTimer = setTimeout(setAbsent, Sprite.durationMs(animManifest.segments.farewell) + 800);
+  if (player) withdrawTimer = setTimeout(setAbsent, Sprite.durationMs(animManifest.segments.farewell) + DECODE_SLACK_MS);
 }
 
 function dismiss() {
