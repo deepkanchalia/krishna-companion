@@ -36,10 +36,10 @@ def main():
     v = (v - v.min()) / (v.max() - v.min())
     # clouds live in the bright third: a soft threshold keeps most of the tile clear
     lit = np.clip((v - 0.52) / 0.48, 0, 1) ** 1.6
-    gold = np.array([233, 196, 122], dtype=np.float32)
-    umber = np.array([120, 92, 52], dtype=np.float32)
+    gold = np.array([245, 208, 132], dtype=np.float32)
+    umber = np.array([150, 108, 58], dtype=np.float32)
     rgb = umber[None, None, :] * (1 - lit[..., None]) + gold[None, None, :] * lit[..., None]
-    alpha = (lit * 0.55 + np.clip((v - 0.35) / 0.65, 0, 1) * 0.12) * 255
+    alpha = (lit * 0.85 + np.clip((v - 0.35) / 0.65, 0, 1) * 0.2) * 255
     out = np.dstack([rgb, alpha]).astype(np.uint8)
     Image.fromarray(out, 'RGBA').save(args.out, 'WEBP', quality=80, method=6)
     print(args.out, args.size, 'px tile')
