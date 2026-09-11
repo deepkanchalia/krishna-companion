@@ -1,8 +1,16 @@
 {
   "name": "krishna-companion",
-  "version": "0.2.0",
+  "version": "0.9.0",
   "description": "A quiet Bhagavad-gītā As It Is companion for long terminal sessions.",
   "main": "src/main.js",
+  "homepage": "https://github.com/deepkanchalia/krishna-companion#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepkanchalia/krishna-companion.git"
+  },
+  "bugs": {
+    "url": "https://github.com/deepkanchalia/krishna-companion/issues"
+  },
   "bin": {
     "krshna": "bin/krshna.js",
     "krishna": "bin/krshna.js"
