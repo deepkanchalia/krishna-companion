@@ -118,6 +118,26 @@ test("a sheet that fails to load ends its segment instead of spinning, and a sta
   assert.equal(drawn.length, 0, "cancelled still did not paint");
 });
 
+test("a pixel-art style snaps its scale so one art block is a whole number of device pixels", () => {
+  const m = combined.styles.pixel;
+  const cw = 220, ch = 302, unit = m.pixelFactor * 2; // a 2x display; the pixel figure box has 16px of headroom
+  const free = Sprite.placement(m, "idle", 6, cw, ch);
+  const p = Sprite.placement(m, "idle", 6, cw, ch, 14, unit);
+  const blocks = p.scale * unit;
+  assert.ok(Math.abs(blocks - Math.round(blocks)) < 1e-9, "whole device pixels per block");
+  assert.ok(Math.abs(p.scale - free.scale) <= free.scale * 0.1, "within a tenth of the free scale");
+  for (const name of Object.keys(m.segments)) {
+    for (let i = 0; i < m.segments[name].frames.length; i += 1) {
+      const q = Sprite.placement(m, name, i, cw, ch, 14, unit);
+      assert.ok(q.y + q.h <= ch, `${name} frame ${i} feet inside the canvas`);
+      if (q.x < cw) assert.ok(q.y >= -1, `${name} frame ${i} head inside the canvas`);
+    }
+  }
+  // a 1x display with a fine grid: the snap would shrink the figure a third, so it is skipped
+  const coarse = Sprite.placement(m, "idle", 6, cw, ch, 14, m.pixelFactor);
+  assert.equal(coarse.scale, free.scale);
+});
+
 test("a pixel-art style is drawn without image smoothing; every other style with it", () => {
   const smoothing = [];
   const ctx = { clearRect() {}, drawImage() {}, set imageSmoothingEnabled(v) { smoothing.push(v); } };

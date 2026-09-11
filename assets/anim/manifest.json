@@ -3993,7 +3993,7 @@
    },
    "pixelated": true,
    "derivedFrom": "warrior",
-   "pixelFactor": 4,
+   "pixelFactor": 3,
    "style": "pixel"
   },
   "realistic": {

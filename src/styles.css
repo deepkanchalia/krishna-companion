@@ -56,6 +56,25 @@ body:not(.expanded) .translation { display: -webkit-box; -webkit-line-clamp: 3; 
 .timing-note { margin: 13px 0 0; color: #b1a58f; font-size: 9px; text-align: right; }
 .typing { position: absolute; top: 14px; left: 16px; display: flex; gap: 5px; padding: 12px 17px; border: 0; border-radius: 16px 16px 4px 16px; background: #f6e2b90c; visibility: hidden; }
 .typing i { height: 4px; width: 4px; border-radius: 50%; background: var(--gold); }
+/* The card is Krishna's thought: two bubbles trail from its edge toward his head and share
+   its surface and its timing. They live outside the card because the card clips overflow. */
+.thought { position: absolute; z-index: 3; right: calc(var(--presence-width) - 18px); bottom: 262px; width: 52px; height: 44px; opacity: 0; transform: translate(24px, 12px); transition: opacity .3s ease, transform .5s var(--ease); pointer-events: none; }
+.thought i { position: absolute; border-radius: 50%; background: linear-gradient(150deg, #262924f8, #131917fa); box-shadow: 0 6px 14px #0006, inset 0 1px #fbe8b910; }
+.thought i:first-child { left: 0; bottom: 0; width: 18px; height: 18px; }
+.thought i:last-child { right: 0; top: 0; width: 10px; height: 10px; }
+body[data-phase="arriving"] .thought, body[data-phase="present"] .thought { opacity: 1; transform: none; }
+body[data-phase="arriving"] .thought { transition-delay: .5s; }
+body.continuing[data-phase="arriving"] .thought { transition-delay: 0s; }
+body[data-phase="withdrawing"] .thought { transition-duration: .25s; opacity: 0; transform: translate(22px, 8px); }
+/* With the pixel figure the thought takes the figure's grammar: hard corners, a stepped
+   border, a flat drop shadow. Type stays as it is; scripture must stay readable. */
+body[data-style="pixel"] .card { border-radius: 0; background: #171c19f6; box-shadow: 0 0 0 2px #0c0e0d, 0 0 0 4px #b89a5e, 0 0 0 6px #0c0e0d, 8px 8px 0 #0008; }
+body[data-style="pixel"] .thought i { border-radius: 0; background: #171c19f6; box-shadow: 0 0 0 2px #0c0e0d, 0 0 0 4px #b89a5e, 0 0 0 6px #0c0e0d; }
+body[data-style="pixel"] .thought i:last-child { width: 8px; height: 8px; }
+body[data-style="pixel"] .next, body[data-style="pixel"] .typing, body[data-style="pixel"] .next:hover { border-radius: 0; }
+/* The pixel figure gets 16px of headroom so its scale can snap to three device pixels per
+   art block on a 2x display (the tallest warrior frame needs 301px at that snap). */
+body[data-style="pixel"] .figure { inset: -16px 0 46px; }
 .presence { position: absolute; z-index: 2; right: 2px; bottom: 0; width: var(--presence-width); height: 332px; pointer-events: none; opacity: 0; transform: translateX(240px); }
 .figure { position: absolute; inset: 0 0 46px; cursor: grab; pointer-events: auto; -webkit-app-region: drag; }
 .figure:active { cursor: grabbing; }
@@ -111,6 +130,7 @@ body[data-phase="absent"] .figure, body[data-phase="withdrawing"] .figure { poin
 @media (max-width: 550px) {
   .card { left: 8px; right: 136px; padding: 16px; }
   .presence { width: 140px; height: 245px; }
+  .thought { right: 124px; bottom: 186px; width: 40px; height: 34px; }
   h1 { font-size: 17px; } h1 em { display: block; font-size: 12px; }
   .seal { display: none; }
   .translation { font-size: 18px; }
