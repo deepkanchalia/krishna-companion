@@ -25,7 +25,7 @@ acceptance check has passed; the rows it does and does not claim are listed belo
   verse) darshan keeps the idle loop running.
 - Reduced motion and a hidden tab show one eyes-open still (idle frame 6).
 - The card is Krishna's thought: two bubbles trail from its edge to his head, it wears
-  an opaque amber glass with a drifting cloud texture (`assets/card-sky.webp`, generated
+  an opaque amber glass with a static cloud texture (`assets/card-sky.webp`, generated
   by `scripts/anim/make-sky.py`), and the halo behind him breathes a golden light.
 - Clip record. Every style except `pixel` comes from one 15 s image-to-video generation
   (minimax-h3, 1344x768, 24 fps, green background requested; the painterly clip ignored
@@ -89,7 +89,7 @@ switch entries, including the long and grouped ones.
 - `docs/evidence/anim-absent.png`: cleared after the farewell.
 - A GIF of one full darshan was recorded in the localhost preview and attached to the pull request discussion rather than committed (3 MB of history).
 - Native checks still owed: screen recording on the Electron window, frame trace during the walk-in, 5-minute CPU sample while absent, and a resident-memory number (the selected style's four decoded sheets hold 64 to 81 MiB depending on the style; switching styles releases the previous set).
-- Known polish, not done: a withdrawal that starts during the walk-in plays the farewell from the resting spot, so the figure jumps there first; a window hidden and shown again during a one-shot segment (walk-in, gesture, farewell) restarts that segment from its first frame; a walk-in that exceeds the 2.2 s bound only happens if a sheet had to decode on demand (a load that never completes gives up after 8 s).
+- Known polish, not done: a withdrawal that starts during the walk-in plays the farewell from the resting spot, so the figure jumps there first; a window hidden and shown again during a one-shot segment (walk-in, gesture, farewell) restarts that segment from its first frame; a walk-in that exceeds the 3.2 s bound only happens if a sheet had to decode on demand (a load that never completes gives up after 8 s).
 
 ## Which M1 rows are claimed
 

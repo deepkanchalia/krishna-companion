@@ -131,7 +131,7 @@ test("a pixel-art style snaps its scale so one art block is a whole number of de
     for (let i = 0; i < m.segments[name].frames.length; i += 1) {
       const q = Sprite.placement(m, name, i, cw, ch, 14, unit);
       assert.ok(q.y + q.h <= ch, `${name} frame ${i} feet inside the canvas`);
-      if (q.x < cw) assert.ok(q.y >= -1, `${name} frame ${i} head inside the canvas`);
+      assert.ok(q.y >= 0, `${name} frame ${i} head inside the canvas`);
     }
   }
   // a 1x display with a fine grid: the snap would shrink the figure a third, so it is skipped

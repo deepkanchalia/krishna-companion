@@ -49,6 +49,7 @@ function initSprite() {
   // The class goes on first so the canvas is displayed and measurable; the player sizes
   // its backing store from the live CSS size on every draw.
   document.body.classList.add("sprite");
+  document.body.dataset.style = currentStyle;
   player = createPlayer(animManifest);
   applySpriteTimings();
 }
@@ -57,13 +58,14 @@ function initSprite() {
 // changes on the spot (the idle loop restarts in the new style).
 let pendingStyle = null; // a switch asked for during withdrawal, applied once absent
 
-function selectStyle(name) {
+function selectStyle(name, { force = false } = {}) {
   if (!spriteReady || !name || name === currentStyle) return;
   const manifest = animStyles[name];
   if (!manifest || Sprite.validateManifest(manifest).length > 0) return;
   // A farewell already under way keeps its style: the native window hides on the old
-  // farewell's clock, so a restarted one could not finish. The new style waits for absent.
-  if (phase === "withdrawing") { pendingStyle = name; return; }
+  // farewell's clock, so a restarted one could not finish. The new style waits for absent,
+  // unless a new show is starting (force).
+  if (phase === "withdrawing" && !force) { pendingStyle = name; return; }
   // dispose(), not stop(): a still queued on a sheet that has not decoded yet must not
   // paint the old style over the new one, and the old sheets are released.
   if (player) player.dispose();
@@ -163,7 +165,10 @@ function revealMessage() {
 function showTeaching({ reflection: incoming, durationSeconds, preview = false, continuing = false, style, ...timings }) {
   clearTimeout(revealTimer);
   applyMotionTimings(timings);
-  if (style) selectStyle(style);
+  // A show interrupting a farewell (krshna now, tray, shortcut) starts fresh: the payload's
+  // style applies now and any switch deferred during that farewell is dropped.
+  pendingStyle = null;
+  if (style) selectStyle(style, { force: true });
   reflection = incoming;
   currentSource = reflection.source;
   expanded = false;

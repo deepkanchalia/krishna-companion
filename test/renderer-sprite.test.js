@@ -107,6 +107,7 @@ test("a darshan walks in, stands, teaches on expand, and leaves to absence", () 
 test("the figure style follows the show payload and the style message; unknown names are ignored", () => {
   const h = harness();
   assert.deepEqual(h.playersCreated, [combined.default], "starts on the default style");
+  assert.equal(h.body.dataset.style, combined.default, "data-style is set from the start");
   h.showStyled("cartoon");
   assert.equal(h.playersCreated.at(-1), "cartoon", "the show payload selects the cartoon manifest");
   assert.equal(h.body.dataset.style, "cartoon");
@@ -132,6 +133,19 @@ test("the figure style follows the show payload and the style message; unknown n
   assert.equal(h.playersCreated.at(-1), "gyan", "the pending style applies once absent");
   assert.equal(h.body.dataset.style, "gyan");
   assert.equal(h.player.current(), null, "absent draws nothing in the new style");
+  // A show that interrupts a farewell (krshna now) arrives in the payload's style at once,
+  // and a switch deferred during that farewell is dropped rather than applied later.
+  h.showStyled("cartoon"); h.endSegment();
+  h.collapse();
+  h.setStyle("painterly"); // deferred
+  h.showStyled("realistic"); // forced show mid-farewell
+  assert.equal(h.body.dataset.style, "realistic", "the forced show's style applies now");
+  assert.equal(h.playersCreated.at(-1), "realistic");
+  assert.equal(h.player.current(), "walkin");
+  h.endSegment();
+  h.setStyle("gyan");
+  h.collapse(); h.endSegment();
+  assert.equal(h.body.dataset.style, "gyan", "the stale deferred style never overrides a later choice");
 });
 
 test("a continuing verse keeps the idle loop; nothing re-walks", () => {
