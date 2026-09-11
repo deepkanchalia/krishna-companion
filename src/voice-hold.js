@@ -1,7 +1,10 @@
 const { execFileSync } = require("node:child_process");
 
 const DEFAULT_VOICE_SETTINGS = Object.freeze({
-  enabled: true,
+  // Off by default: a first launch of the core loop needs no permissions, but a live
+  // key hook would raise up to five macOS prompts (Input Monitoring, Accessibility,
+  // Automation, Microphone, Speech). Voice is enabled from the tray or `krshna voice-on`.
+  enabled: false,
   key: "Space",
   holdMs: 2_000
 });
@@ -95,6 +98,15 @@ function createHoldStateMachine({
     if (pressedAt === undefined || cancelled || triggered) return false;
     if (timestamp - pressedAt < holdMs) return false;
 
+    // The frontmost-app gate is a synchronous osascript call; consult it only here, when
+    // the hold has actually reached holdMs, never on keydown (which fires on every Space
+    // press). A disallowed app cancels this hold without triggering.
+    if (!isFrontmostAllowed()) {
+      cancelled = true;
+      clearTimer();
+      return false;
+    }
+
     clearTimer();
     triggered = onTrigger() !== false;
     return triggered;
@@ -113,8 +125,10 @@ function createHoldStateMachine({
     if (pressedAt !== undefined) return false;
 
     pressedAt = now();
-    cancelled = !isFrontmostAllowed();
-    if (!cancelled) timer = schedule(() => advance(), holdMs);
+    cancelled = false;
+    // The frontmost gate is not consulted here: keydown fires on every trigger-key press,
+    // so gating happens once in advance() when the hold completes.
+    timer = schedule(() => advance(), holdMs);
     return false;
   }
 

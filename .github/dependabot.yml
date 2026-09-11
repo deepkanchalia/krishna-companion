@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # npm dependencies: one grouped weekly PR for minor and patch bumps, so routine
+  # updates arrive together rather than as a stream of single-package PRs.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Keep the GitHub Actions in the CI workflow current.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly

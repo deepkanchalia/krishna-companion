@@ -1,0 +1,8 @@
+# Python dependencies for the sprite-sheet pipeline (scripts/anim/*.py). Pinned to the
+# versions the shipped sheets were produced with, so a rebuild is reproducible. Install
+# with:  python3 -m pip install -r scripts/anim/requirements.txt
+# (assemble-manifest.py needs none of these; it is standard-library only.)
+# Python 3.11 to 3.13 (rembg's numba dependency does not import on 3.14 at these pins).
+numpy==2.4.6
+Pillow==12.1.1
+rembg[cpu]==2.0.78

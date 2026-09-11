@@ -115,22 +115,54 @@ test("a companion that never acknowledges is abandoned, not waited out", {
   fs.rmSync(pidFile, { force: true });
   const started = Date.now();
   // Restore PATH so the stub's `sleep` resolves; the hook itself still finds the CLI
-  // by absolute path. Without this the stub would exit at once and never hang.
+  // by absolute path. Without this the stub would exit at once and never hang. A short
+  // KRSHNA_ACK_TIMEOUT_MS override keeps this test off the 6 s production budget while
+  // still exercising the same give-up-and-SIGKILL path.
   const out = runHook(JSON.stringify({ prompt: "Hare Kṛṣṇa!" }), hangStub, {
     PATH: process.env.PATH,
-    KRSHNA_STUB_PIDFILE: pidFile
+    KRSHNA_STUB_PIDFILE: pidFile,
+    KRSHNA_ACK_TIMEOUT_MS: "500"
   });
   const elapsed = Date.now() - started;
   assert.equal(out, "", "no block decision: the prompt passes through");
-  // Real budget: 6.0 s ack timeout + 0.5 s SIGTERM->SIGKILL escalation + spawn overhead,
-  // so it settles well under the 8 s child. 7000 ms leaves headroom for the spawn cost
-  // and a loaded CI runner while still proving it did not wait out the child.
-  assert.ok(elapsed < 7000, `should give up near 6.5 s, not wait out the 8 s child (took ${elapsed} ms)`);
+  // Budget here: 0.5 s ack timeout + 0.5 s SIGTERM->SIGKILL escalation + spawn overhead,
+  // so it settles well under the 8 s child. 3000 ms leaves headroom for the spawn cost and
+  // a loaded CI runner while still proving it gave up rather than waiting out the child.
+  assert.ok(elapsed < 3000, `should give up near 1 s, not wait out the 8 s child (took ${elapsed} ms)`);
 
   // The child must be SIGKILLed, not orphaned: its PID is gone within 1 s.
   const pid = Number(fs.readFileSync(pidFile, "utf8").trim());
   assert.ok(Number.isInteger(pid) && pid > 0, "stub recorded its PID");
   assert.ok(processGoneWithin(pid, 1000), `the stub process ${pid} was killed, not orphaned`);
+});
+
+test("the installed hook command POSIX-quotes its paths so the shell takes them literally", () => {
+  const { shQuote } = require("../bin/krshna.js");
+  // Paths with a space, a $ (shell variable), and a single quote must survive a real shell
+  // exactly as written, with no expansion, word-splitting, or premature quote close.
+  for (const raw of ["/a b/node", "/home/$USER/x", "/it's here/krshna-hook.js", "/weird $HOME 'x' y/scripts/krshna-hook.js"]) {
+    const out = execFileSync("/bin/sh", ["-c", `printf %s ${shQuote(raw)}`], { encoding: "utf8" });
+    assert.equal(out, raw, `the shell yields the exact path for: ${raw}`);
+  }
+});
+
+test("the ack timeout defaults to 6000 ms and only a finite, positive override wins", () => {
+  const { ackTimeoutMs, DEFAULT_ACK_TIMEOUT_MS } = require("../scripts/krshna-hook.js");
+  assert.equal(DEFAULT_ACK_TIMEOUT_MS, 6000, "production default unchanged");
+  const saved = process.env.KRSHNA_ACK_TIMEOUT_MS;
+  try {
+    delete process.env.KRSHNA_ACK_TIMEOUT_MS;
+    assert.equal(ackTimeoutMs(), 6000, "no override: the production default");
+    process.env.KRSHNA_ACK_TIMEOUT_MS = "500";
+    assert.equal(ackTimeoutMs(), 500, "a finite positive override wins");
+    for (const bad of ["0", "-1", "abc", ""]) {
+      process.env.KRSHNA_ACK_TIMEOUT_MS = bad;
+      assert.equal(ackTimeoutMs(), 6000, `an invalid override (${JSON.stringify(bad)}) is ignored`);
+    }
+  } finally {
+    if (saved === undefined) delete process.env.KRSHNA_ACK_TIMEOUT_MS;
+    else process.env.KRSHNA_ACK_TIMEOUT_MS = saved;
+  }
 });
 
 test("install merges the Claude hook idempotently and uninstall removes only it", (context) => {
@@ -156,7 +188,8 @@ test("install merges the Claude hook idempotently and uninstall removes only it"
 
   const installed = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
   const commands = installed.hooks.UserPromptSubmit.flatMap((group) => group.hooks || []).map((item) => item.command);
-  const expectedCommand = `KRSHNA_HOOK=1 ${JSON.stringify(process.execPath)} ${JSON.stringify(hook)}`;
+  const { shQuote } = require("../bin/krshna.js");
+  const expectedCommand = `KRSHNA_HOOK=1 ${shQuote(process.execPath)} ${shQuote(hook)}`;
   assert.equal(commands.filter((item) => item === expectedCommand).length, 1);
   assert.ok(commands.includes("existing-hook"));
   assert.deepEqual(JSON.parse(fs.readFileSync(`${settingsFile}.krshna-backup`, "utf8")), original);

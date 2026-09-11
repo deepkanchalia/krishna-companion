@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 
 const path = require("node:path");
-const os = require("node:os");
 const fs = require("node:fs");
 const { spawn } = require("node:child_process");
 const { reflections } = require("../src/content");
 const { isValidHistoryEntry } = require("../src/journey");
 const { waitForAck } = require("../src/ack");
-const { readJson: readJsonQuarantine } = require("../src/store");
+const { readJson: readJsonQuarantine, writeJson } = require("../src/store");
 const { FIGURE_STYLES } = require("../src/config");
+const { homeDirectory, appDataDirectory } = require("../src/paths");
 
 const projectRoot = path.resolve(__dirname, "..");
 const rawCommand = (process.argv[2] || "live").toLowerCase();
@@ -20,23 +20,8 @@ const command = rawCommand === "voice" ? `voice-${voiceAction}`
   : rawCommand === "style" ? `style-${voiceAction}`
   : rawCommand.replace(/^\//, "");
 
-// Resolve the home directory through KRSHNA_HOME first so tests (and Windows, where
-// os.homedir ignores $HOME) can redirect every home-rooted path to a temp directory.
-// Electron owns the app's own userData path, so src/main.js does not use this.
-function homeDirectory() {
-  return process.env.KRSHNA_HOME || os.homedir();
-}
-
-function appDataDirectory() {
-  const appDirectory = "krishna-companion";
-  if (process.platform === "darwin") {
-    return path.join(homeDirectory(), "Library", "Application Support", appDirectory);
-  }
-  if (process.platform === "win32") {
-    return path.join(process.env.APPDATA || path.join(homeDirectory(), "AppData", "Roaming"), appDirectory);
-  }
-  return path.join(process.env.XDG_CONFIG_HOME || path.join(homeDirectory(), ".config"), appDirectory);
-}
+// homeDirectory and appDataDirectory come from src/paths.js, the single source shared
+// with the running app (src/main.js). See that file for the KRSHNA_HOME redirection.
 
 function stateFile() {
   return path.join(appDataDirectory(), "state.json");
@@ -106,11 +91,17 @@ function reportQuarantinedFiles() {
 // stamping state.json. Returns the exit code: 0 on ack, 1 if the launcher could not
 // start, 2 on timeout (with one stderr line). Dependencies are injectable so a test
 // can drive it with a fake launcher and clock, without Electron.
+// How long `krshna now` waits for the companion to stamp state.json before giving up
+// with exit code 2. Deliberately below the hook's ACK_TIMEOUT_MS (scripts/krshna-hook.js,
+// 6000 ms): the hook spawns this CLI, so the CLI must time out and report first, leaving
+// the hook to pass the prompt through rather than force-killing a CLI still waiting.
+const ACK_BUDGET_MS = 4000;
+
 function runNow({
   launch: launchFn = launch,
   stateFile: stateFilePath = stateFile(),
   clock = Date.now,
-  budgetMs = 4000
+  budgetMs = ACK_BUDGET_MS
 } = {}) {
   const t0 = clock();
   if (!launchFn("now")) return 1; // launcher missing: launch() already set the message
@@ -181,7 +172,13 @@ function installZsh() {
   const zshrc = zshrcFile();
   const existing = fs.existsSync(zshrc) ? fs.readFileSync(zshrc, "utf8") : "";
   const backup = `${zshrc}.krshna-backup`;
-  if (fs.existsSync(zshrc) && !fs.existsSync(backup)) fs.copyFileSync(zshrc, backup);
+  // Refresh the backup on every install so it tracks the user's current .zshrc, but store
+  // it with our own block stripped: a restore must return their file, not one that already
+  // carries our integration. The backup keeps the original's file mode.
+  if (fs.existsSync(zshrc)) {
+    fs.writeFileSync(backup, zshWithoutBlock(existing).content);
+    fs.chmodSync(backup, fs.statSync(zshrc).mode & 0o777);
+  }
 
   const startIndex = existing.indexOf(ZSH_START);
   const endIndex = existing.indexOf(ZSH_END, startIndex);
@@ -215,13 +212,13 @@ function installZsh() {
 // like "one separator newline before a block at EOF", so uninstall strips that newline —
 // correct for the B1 case, but it drops the pre-B1 file's final newline. This affects
 // only that one shape and only the trailing newline; every other byte is preserved.
-function uninstallZsh() {
-  const zshrc = zshrcFile();
-  if (!fs.existsSync(zshrc)) return null;
-  const existing = fs.readFileSync(zshrc, "utf8");
+// Pure: return the .zshrc content with our marked block removed, and the removed text
+// (removed is null when there is no block). Shared by uninstallZsh and by the install
+// backup, so the backup can be stored without our block.
+function zshWithoutBlock(existing) {
   const startIndex = existing.indexOf(ZSH_START);
   const endIndex = existing.indexOf(ZSH_END, startIndex);
-  if (startIndex === -1 || endIndex === -1) return null;
+  if (startIndex === -1 || endIndex === -1) return { content: existing, removed: null };
   let after = endIndex + ZSH_END.length;
   const removed = existing.slice(startIndex, after);
   if (existing[after] === "\n") after += 1; // the newline install wrote after the block
@@ -229,7 +226,15 @@ function uninstallZsh() {
   // Only strip the leading separator when nothing follows the block (block at EOF),
   // which is where install put it; otherwise removing it would join two lines.
   if (after >= existing.length && before > 0 && existing[before - 1] === "\n") before -= 1;
-  fs.writeFileSync(zshrc, existing.slice(0, before) + existing.slice(after));
+  return { content: existing.slice(0, before) + existing.slice(after), removed };
+}
+
+function uninstallZsh() {
+  const zshrc = zshrcFile();
+  if (!fs.existsSync(zshrc)) return null;
+  const { content, removed } = zshWithoutBlock(fs.readFileSync(zshrc, "utf8"));
+  if (removed === null) return null;
+  fs.writeFileSync(zshrc, content);
   return removed;
 }
 
@@ -242,9 +247,17 @@ function claudeSettingsFile() {
 // it. The command both contains krshna-hook.js and sets KRSHNA_HOOK=1.
 const CLAUDE_HOOK_MARKER = "KRSHNA_HOOK=1";
 
+// POSIX single-quote a value so the shell that runs the hook takes it literally: single
+// quotes protect everything (spaces, $, backticks, double quotes) except a single quote,
+// which is closed, escaped as \', and reopened. JSON.stringify's double quotes would let
+// the shell expand a $ or backtick inside a checkout path, so this is used instead.
+function shQuote(value) {
+  return `'${String(value).replace(/'/g, "'\\''")}'`;
+}
+
 function claudeHookCommand() {
   const hookPath = path.join(projectRoot, "scripts", "krshna-hook.js");
-  return `${CLAUDE_HOOK_MARKER} ${JSON.stringify(process.execPath)} ${JSON.stringify(hookPath)}`;
+  return `${CLAUDE_HOOK_MARKER} ${shQuote(process.execPath)} ${shQuote(hookPath)}`;
 }
 
 // The script path a hook must end in to be ours (POSIX slash or Windows backslash, the
@@ -300,28 +313,42 @@ function readJsonFile(filePath, fallback) {
   }
 }
 
-function writeJsonFile(filePath, value) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  const temporaryPath = `${filePath}.${process.pid}.tmp`;
-  fs.writeFileSync(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
-  fs.renameSync(temporaryPath, filePath);
-}
-
-// Read the file, apply the mutation to that fresh content, then tmp+rename. Reading
-// immediately before the write keeps a concurrent change to the same file from
-// being clobbered by stale in-memory content. `mutate` returns the value to write,
-// or undefined to skip the write.
+// Read the file, apply the mutation to that fresh content, then tmp+rename via the shared
+// store (src/store.js), rather than a second copy of the atomic-write dance. Reading
+// immediately before the write keeps a concurrent change to the same file from being
+// clobbered by stale in-memory content. `mutate` returns the value to write, or undefined
+// to skip the write.
 function updateJsonFile(filePath, fallback, mutate) {
   const next = mutate(readJsonFile(filePath, fallback));
   if (next === undefined) return false;
-  writeJsonFile(filePath, next);
-  return true;
+  return writeJson(filePath, next);
 }
 
 function installClaudeHook() {
   const settingsFile = claudeSettingsFile();
   const backupFile = `${settingsFile}.krshna-backup`;
-  if (fs.existsSync(settingsFile) && !fs.existsSync(backupFile)) fs.copyFileSync(settingsFile, backupFile);
+  // Refresh the backup on every install so it tracks the user's current settings, but with
+  // our own hook stripped, so a restore returns their file rather than one already carrying
+  // our hook. A file that does not parse, or whose hooks are not in the shape Claude Code
+  // expects, never replaces the last good backup: install is about to fail on it, and the
+  // previous snapshot is then the only clean copy.
+  if (fs.existsSync(settingsFile)) {
+    const current = readJsonFile(settingsFile, null);
+    const hooksValid = current && typeof current === "object"
+      && (current.hooks === undefined || (current.hooks && typeof current.hooks === "object" && !Array.isArray(current.hooks)))
+      && (current.hooks?.UserPromptSubmit === undefined || Array.isArray(current.hooks.UserPromptSubmit));
+    if (!hooksValid) {
+      // leave the existing backup alone
+    } else if (Array.isArray(current.hooks?.UserPromptSubmit)) {
+      const { result } = stripKrshnaHooks(current.hooks.UserPromptSubmit);
+      const backup = { ...current, hooks: { ...current.hooks, UserPromptSubmit: result } };
+      if (backup.hooks.UserPromptSubmit.length === 0) delete backup.hooks.UserPromptSubmit;
+      if (Object.keys(backup.hooks).length === 0) delete backup.hooks;
+      writeJson(backupFile, backup);
+    } else {
+      fs.copyFileSync(settingsFile, backupFile);
+    }
+  }
 
   updateJsonFile(settingsFile, {}, (settings) => {
     settings.hooks ||= {};
@@ -339,16 +366,19 @@ function installClaudeHook() {
 }
 
 function uninstallClaudeHook() {
+  let removed = false;
   updateJsonFile(claudeSettingsFile(), null, (settings) => {
     if (!settings || !Array.isArray(settings.hooks?.UserPromptSubmit)) return undefined;
     // Remove every marker match regardless of the Node or checkout path that wrote it.
     const { result, changed } = stripKrshnaHooks(settings.hooks.UserPromptSubmit);
     if (!changed) return undefined;
+    removed = true;
     settings.hooks.UserPromptSubmit = result;
     if (settings.hooks.UserPromptSubmit.length === 0) delete settings.hooks.UserPromptSubmit;
     if (Object.keys(settings.hooks).length === 0) delete settings.hooks;
     return settings;
   });
+  return removed;
 }
 
 function install() {
@@ -375,12 +405,20 @@ function install() {
 }
 
 function uninstall() {
-  uninstallClaudeHook();
+  const removedHook = uninstallClaudeHook();
   const removedZsh = uninstallZsh();
-  console.log("Removed the Krishna Companion Claude Code voice hook.");
+  console.log(removedHook
+    ? "Removed the Krishna Companion Claude Code voice hook."
+    : "No Krishna Companion hook was present in Claude Code settings.");
   console.log(removedZsh
-    ? "Removed the zsh integration block from ~/.zshrc (backup left in place)."
+    ? "Removed the zsh integration block from ~/.zshrc."
     : "No zsh integration block was present in ~/.zshrc.");
+  // Point the user at the snapshots install kept (taken before the most recent install,
+  // with our own block or hook stripped), so they can restore by hand if they want.
+  const backups = [`${claudeSettingsFile()}.krshna-backup`, `${zshrcFile()}.krshna-backup`].filter((file) => fs.existsSync(file));
+  if (backups.length > 0) {
+    console.log(`Snapshots from before the last install are at: ${backups.join(", ")} (left in place).`);
+  }
 }
 
 function help() {
@@ -474,7 +512,7 @@ function main() {
   }
 }
 
-module.exports = { runNow, installZsh, uninstallZsh, isKrshnaHook, reportQuarantinedFiles };
+module.exports = { runNow, installZsh, uninstallZsh, isKrshnaHook, reportQuarantinedFiles, shQuote, claudeHookCommand };
 
 // Run the CLI only when invoked directly, so tests can import the functions above
 // without executing a command.

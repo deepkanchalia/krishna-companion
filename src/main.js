@@ -24,6 +24,7 @@ const { containsInvocation } = require("./voice");
 const { windowCanAcknowledge } = require("./ack");
 const { planSecondInstance } = require("./second-instance");
 const { shortcutUnavailableMessage } = require("./shortcut");
+const { safeLabel } = require("./sanitize");
 const {
   createDarshan,
   ARRIVAL_MS,
@@ -38,6 +39,9 @@ const {
   createFrontmostAppGate,
   observeHold
 } = require("./voice-hold");
+const { createVoiceRuntime } = require("./voice-runtime");
+const { buildTrayMenuTemplate } = require("./tray");
+const { createWindowGeometry } = require("./window-geometry");
 
 // Exactly 10% smaller than the previous 176 × 224 resting widget.
 const RESTING_SIZE = { width: 158, height: 202 };
@@ -58,6 +62,17 @@ const MOTION_TIMINGS = {
 // ⌘⌥K / Ctrl+Alt+K: ⌘⇧K is "Delete Line" in VS Code and would be stolen from every editor.
 const SHORTCUT = "CommandOrControl+Alt+K";
 const LISTEN_TIMEOUT_MS = 6_000;
+// How long a programmatic setBounds keeps the "moved" listener from mistaking our own
+// move for a user drag: long enough for the native move event to arrive and be ignored.
+const PROGRAMMATIC_MOVE_RESET_MS = 100;
+// Delay after the renderer's first load before the launch command runs, so the resting
+// figure is painted and placed before an arrival can begin.
+const BOOT_DELAY_MS = 450;
+// Delay before capturing the preview screenshot, so arrival/idle frames have decoded and
+// the figure is drawn rather than a blank card.
+const SCREENSHOT_DELAY_MS = 2_600;
+// The command prefix `style-<name>` carries a figure style; the name is everything after it.
+const STYLE_COMMAND_PREFIX = "style-";
 const projectRoot = path.join(__dirname, "..");
 const helperPath = path.join(projectRoot, "helpers", "listen");
 const helperBuildPath = path.join(projectRoot, "scripts", "build-helper.sh");
@@ -80,12 +95,7 @@ let settings = { version: 1, voice: { ...DEFAULT_VOICE_SETTINGS } };
 let restingPosition;
 let isExpanded = false;
 let programmaticMove = false;
-let voiceHook;
-let voiceObserver;
-let listeningSession;
-let voiceDisabledForLaunch = false;
 let voiceNoticeShown = false;
-let helperBuildStarted = false;
 let previewEncounter = false;
 let encounterDuration = 0;
 let readyForNext = false;
@@ -107,6 +117,20 @@ const darshan = createDarshan({
 // interval, duration, demo or screenshot passed to a second launch (planSecondInstance).
 const instanceLock = app.requestSingleInstanceLock(config);
 if (!instanceLock) app.quit();
+
+// A stray rejection or thrown error writes one sanitised line to stderr (safeLabel strips
+// control bytes and caps length so an error message built from untrusted text cannot
+// inject a newline or escape sequence). Before startup has finished (no tray yet) the
+// process exits non-zero: registering these handlers suppresses Electron's own error
+// dialog, and a swallowed startup failure would leave an invisible process with no tray,
+// no window and a CLI that keeps reporting "not running". Once the tray exists the
+// companion stays alive; crashing then would take the whole loop down.
+function reportStrayError(kind, error) {
+  process.stderr.write(`Krishna Companion ${kind}: ${safeLabel(error?.message || error, 200)}\n`);
+  if (!tray) app.exit(1);
+}
+process.on("unhandledRejection", (reason) => reportStrayError("unhandled rejection", reason));
+process.on("uncaughtException", (error) => reportStrayError("uncaught exception", error));
 
 // Files that were found corrupt and moved aside during this launch. Turned into one
 // startup notification so the reader learns their originals were kept, not lost.
@@ -206,54 +230,25 @@ function saveSettings() {
   writeJson(settingsPath, settings);
 }
 
-function displayForPoint(point) {
-  return screen.getDisplayNearestPoint({ x: Math.round(point.x), y: Math.round(point.y) });
-}
+// Window placement lives in window-geometry.js. It re-clamps the resting position each
+// time and hands it back so this file can remember it; computeBounds carries that memory.
+const geometry = createWindowGeometry({
+  screen,
+  restingSize: RESTING_SIZE,
+  readingSize: READING_SIZE,
+  screenMargin: SCREEN_MARGIN
+});
 
-function defaultRestingPosition() {
-  const { workArea } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-  return {
-    x: Math.round(workArea.x + workArea.width - RESTING_SIZE.width - SCREEN_MARGIN),
-    y: Math.round(workArea.y + workArea.height - RESTING_SIZE.height - SCREEN_MARGIN)
-  };
-}
-
-function clampedRestingPosition(position = restingPosition || defaultRestingPosition()) {
-  const display = displayForPoint({
-    x: position.x + RESTING_SIZE.width / 2,
-    y: position.y + RESTING_SIZE.height / 2
-  });
-  const { workArea } = display;
-  return {
-    x: Math.min(Math.max(position.x, workArea.x), workArea.x + workArea.width - RESTING_SIZE.width),
-    y: Math.min(Math.max(position.y, workArea.y), workArea.y + workArea.height - RESTING_SIZE.height)
-  };
-}
-
-function widgetBounds(expanded) {
-  restingPosition = clampedRestingPosition();
-  if (!expanded) return { ...restingPosition, ...RESTING_SIZE };
-
-  const display = displayForPoint(restingPosition);
-  const { workArea } = display;
-  const height = Math.min(readingHeight, workArea.height - SCREEN_MARGIN * 2);
-  const width = Math.min(READING_SIZE.width, workArea.width - SCREEN_MARGIN * 2);
-  const desired = {
-    x: restingPosition.x - (width - RESTING_SIZE.width),
-    y: restingPosition.y - (height - RESTING_SIZE.height)
-  };
-  return {
-    width,
-    height,
-    x: Math.min(Math.max(desired.x, workArea.x), workArea.x + workArea.width - width),
-    y: Math.min(Math.max(desired.y, workArea.y), workArea.y + workArea.height - height)
-  };
+function computeBounds(expanded) {
+  const result = geometry.widgetBounds({ expanded, restingPosition, readingHeight });
+  restingPosition = result.restingPosition;
+  return result.bounds;
 }
 
 function setWidgetBounds(expanded) {
   programmaticMove = true;
-  companionWindow.setBounds(widgetBounds(expanded), false);
-  setTimeout(() => { programmaticMove = false; }, 100);
+  companionWindow.setBounds(computeBounds(expanded), false);
+  setTimeout(() => { programmaticMove = false; }, PROGRAMMATIC_MOVE_RESET_MS);
 }
 
 function setGlass(active) {
@@ -274,18 +269,17 @@ function nextReflection() {
 
 function rememberDraggedPosition() {
   if (programmaticMove || !companionWindow || companionWindow.isDestroyed()) return;
-  const [x, y] = companionWindow.getPosition();
-  const [width, height] = companionWindow.getSize();
-  restingPosition = isExpanded
-    ? { x: x + width - RESTING_SIZE.width, y: y + height - RESTING_SIZE.height }
-    : { x, y };
-  restingPosition = clampedRestingPosition(restingPosition);
+  restingPosition = geometry.draggedRestingPosition({
+    position: companionWindow.getPosition(),
+    size: companionWindow.getSize(),
+    expanded: isExpanded
+  });
   saveSettings();
 }
 
 function createWindow() {
   companionWindow = new BrowserWindow({
-    ...widgetBounds(false),
+    ...computeBounds(false),
     show: false,
     frame: false,
     transparent: true,
@@ -355,7 +349,7 @@ function showCompanion(force = false) {
   if (!darshan.show(config.durationSeconds)) return false;
   // A darshan takes over the window, so end any in-flight voice capture: the helper
   // must not keep the microphone open behind a teaching the reader is already reading.
-  stopListening();
+  voice.stopListening();
   isExpanded = true;
   previewEncounter = config.screenshot || Number.isInteger(requestedVerseIndex);
   encounterDuration = config.durationSeconds;
@@ -442,163 +436,35 @@ function showShortcutNotice(body) {
   }
 }
 
-function stopListening(session = listeningSession, { kill = true } = {}) {
-  if (!session || session !== listeningSession) return;
-  listeningSession = undefined;
-  clearTimeout(session.timeout);
-  setListening(false);
-  if (kill && session.child.exitCode === null && session.child.signalCode === null) {
-    session.child.kill();
-  }
-}
-
-function stopVoiceHook() {
-  stopListening();
-  voiceObserver?.stop();
-  voiceObserver = undefined;
-  if (voiceHook) {
-    try {
-      voiceHook.stop();
-    } catch {
-      // A partially loaded native hook is still allowed to fail closed.
-    }
-  }
-  voiceHook = undefined;
-}
-
-function disableVoiceForLaunch(message, { log = false } = {}) {
-  if (voiceDisabledForLaunch) return;
-  voiceDisabledForLaunch = true;
-  stopVoiceHook();
-  if (log) console.error(message);
-  showVoiceNotice(message);
-}
-
-function startListening() {
-  if (listeningSession || isExpanded || voiceDisabledForLaunch || !settings.voice.enabled) return false;
-
-  // This presents macOS's Accessibility prompt; uiohook itself presents Input Monitoring when needed.
-  try {
-    systemPreferences.isTrustedAccessibilityClient(true);
-  } catch {
-    // Input Monitoring may already be sufficient for this hook.
-  }
-
-  let child;
-  try {
-    child = spawn(helperPath, [`--timeout=${LISTEN_TIMEOUT_MS}`], {
-      stdio: ["pipe", "pipe", "ignore"]
-    });
-  } catch {
-    disableVoiceForLaunch("Krishna Companion voice is unavailable for this launch.", { log: true });
-    return false;
-  }
-
-  const session = { child, buffer: "", timeout: undefined };
-  listeningSession = session;
-  setListening(true);
-  session.timeout = setTimeout(() => stopListening(session), LISTEN_TIMEOUT_MS);
-
-  child.stdout.setEncoding("utf8");
-  child.stdout.on("data", (chunk) => {
-    if (listeningSession !== session) return;
-    session.buffer += chunk;
-    let newline = session.buffer.indexOf("\n");
-    while (newline !== -1) {
-      const line = session.buffer.slice(0, newline).replace(/\r$/, "");
-      session.buffer = session.buffer.slice(newline + 1);
-      if (containsInvocation(line)) {
-        stopListening(session);
-        showCompanion(true);
-        return;
-      }
-      newline = session.buffer.indexOf("\n");
-    }
-  });
-
-  child.once("error", () => {
-    if (listeningSession !== session) return;
-    stopListening(session, { kill: false });
-    disableVoiceForLaunch("Krishna Companion voice is unavailable for this launch.", { log: true });
-  });
-  child.once("close", (code) => {
-    if (listeningSession === session) stopListening(session, { kill: false });
-    if ([2, 3, 4].includes(code)) {
-      disableVoiceForLaunch(
-        "Allow Microphone and Speech Recognition for Krishna Companion in System Settings"
-      );
-    }
-  });
-  return true;
-}
-
-function startVoiceHook() {
-  if (process.platform !== "darwin" || voiceHook || voiceDisabledForLaunch || !settings.voice.enabled) return;
-
-  let nativeHook;
-  let keyCodes;
-  try {
-    ({ uIOhook: nativeHook, UiohookKey: keyCodes } = require("uiohook-napi"));
-  } catch {
-    disableVoiceForLaunch("Krishna Companion voice unavailable: global key hook could not load.", { log: true });
-    return;
-  }
-
-  // settings.voice.key was validated against the allow-list at load, so it is a known
-  // token here; the notice never interpolates an arbitrary settings string (C3).
-  const triggerKey = keyCodes[settings.voice.key];
-  if (!Number.isInteger(triggerKey)) {
-    disableVoiceForLaunch("Krishna Companion voice unavailable: unsupported trigger key.", { log: true });
-    return;
-  }
-
-  voiceHook = nativeHook;
-  voiceObserver = observeHold({
-    eventSource: nativeHook,
-    triggerKey,
-    holdMs: settings.voice.holdMs,
-    isFrontmostAllowed: createFrontmostAppGate(),
-    onTrigger: startListening,
-    onRelease: () => stopListening()
-  });
-
-  try {
-    nativeHook.start();
-  } catch {
-    disableVoiceForLaunch("Krishna Companion voice unavailable: global key hook could not start.", { log: true });
-  }
-}
-
-function initializeVoice() {
-  if (process.platform !== "darwin" || !settings.voice.enabled || voiceDisabledForLaunch) return;
-  if (existsSync(helperPath)) {
-    startVoiceHook();
-    return;
-  }
-  if (helperBuildStarted) return;
-  helperBuildStarted = true;
-
-  const build = spawn("/bin/bash", [helperBuildPath], {
-    cwd: projectRoot,
-    stdio: "ignore"
-  });
-  build.once("error", () => {
-    disableVoiceForLaunch("Krishna Companion voice unavailable: Xcode Command Line Tools are required.", { log: true });
-  });
-  build.once("close", (code) => {
-    if (code === 0 && existsSync(helperPath)) startVoiceHook();
-    else disableVoiceForLaunch(
-      "Krishna Companion voice unavailable: Xcode Command Line Tools are required.",
-      { log: true }
-    );
-  });
-}
+// The voice runtime owns the helper spawn, the listen session, and the trigger-key hook.
+// It receives its Electron/native pieces and the app state it reacts to through this
+// factory; no voice state lives in this file. loadHook is lazy so nothing requires the
+// native key hook until voice actually starts.
+const voice = createVoiceRuntime({
+  platform: process.platform,
+  spawn,
+  systemPreferences,
+  existsSync,
+  helperPath,
+  helperBuildPath,
+  projectRoot,
+  listenTimeoutMs: LISTEN_TIMEOUT_MS,
+  loadHook: () => require("uiohook-napi"),
+  observeHold,
+  createFrontmostAppGate,
+  containsInvocation,
+  getVoiceSettings: () => settings.voice,
+  isExpanded: () => isExpanded,
+  setListening,
+  notify: showVoiceNotice,
+  onMatch: () => showCompanion(true)
+});
 
 function setVoiceEnabled(enabled) {
   settings.voice.enabled = enabled;
   saveSettings();
-  if (enabled) initializeVoice();
-  else stopVoiceHook();
+  if (enabled) voice.initialize();
+  else voice.stop();
   if (tray) tray.setContextMenu(trayMenu());
 }
 
@@ -646,7 +512,7 @@ function revealNow({ index, durationSeconds } = {}) {
 // Apply a config handed in by a second launch to this running instance. Pure decision
 // in second-instance.js; this only carries it out.
 function applySecondInstance(incoming) {
-  const { actions, rejected } = planSecondInstance(incoming, { intervalMinutes: config.intervalMinutes });
+  const { actions, rejected } = planSecondInstance(incoming);
   for (const { field, reason } of rejected) {
     console.error(`Krishna Companion: ignored invalid second-instance ${field} (${reason})`);
   }
@@ -686,15 +552,21 @@ function applySecondInstance(incoming) {
 // a direct launch and when forwarded to a running instance.
 function captureScreenshotAndQuit(demo = config.demo) {
   setTimeout(async () => {
-    if (!companionWindow || companionWindow.isDestroyed()) {
-      app.quit();
+    try {
+      if (!companionWindow || companionWindow.isDestroyed()) return;
+      const preview = await companionWindow.webContents.capturePage();
+      const previewName = demo ? "preview.png" : "resting-preview.png";
+      await writeFile(path.join(__dirname, "..", previewName), preview.toPNG());
+    } catch (error) {
+      process.stderr.write(`Krishna Companion could not save the preview: ${safeLabel(error?.message || error, 200)}\n`);
+      // A failed capture must be visible to a script that ran `npm run preview`.
+      app.exit(1);
       return;
+    } finally {
+      // Whatever happened above, the screenshot launch must terminate.
+      app.quit();
     }
-    const preview = await companionWindow.webContents.capturePage();
-    const previewName = demo ? "preview.png" : "resting-preview.png";
-    await writeFile(path.join(__dirname, "..", previewName), preview.toPNG());
-    app.quit();
-  }, 2600);
+  }, SCREENSHOT_DELAY_MS);
 }
 
 function handleCommand(command) {
@@ -728,9 +600,12 @@ function handleCommand(command) {
       app.quit();
       return;
     default:
-      if (command.startsWith("style-") && FIGURE_STYLES.includes(command.slice(6))) {
-        setFigureStyle(command.slice(6));
-        break;
+      if (command.startsWith(STYLE_COMMAND_PREFIX)) {
+        const style = command.slice(STYLE_COMMAND_PREFIX.length);
+        if (FIGURE_STYLES.includes(style)) {
+          setFigureStyle(style);
+          break;
+        }
       }
       return;
   }
@@ -749,49 +624,27 @@ function setFigureStyle(style) {
 }
 
 function trayMenu() {
-  return Menu.buildFromTemplate([
-    { label: "Next teaching now", click: () => showCompanion(true) },
-    { type: "separator" },
-    {
-      label: paused ? "Resume teachings" : "Pause teachings",
-      click: () => {
-        paused = !paused;
-        if (paused) collapseCompanion();
-        saveState();
-        tray.setContextMenu(trayMenu());
-      }
+  return Menu.buildFromTemplate(buildTrayMenuTemplate({
+    paused,
+    intervalMinutes: config.intervalMinutes,
+    figureStyle: settings.figure.style,
+    voiceEnabled: settings.voice.enabled,
+    figureStyles: FIGURE_STYLES,
+    onShowNow: () => showCompanion(true),
+    onTogglePause: () => {
+      paused = !paused;
+      if (paused) collapseCompanion();
+      saveState();
+      tray.setContextMenu(trayMenu());
     },
-    {
-      label: "Every",
-      submenu: [30, 60, 90].map((minutes) => ({
-        label: `${minutes} minutes`,
-        type: "radio",
-        checked: config.intervalMinutes === minutes,
-        click: () => {
-          config.intervalMinutes = minutes;
-          restartCadence(minutes);
-          tray.setContextMenu(trayMenu());
-        }
-      }))
+    onSetInterval: (minutes) => {
+      config.intervalMinutes = minutes;
+      restartCadence(minutes);
+      tray.setContextMenu(trayMenu());
     },
-    {
-      label: "Figure",
-      submenu: FIGURE_STYLES.map((style) => ({
-        label: style[0].toUpperCase() + style.slice(1),
-        type: "radio",
-        checked: settings.figure.style === style,
-        click: () => setFigureStyle(style)
-      }))
-    },
-    {
-      label: "Voice (hold Space)",
-      type: "checkbox",
-      checked: settings.voice.enabled,
-      click: (item) => setVoiceEnabled(item.checked)
-    },
-    { type: "separator" },
-    { label: "Quit Krishna Companion", role: "quit" }
-  ]);
+    onSetStyle: setFigureStyle,
+    onSetVoiceEnabled: setVoiceEnabled
+  }));
 }
 
 function createTray() {
@@ -809,6 +662,10 @@ if (instanceLock) app.on("second-instance", (_event, _argv, _directory, addition
 });
 
 if (instanceLock) app.whenReady().then(() => {
+  // Electron's userData is the app's directory of record; src/paths.js reconstructs the
+  // same default for the CLI and documents the platform rules, and the CLI's tests point
+  // KRSHNA_HOME at a temp directory. The app itself never follows HOME or KRSHNA_HOME, so
+  // a launch from a modified environment cannot move the user's state.
   const userData = app.getPath("userData");
   statePath = path.join(userData, "state.json");
   journeyPath = path.join(userData, "journey.json");
@@ -819,7 +676,7 @@ if (instanceLock) app.whenReady().then(() => {
   createTray();
   notifyQuarantines();
   restartCadence();
-  initializeVoice();
+  voice.initialize();
 
   const shortcutRegistered = globalShortcut.register(SHORTCUT, () => showCompanion(true));
   if (!shortcutRegistered) {
@@ -836,7 +693,7 @@ if (instanceLock) app.whenReady().then(() => {
       else handleCommand(config.command);
 
       if (config.screenshot) captureScreenshotAndQuit();
-    }, 450);
+    }, BOOT_DELAY_MS);
   });
 });
 
@@ -854,7 +711,7 @@ ipcMain.on("companion:resize", (_event, height) => {
   if (!Number.isFinite(height)) return;
   readingHeight = Math.max(READING_SIZE.height, Math.ceil(height));
   // Avoid needless native moves while measuring an unchanged message.
-  const bounds = widgetBounds(true);
+  const bounds = computeBounds(true);
   const current = companionWindow.getBounds();
   if (Object.keys(bounds).some((key) => bounds[key] !== current[key])) setWidgetBounds(true);
 });
@@ -869,5 +726,5 @@ app.on("will-quit", () => {
   globalShortcut.unregisterAll();
   clearInterval(cadenceTimer);
   darshan.reset();
-  stopVoiceHook();
+  voice.stop();
 });
