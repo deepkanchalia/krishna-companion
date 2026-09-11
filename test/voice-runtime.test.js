@@ -18,13 +18,17 @@ class FakeChild extends EventEmitter {
   kill() { this.killed = true; }
 }
 
-function runtimeHarness({ expanded = false } = {}) {
+function runtimeHarness({ expanded = false, spawnThrows = false } = {}) {
   const children = [];
   const setListeningCalls = [];
+  const notices = [];
   let matches = 0;
   const runtime = createVoiceRuntime({
     platform: "darwin",
-    spawn: () => { const child = new FakeChild(); children.push(child); return child; },
+    spawn: () => {
+      if (spawnThrows) { const error = new Error("exec format error"); error.code = "ENOEXEC"; throw error; }
+      const child = new FakeChild(); children.push(child); return child;
+    },
     systemPreferences: { isTrustedAccessibilityClient: () => true },
     existsSync: () => true,
     helperPath: "/fake/helper",
@@ -38,11 +42,11 @@ function runtimeHarness({ expanded = false } = {}) {
     getVoiceSettings: () => ({ enabled: true, key: "Space", holdMs: 2000 }),
     isExpanded: () => expanded,
     setListening: (active) => setListeningCalls.push(active),
-    notify: () => {},
+    notify: (message) => notices.push(message),
     onMatch: () => { matches += 1; },
     logError: () => {}
   });
-  return { runtime, children, setListeningCalls, matchCount: () => matches };
+  return { runtime, children, setListeningCalls, notices, matchCount: () => matches };
 }
 
 test("a recognised invocation in the transcript triggers exactly one match and ends the session", () => {
@@ -78,4 +82,17 @@ test("a chunk split across the newline still matches once the line completes", (
   assert.equal(h.matchCount(), 0, "an incomplete line does not match");
   child.stdout.emit("data", "Kṛṣṇa\n");
   assert.equal(h.matchCount(), 1, "the completed line matches");
+});
+
+test("a helper that cannot exec disables voice for the launch and notifies once", () => {
+  const h = runtimeHarness({ spawnThrows: true });
+  assert.equal(h.runtime.startListening(), false, "a synchronous spawn failure starts no session");
+  assert.equal(h.children.length, 0, "no session child is created");
+  // setListening(true) was never reached; the only feedback, if any, is off.
+  assert.ok(!h.setListeningCalls.includes(true), "listening feedback is never turned on");
+  assert.equal(h.notices.length, 1, "the unavailable notice is issued exactly once");
+  // Voice is disabled for the launch: a second hold spawns nothing and issues no new notice.
+  assert.equal(h.runtime.startListening(), false, "voice stays disabled for the rest of the launch");
+  assert.equal(h.children.length, 0, "the second hold spawns no helper");
+  assert.equal(h.notices.length, 1, "no second notice on the next hold");
 });

@@ -252,6 +252,32 @@ test("zsh prompt segment does not assign to read-only special parameters", {
   assert.equal(output, "%F{yellow}🪶 Kṛṣṇa · paused%f");
 });
 
+test("zsh prompt segment reads state from KRSHNA_HOME when it differs from HOME", {
+  skip: zshAvailable() ? false : "requires zsh on PATH"
+}, (t) => {
+  const krshnaHome = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-zsh-kh-"));
+  const otherHome = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-zsh-home-"));
+  t.after(() => fs.rmSync(krshnaHome, { recursive: true, force: true }));
+  t.after(() => fs.rmSync(otherHome, { recursive: true, force: true }));
+
+  // State lives only under KRSHNA_HOME; HOME points at an empty directory. If the segment
+  // read HOME instead of KRSHNA_HOME it would find nothing and print an empty prompt.
+  const stateDirectory = process.platform === "darwin"
+    ? path.join(krshnaHome, "Library", "Application Support", "krishna-companion")
+    : path.join(krshnaHome, ".config", "krishna-companion");
+  fs.mkdirSync(stateDirectory, { recursive: true });
+  fs.writeFileSync(path.join(stateDirectory, "state.json"), JSON.stringify({ live: true, pid: process.pid, paused: false }, null, 2));
+
+  const integration = path.join(__dirname, "..", "shell", "krshna.zsh");
+  const env = { ...process.env, HOME: otherHome, KRSHNA_HOME: krshnaHome };
+  delete env.XDG_CONFIG_HOME; // force the linux fallback onto KRSHNA_HOME/.config
+  const output = execFileSync("zsh", [
+    "-f", "-c", 'source "$1"; _krshna_prompt_segment', "zsh", integration
+  ], { encoding: "utf8", env });
+
+  assert.equal(output, "%F{yellow}🪶 Kṛṣṇa · soon%f", "the segment resolves its state through KRSHNA_HOME");
+});
+
 test("krshna style validates the name against the app's style list", () => {
   const { FIGURE_STYLES } = require("../src/config");
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-style-"));

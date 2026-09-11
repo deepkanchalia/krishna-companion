@@ -55,3 +55,24 @@ test("clicking a Figure item forwards the style name", () => {
   figure.submenu.find((item) => item.label.toLowerCase() === "gyan").click();
   assert.equal(picked, "gyan");
 });
+
+test("clicking the action items forwards to their callbacks with the right value", () => {
+  let shown = 0;
+  let toggled = 0;
+  let voiceSet;
+  const items = template({
+    onShowNow: () => { shown += 1; },
+    onTogglePause: () => { toggled += 1; },
+    onSetVoiceEnabled: (value) => { voiceSet = value; }
+  });
+  items.find((item) => item.label === "Next teaching now").click();
+  assert.equal(shown, 1, "Next teaching now calls onShowNow");
+  items.find((item) => item.label === "Pause teachings").click();
+  assert.equal(toggled, 1, "the pause item calls onTogglePause");
+  // The Voice checkbox click receives the Electron menu item, whose `checked` is the new state.
+  const voice = items.find((item) => item.label === "Voice (hold Space)");
+  voice.click({ checked: true });
+  assert.equal(voiceSet, true, "the Voice checkbox forwards the item's checked state");
+  voice.click({ checked: false });
+  assert.equal(voiceSet, false, "toggling off forwards false");
+});

@@ -11,12 +11,16 @@ const { createDarshan, ARRIVAL_MS, WITHDRAWAL_MS, UNTOUCHED_MS } = require("../s
 
 // Evaluate the actual main-process wiring against in-memory Electron doubles.
 // No Electron import, real window, native permission or production data writes.
-async function harness(argv = [], saved = null) {
+async function harness(argv = [], saved = null, opts = {}) {
+  const { settings: settingsSeed = null, throwInTray = false } = opts;
   let now = 10_000;
   const timers = new Map();
   const writes = new Map();
   const windows = [];
   const ipc = new EventEmitter();
+  const handlers = {};
+  const stderrWrites = [];
+  const exits = [];
   const schedule = (fn, delay) => { const id = {}; timers.set(id, { fn, at: now + delay }); return id; };
   const cancel = (id) => timers.delete(id);
   function advance(ms) {
@@ -53,14 +57,25 @@ async function harness(argv = [], saved = null) {
   }
   const app = new EventEmitter();
   app.requestSingleInstanceLock = () => true;
-  app.whenReady = () => Promise.resolve();
+  // Route a throw from the whenReady startup chain to the recorded unhandledRejection
+  // handler, exactly as Electron's process would, so a startup failure is observable here.
+  app.whenReady = () => ({
+    then(callback) {
+      Promise.resolve().then(() => {
+        try { callback(); }
+        catch (error) { if (handlers.unhandledRejection) handlers.unhandledRejection(error); }
+      });
+      return Promise.resolve();
+    }
+  });
   app.getPath = () => "/in-memory";
   app.quit = () => {};
+  app.exit = (code) => exits.push(code);
   let lastTrayMenu = null;
   const electron = {
     app, BrowserWindow: Window, ipcMain: ipc,
     Menu: { buildFromTemplate: (menu) => menu },
-    Tray: class extends EventEmitter { setToolTip() {} setContextMenu(menu) { lastTrayMenu = menu; } },
+    Tray: class extends EventEmitter { constructor() { super(); if (throwInTray) throw new Error("tray unavailable"); } setToolTip() {} setContextMenu(menu) { lastTrayMenu = menu; } },
     Notification: { isSupported: () => false },
     globalShortcut: { register: () => true, unregisterAll() {} },
     nativeImage: { createFromPath: () => ({}) },
@@ -71,7 +86,7 @@ async function harness(argv = [], saved = null) {
   const localRequire = createRequire(mainFile);
   const context = {
     __dirname: path.dirname(mainFile), console,
-    process: { platform: "linux", pid: 42, on: () => {}, stderr: { write: () => {} } },
+    process: { platform: "linux", pid: 42, on: (name, fn) => { handlers[name] = fn; }, stderr: { write: (chunk) => { stderrWrites.push(String(chunk)); return true; } } },
     Date: class extends Date { static now() { return now; } },
     setTimeout: schedule, clearTimeout: cancel,
     setInterval: () => ({}), clearInterval() {},
@@ -80,7 +95,11 @@ async function harness(argv = [], saved = null) {
       if (name === "./config") return { ...localRequire("./config"), readConfig: () => readConfig(argv) };
       if (name === "./darshan") return { createDarshan: (options) => createDarshan({ ...options, schedule, cancel }) };
       if (name === "./store") return {
-        readJson(file, fallback) { return file.endsWith("journey.json") ? saved : fallback; },
+        readJson(file, fallback) {
+          if (file.endsWith("journey.json")) return saved;
+          if (file.endsWith("settings.json") && settingsSeed !== null) return settingsSeed;
+          return fallback;
+        },
         writeJson(file, value) { writes.set(path.basename(file), value); return true; }
       };
       return localRequire(name);
@@ -90,7 +109,7 @@ async function harness(argv = [], saved = null) {
   await Promise.resolve();
   windows[0].webContents.emit("did-finish-load");
   advance(450);
-  return { app, windows, writes, advance, ipc,
+  return { app, windows, writes, advance, ipc, handlers, stderrWrites, exits,
     command: (command) => app.emit("second-instance", {}, [], "", readConfig([`--command=${command}`])),
     shows: () => windows.at(-1).sent.filter((entry) => entry.channel === "companion:show"),
     trayMenu: () => lastTrayMenu,
@@ -261,4 +280,26 @@ test("the tray menu carries the expected items and a Figure submenu from FIGURE_
   const figureLabels = figure.submenu.map((item) => item.label.toLowerCase());
   assert.deepEqual(figureLabels, FIGURE_STYLES, "the Figure submenu lists every style, in order");
   for (const item of figure.submenu) assert.equal(item.type, "radio", "each style is a radio item");
+});
+
+test("a stray error after startup is logged but never exits the running companion", async () => {
+  const h = await harness();
+  assert.equal(typeof h.handlers.uncaughtException, "function", "the handler is registered");
+  h.handlers.uncaughtException(new Error("something went wrong"));
+  assert.ok(h.stderrWrites.some((line) => /uncaught exception/.test(line)), "the error is written to stderr");
+  assert.deepEqual(h.exits, [], "the tray exists, so the process stays alive");
+});
+
+test("a startup failure before the tray exists exits non-zero", async () => {
+  const h = await harness([], null, { throwInTray: true });
+  assert.deepEqual(h.exits, [1], "a swallowed startup failure exits instead of leaving an invisible process");
+});
+
+test("a saved voice preference of enabled survives startup", async () => {
+  const h = await harness([], null, { settings: { voice: { enabled: true } } });
+  // The Voice tray item reflects the persisted preference rather than the off-by-default.
+  const menu = h.trayMenu();
+  const voiceItem = menu.find((item) => /^Voice/.test(item.label || ""));
+  assert.ok(voiceItem, "a Voice tray item is present");
+  assert.equal(voiceItem.checked, true, "a saved enabled:true is not reset to off on startup");
 });
