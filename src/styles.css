@@ -33,7 +33,7 @@ button:disabled { cursor: default; opacity: .5; }
 }
 /* Golden dust clouds under the text (assets/card-sky.webp, an original tileable
    texture): faint, drifting, fading out toward the bottom so the verse sits on calm ground. */
-.sky { position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: url(../assets/card-sky.webp) 0 0 / 400px 400px repeat; opacity: .6; -webkit-mask-image: linear-gradient(180deg, #000 0%, #000c 45%, #0004 100%); mask-image: linear-gradient(180deg, #000 0%, #000c 45%, #0004 100%); animation: sky-drift 120s linear infinite; pointer-events: none; }
+.sky { position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: url(../assets/card-sky.webp) 0 0 / 400px 400px repeat; opacity: .8; -webkit-mask-image: linear-gradient(180deg, #000 0%, #000c 45%, #0004 100%); mask-image: linear-gradient(180deg, #000 0%, #000c 45%, #0004 100%); animation: sky-drift 120s linear infinite; pointer-events: none; }
 @keyframes sky-drift { from { background-position: 0 0; } to { background-position: 400px -400px; } }
 .heading { display: flex; align-items: center; gap: 10px; }
 .seal { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border: 0; border-radius: 50%; background: radial-gradient(circle, #e7c98a24, transparent 72%); color: var(--gold); font-size: 24px; }
