@@ -58,7 +58,7 @@ body:not(.expanded) .translation { display: -webkit-box; -webkit-line-clamp: 3; 
 .typing i { height: 4px; width: 4px; border-radius: 50%; background: var(--gold); }
 /* The card is Krishna's thought: two bubbles trail from its edge toward his head and share
    its surface and its timing. They live outside the card because the card clips overflow. */
-.thought { position: absolute; z-index: 3; right: calc(var(--presence-width) - 18px); bottom: 262px; width: 52px; height: 44px; opacity: 0; transform: translate(24px, 12px); transition: opacity .3s ease, transform .5s var(--ease); pointer-events: none; }
+.thought { position: absolute; z-index: 3; right: calc(var(--presence-width) - 58px); bottom: 262px; width: 52px; height: 44px; opacity: 0; transform: translate(24px, 12px); transition: opacity .3s ease, transform .5s var(--ease); pointer-events: none; }
 .thought i { position: absolute; border-radius: 50%; background: linear-gradient(150deg, #262924f8, #131917fa); box-shadow: 0 6px 14px #0006, inset 0 1px #fbe8b910; }
 .thought i:first-child { left: 0; bottom: 0; width: 18px; height: 18px; }
 .thought i:last-child { right: 0; top: 0; width: 10px; height: 10px; }
@@ -130,7 +130,7 @@ body[data-phase="absent"] .figure, body[data-phase="withdrawing"] .figure { poin
 @media (max-width: 550px) {
   .card { left: 8px; right: 136px; padding: 16px; }
   .presence { width: 140px; height: 245px; }
-  .thought { right: 124px; bottom: 186px; width: 40px; height: 34px; }
+  .thought { right: 100px; bottom: 186px; width: 40px; height: 34px; }
   h1 { font-size: 17px; } h1 em { display: block; font-size: 12px; }
   .seal { display: none; }
   .translation { font-size: 18px; }
