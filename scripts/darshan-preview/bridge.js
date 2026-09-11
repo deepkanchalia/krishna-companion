@@ -1,6 +1,8 @@
 let showCallback;
 let collapseCallback;
+let styleCallback;
 let currentIndex = 0;
+let previewStyle = window.KRISHNA_ANIM_DEFAULT_STYLE || "realistic";
 let closeTimer;
 function notify(type, fields = {}) { parent.postMessage({ type, ...fields }, location.origin); }
 const motionTimings = {
@@ -12,7 +14,7 @@ const motionTimings = {
 };
 function show(continuing = false) {
   clearTimeout(closeTimer);
-  showCallback({ reflection: previewReflections[currentIndex], durationSeconds: 0, continuing, ...motionTimings });
+  showCallback({ reflection: previewReflections[currentIndex], durationSeconds: 0, continuing, style: previewStyle, ...motionTimings });
   notify("status", { label: previewReflections[currentIndex].reference });
   closeTimer = setTimeout(withdraw, previewTimings.ARRIVAL_MS + previewTimings.UNTOUCHED_MS);
 }
@@ -33,6 +35,7 @@ window.krishna = {
   resize: (height) => notify("resize", { height }),
   onShow: (callback) => { showCallback = callback; },
   onCollapse: (callback) => { collapseCallback = callback; },
+  onStyle: (callback) => { styleCallback = callback; },
   onListening: () => {}
 };
 window.addEventListener("message", (event) => {
@@ -44,5 +47,9 @@ window.addEventListener("message", (event) => {
     show();
   }
   if (event.data.type === "withdraw") withdraw();
+  if (event.data.type === "style" && window.KRISHNA_ANIM_STYLES && typeof event.data.style === "string" && Object.hasOwn(window.KRISHNA_ANIM_STYLES, event.data.style)) {
+    previewStyle = event.data.style;
+    if (styleCallback) styleCallback(previewStyle);
+  }
 });
-window.addEventListener("load", () => notify("ready"));
+window.addEventListener("load", () => notify("ready", { styles: Object.keys(window.KRISHNA_ANIM_STYLES || {}) }));

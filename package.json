@@ -23,7 +23,8 @@
     "!docs/evidence",
     "!experiments",
     "!scripts/anim",
-    "!assets/anim/manifest.json"
+    "!assets/anim/manifest.json",
+    "!assets/anim/*/manifest.json"
   ],
   "scripts": {
     "start": "electron .",

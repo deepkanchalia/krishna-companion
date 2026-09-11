@@ -67,18 +67,31 @@
   // line and the walk covers real distance.
   // `pad` keeps a floor margin so frames whose feet sit a few px below the resting
   // line (a planted step) are not clipped.
-  function placement(manifest, segName, index, cw, ch, pad = 10) {
+  // `blockUnit` (pixel-art styles only) is one art block in device pixels at scale 1:
+  // the scale snaps so a block covers a whole number of device pixels, because blocks of
+  // uneven size read as a wobble. The snap is skipped when it would move the size by more
+  // than a tenth (a 1x display with a fine grid), and steps down if the scene would no
+  // longer fit the box.
+  function placement(manifest, segName, index, cw, ch, pad = 14, blockUnit = 0) {
     const seg = manifest.segments[segName];
     const rest = manifest.segments.idle.frames[0];
-    const tallest = Math.max(...Object.values(manifest.segments).map((s) => s.cell[1]));
-    const s = (ch - pad) / tallest;
+    const all = Object.values(manifest.segments).flatMap((s) => s.frames);
+    // Map the scene's full vertical extent (highest head to lowest foot across every
+    // frame of every segment) onto the box once, so each frame keeps its true scene
+    // position and none can leave the box.
+    const sceneTop = Math.min(...all.map((g) => g.oy));
+    const sceneBottom = Math.max(...all.map((g) => g.oy + g.h));
+    let s = (ch - pad) / (sceneBottom - sceneTop);
+    if (blockUnit > 0) {
+      let n = Math.max(1, Math.round(s * blockUnit));
+      if (n > 1 && (n / blockUnit) * (sceneBottom - sceneTop) > ch) n -= 1;
+      if (Math.abs(n / blockUnit - s) <= s * 0.1) s = n / blockUnit;
+    }
     const f = seg.frames[index];
-    const restBottom = rest.oy + rest.h;
     const dx = (f.ox - rest.ox) * s;
-    const dyBottom = ((f.oy + f.h) - restBottom) * s;
     const w = f.w * s, h = f.h * s;
     const x = cw / 2 - (rest.w * s) / 2 + dx;
-    const y = (ch - pad) + dyBottom - h;
+    const y = (f.oy - sceneTop) * s;
     return { x, y, w, h, scale: s };
   }
 
@@ -133,12 +146,20 @@
       const f = seg.frames[index];
       const ctx = canvas.getContext("2d");
       const { cw, ch, sx, sy } = fitBacking();
-      const p = placement(manifest, name, index, cw, ch);
+      const pixel = manifest.pixelated === true;
+      const p = placement(manifest, name, index, cw, ch, 14, pixel ? (manifest.pixelFactor || 1) * sx : 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       const img = image(name);
       if (!loaded(img)) return;
+      // A pixel-art style keeps hard block edges when scaled and lands on whole device
+      // pixels; every other style is smoothed.
+      ctx.imageSmoothingEnabled = !pixel;
+      const snap = (v) => (pixel ? Math.round(v) : v);
       // Independent x/y scales: rounding the backing store can make them differ slightly.
-      ctx.drawImage(img, f.sx, f.sy, f.w, f.h, p.x * sx, p.y * sy, p.w * sx, p.h * sy);
+      // Pixel art uses one axis scale for both dimensions so blocks stay square when the
+      // backing store's rounded width and height imply slightly different ratios.
+      const ky = pixel ? sx : sy;
+      ctx.drawImage(img, f.sx, f.sy, f.w, f.h, snap(p.x * sx), snap(p.y * ky), p.w * sx, p.h * ky);
     }
 
     function loaded(img) {
@@ -207,6 +228,18 @@
         this.stop();
         stillToken++;
         canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+      },
+      // Retire the player: stop, cancel any queued still, and release its sheets so a
+      // style switch does not keep six decoded sets alive. Clearing `src` aborts a load
+      // still in flight and lets the decoded bitmap go.
+      dispose() {
+        this.clear();
+        for (const name of Object.keys(images)) {
+          const img = images[name];
+          img.__failed = true;
+          if ("src" in img) img.src = "";
+          delete images[name];
+        }
       },
       isPlaying() { return active !== null; },
       current() { return active ? active.name : null; }

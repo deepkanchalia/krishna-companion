@@ -5,19 +5,29 @@ const path = require("node:path");
 const vm = require("node:vm");
 const Sprite = require("../src/sprite-player");
 
-const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "assets", "anim", "manifest.json"), "utf8"));
+const { FIGURE_STYLES, DEFAULT_FIGURE_STYLE } = require("../src/config");
+const { ARRIVAL_MS, WITHDRAWAL_MS } = require("../src/darshan");
+const combined = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "assets", "anim", "manifest.json"), "utf8"));
+const manifest = combined.styles[combined.default];
 
-test("the shipped manifest is complete and internally consistent", () => {
-  assert.deepEqual(Sprite.validateManifest(manifest), []);
-  for (const name of ["walkin", "idle", "teach", "farewell"]) {
-    const seg = manifest.segments[name];
-    assert.ok(seg, `${name} segment`);
-    assert.ok(fs.existsSync(path.join(__dirname, "..", "assets", "anim", seg.file)), `${name} sheet file`);
+test("every figure style ships a complete, consistent manifest and its four sheets", () => {
+  assert.equal(combined.default, DEFAULT_FIGURE_STYLE);
+  assert.deepEqual(Object.keys(combined.styles).sort(), [...FIGURE_STYLES].sort());
+  for (const [style, m] of Object.entries(combined.styles)) {
+    assert.deepEqual(Sprite.validateManifest(m), [], `${style} manifest`);
+    for (const name of ["walkin", "idle", "teach", "farewell"]) {
+      const seg = m.segments[name];
+      assert.ok(seg, `${style} ${name} segment`);
+      assert.ok(seg.file.startsWith(`${style}/`), `${style} ${name} sheet path is inside its style folder`);
+      assert.ok(fs.existsSync(path.join(__dirname, "..", "assets", "anim", seg.file)), `${style} ${name} sheet file`);
+    }
+    assert.ok(Sprite.durationMs(m.segments.walkin) <= ARRIVAL_MS, `${style} walk-in within ARRIVAL_MS`);
+    assert.ok(Sprite.durationMs(m.segments.farewell) <= WITHDRAWAL_MS, `${style} farewell within WITHDRAWAL_MS`);
+    assert.equal(m.segments.idle.loop, true);
+    assert.equal(m.segments.idle.pingpong, true);
+    assert.equal(m.segments.walkin.loop, false);
+    assert.equal(m.segments.farewell.loop, false);
   }
-  assert.equal(manifest.segments.idle.loop, true);
-  assert.equal(manifest.segments.idle.pingpong, true);
-  assert.equal(manifest.segments.walkin.loop, false);
-  assert.equal(manifest.segments.farewell.loop, false);
 });
 
 test("manifest.js is the manifest.json shipped as a script (CSP forbids fetch)", () => {
@@ -25,6 +35,8 @@ test("manifest.js is the manifest.json shipped as a script (CSP forbids fetch)",
   const sandbox = { window: {} };
   vm.runInNewContext(source, sandbox);
   // The sandbox gives objects a different prototype, so compare the serialised form.
+  assert.equal(JSON.stringify(sandbox.window.KRISHNA_ANIM_STYLES), JSON.stringify(combined.styles));
+  assert.equal(sandbox.window.KRISHNA_ANIM_DEFAULT_STYLE, combined.default);
   assert.equal(JSON.stringify(sandbox.window.KRISHNA_ANIM), JSON.stringify(manifest));
 });
 
@@ -51,7 +63,8 @@ test("frame timing: once segments end, loops wrap, ping-pong reverses", () => {
   assert.equal(Sprite.durationMs(manifest.segments.walkin), Math.round(manifest.segments.walkin.frames.length / 12 * 1000));
 });
 
-test("walk-in enters from the right and ends on the resting spot; farewell leaves to the right", () => {
+for (const [style, styleManifest] of Object.entries(combined.styles)) test(`${style}: walk-in enters from the right and ends on the resting spot; farewell leaves to the right`, () => {
+  const manifest = styleManifest;
   const cw = 220, ch = 286;
   const walk = manifest.segments.walkin.frames.length;
   const first = Sprite.placement(manifest, "walkin", 0, cw, ch);
@@ -71,7 +84,7 @@ test("walk-in enters from the right and ends on the resting spot; farewell leave
       const p = Sprite.placement(manifest, name, i, cw, ch);
       assert.ok(p.y + p.h <= ch, `${name} frame ${i} feet inside the canvas`);
       assert.ok(p.y + p.h > ch - 45, `${name} frame ${i} feet near the floor`);
-      assert.ok(p.y >= -1, `${name} frame ${i} head inside the canvas`);
+      assert.ok(p.y >= 0, `${name} frame ${i} head inside the canvas`);
     }
   }
 });
@@ -104,6 +117,63 @@ test("a sheet that fails to load ends its segment instead of spinning, and a sta
   pending.complete = true; pending.naturalWidth = 1760;
   (listeners["still-load"] || []).forEach((fn) => fn());
   assert.equal(drawn.length, 0, "cancelled still did not paint");
+});
+
+test("a pixel-art style snaps its scale so one art block is a whole number of device pixels", () => {
+  const m = combined.styles.pixel;
+  const cw = 220, ch = 302, unit = m.pixelFactor * 2; // a 2x display; the pixel figure box has 16px of headroom
+  const free = Sprite.placement(m, "idle", 6, cw, ch);
+  const p = Sprite.placement(m, "idle", 6, cw, ch, 14, unit);
+  const blocks = p.scale * unit;
+  assert.ok(Math.abs(blocks - Math.round(blocks)) < 1e-9, "whole device pixels per block");
+  assert.ok(Math.abs(p.scale - free.scale) <= free.scale * 0.1, "within a tenth of the free scale");
+  for (const name of Object.keys(m.segments)) {
+    for (let i = 0; i < m.segments[name].frames.length; i += 1) {
+      const q = Sprite.placement(m, name, i, cw, ch, 14, unit);
+      assert.ok(q.y + q.h <= ch, `${name} frame ${i} feet inside the canvas`);
+      assert.ok(q.y >= 0, `${name} frame ${i} head inside the canvas`);
+    }
+  }
+  // a 1x display with a fine grid: the snap would shrink the figure a third, so it is skipped
+  const coarse = Sprite.placement(m, "idle", 6, cw, ch, 14, m.pixelFactor);
+  assert.equal(coarse.scale, free.scale);
+});
+
+test("a pixel-art style is drawn without image smoothing; every other style with it", () => {
+  const smoothing = [];
+  const ctx = { clearRect() {}, drawImage() {}, set imageSmoothingEnabled(v) { smoothing.push(v); } };
+  const canvas = { width: 440, height: 572, clientWidth: 220, clientHeight: 286, getContext: () => ctx };
+  const env = { canvas, loadImage: () => ({ complete: true, naturalWidth: 1 }), raf: () => 1, caf() {}, now: () => 0 };
+  assert.equal(combined.styles.pixel.pixelated, true);
+  assert.equal(combined.styles.pixel.derivedFrom, "warrior");
+  assert.equal(combined.styles.pixel.lossless, true, "pixel sheets are written lossless so the palette survives");
+  Sprite.createSpritePlayer(combined.styles.pixel, env).still();
+  Sprite.createSpritePlayer(combined.styles.warrior, env).still();
+  assert.deepEqual(smoothing, [false, true]);
+});
+
+test("dispose stops the player, cancels a queued still and releases every sheet", () => {
+  const drawn = [];
+  const ctx = { clearRect() {}, drawImage: (...a) => drawn.push(a) };
+  const canvas = { width: 440, height: 572, clientWidth: 220, clientHeight: 286, getContext: () => ctx };
+  const images = [];
+  const loadImage = () => {
+    const img = { complete: false, naturalWidth: 0, src: "x", listeners: {}, addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); } };
+    images.push(img);
+    return img;
+  };
+  let cancelled = 0;
+  const player = Sprite.createSpritePlayer(manifest, { canvas, loadImage, raf: () => 1, caf: () => { cancelled++; }, now: () => 0 });
+  player.preload();
+  player.still();
+  player.play("idle");
+  player.dispose();
+  assert.equal(player.isPlaying(), false);
+  assert.ok(cancelled >= 1, "the frame loop was cancelled");
+  assert.equal(images.length, 4, "one image per segment");
+  assert.ok(images.every((img) => img.src === ""), "every sheet source is released");
+  for (const img of images) { img.complete = true; img.naturalWidth = 1; (img.listeners.load || []).forEach((fn) => fn()); }
+  assert.equal(drawn.length, 0, "a queued still does not paint after dispose");
 });
 
 test("the player draws only while a segment plays and stops cleanly", () => {

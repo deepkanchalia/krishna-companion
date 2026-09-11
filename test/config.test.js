@@ -62,3 +62,15 @@ test("falls back for non-numeric arguments and clamps unsafe values", () => {
   assert.equal(numberArgument(["--duration=-1"], "duration", 0, 0, 120), 0);
   assert.equal(numberArgument(["--duration=999"], "duration", 0, 0, 120), 120);
 });
+
+test("figure styles are one list shared by the settings normaliser and the command set", () => {
+  const { FIGURE_STYLES, DEFAULT_FIGURE_STYLE, normalizeFigureStyle, SECOND_INSTANCE_COMMANDS } = require("../src/config");
+  assert.ok(FIGURE_STYLES.includes(DEFAULT_FIGURE_STYLE));
+  for (const style of FIGURE_STYLES) {
+    assert.equal(normalizeFigureStyle(style), style);
+    assert.ok(SECOND_INSTANCE_COMMANDS.includes(`style-${style}`), `style-${style} is an accepted command`);
+  }
+  assert.equal(normalizeFigureStyle("nope"), DEFAULT_FIGURE_STYLE);
+  assert.equal(normalizeFigureStyle(undefined), DEFAULT_FIGURE_STYLE);
+  assert.equal(normalizeFigureStyle(42), DEFAULT_FIGURE_STYLE);
+});

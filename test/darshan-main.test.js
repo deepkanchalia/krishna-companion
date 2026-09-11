@@ -76,7 +76,7 @@ async function harness(argv = [], saved = null) {
     setInterval: () => ({}), clearInterval() {},
     require(name) {
       if (name === "electron") return electron;
-      if (name === "./config") return { readConfig: () => readConfig(argv) };
+      if (name === "./config") return { ...localRequire("./config"), readConfig: () => readConfig(argv) };
       if (name === "./darshan") return { createDarshan: (options) => createDarshan({ ...options, schedule, cancel }) };
       if (name === "./store") return {
         readJson(file, fallback) { return file.endsWith("journey.json") ? saved : fallback; },
@@ -200,4 +200,22 @@ test("returning users remain absent until invited and ordinary now never skips a
   assert.equal(h.shows()[0].payload.reflection, reflections[3]);
   h.advance(ARRIVAL_MS + UNTOUCHED_MS + WITHDRAWAL_MS);
   assert.equal(h.windows[0].visible, false);
+});
+
+test("a style command persists the figure style and tells the renderer on the spot", async () => {
+  const { FIGURE_STYLES, DEFAULT_FIGURE_STYLE } = require("../src/config");
+  const h = await harness();
+  h.command("now");
+  assert.equal(h.shows().at(-1).payload.style, DEFAULT_FIGURE_STYLE, "the show payload carries the default style");
+  h.command("style-cartoon");
+  assert.equal(h.writes.get("settings.json").figure.style, "cartoon", "settings.json records the new style");
+  const notice = h.windows.at(-1).sent.filter((entry) => entry.channel === "companion:style").at(-1);
+  assert.equal(notice.payload, "cartoon", "the renderer is told the new style");
+  h.command("style-nope");
+  assert.equal(h.writes.get("settings.json").figure.style, "cartoon", "an unknown style changes nothing");
+  // A darshan is already present, so the next show is an explicit Next verse.
+  h.advance(ARRIVAL_MS);
+  h.ipc.emit("companion:ready"); h.ipc.emit("companion:next");
+  assert.equal(h.shows().at(-1).payload.style, "cartoon", "later shows carry the chosen style");
+  assert.ok(FIGURE_STYLES.includes("cartoon"));
 });

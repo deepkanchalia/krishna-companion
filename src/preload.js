@@ -18,6 +18,11 @@ contextBridge.exposeInMainWorld("krishna", {
     ipcRenderer.on("companion:collapse", listener);
     return () => ipcRenderer.removeListener("companion:collapse", listener);
   },
+  onStyle: (callback) => {
+    const listener = (_event, style) => callback(String(style));
+    ipcRenderer.on("companion:style", listener);
+    return () => ipcRenderer.removeListener("companion:style", listener);
+  },
   onListening: (callback) => {
     const listener = (_event, active) => callback(Boolean(active));
     ipcRenderer.on("companion:listening", listener);
