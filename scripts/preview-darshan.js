@@ -16,7 +16,6 @@ const files = new Map([
   ["/src/renderer.js", ["src/renderer.js", "text/javascript"]],
   ["/src/styles.css", ["src/styles.css", "text/css"]],
   ["/assets/krishna.png", ["assets/krishna.png", "image/png"]],
-  ["/assets/card-sky.webp", ["assets/card-sky.webp", "image/webp"]],
   ["/src/sprite-player.js", ["src/sprite-player.js", "text/javascript"]],
   ["/assets/anim/manifest.js", ["assets/anim/manifest.js", "text/javascript"]]
 ]);

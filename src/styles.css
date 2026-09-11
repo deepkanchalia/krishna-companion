@@ -22,12 +22,9 @@ button:disabled { cursor: default; opacity: .5; }
   padding: 26px 28px 24px; border: 0; border-radius: 28px 28px 8px 28px;
   /* Frosted glass: a sheen from the top-left, a warm glow at the top-right corner, a
      translucent dark body that lets the desktop show faintly, and a thin bright rim. */
-  /* Opaque so scripture reads over any window. Layers, top to bottom: sheen; a fade to
-     the base colour toward the bottom so the verse sits on calm ground; silver dust
-     clouds (assets/card-sky.webp, an original tileable texture; static, a moving background would repaint the card every frame);
-     a warm corner light; the base. Backgrounds never scroll with the content, so the
-     clouds cover the whole card however long the purport is. */
-  background: linear-gradient(135deg, #ffffff1c, #ffffff06 38%, transparent 62%), linear-gradient(180deg, #1c1d2000 45%, #1c1d20b8 100%), url(../assets/card-sky.webp) 0 0 / 400px 400px repeat, radial-gradient(ellipse at 100% 0, #ffffff12, transparent 60%), linear-gradient(150deg, #34363bfb, #1c1d20fd);
+  /* Opaque charcoal glass so scripture reads over any window: a white sheen from the
+     top-left, a faint corner light, and a dark neutral base. */
+  background: linear-gradient(135deg, #ffffff16, #ffffff05 38%, transparent 62%), radial-gradient(ellipse at 100% 0, #ffffff0c, transparent 60%), linear-gradient(150deg, #292a2dfb, #141516fd);
   box-shadow: 0 18px 40px #0007, 0 2px 8px #0004, inset 0 1px #ffffff2e, inset 0 0 0 1px #ffffff0d, inset 0 -1px #ffffff08;
   opacity: 0; transform: translate(24px, 12px) scale(.96); transform-origin: bottom right;
   transition: opacity .3s ease, transform .5s var(--ease);
@@ -75,7 +72,7 @@ body:not(.expanded) .translation { display: -webkit-box; -webkit-line-clamp: 3; 
 /* The card is Krishna's thought: two bubbles trail from its edge toward his head and share
    its surface and its timing. They live outside the card because the card clips overflow. */
 .thought { position: absolute; z-index: 3; right: calc(var(--presence-width) - 58px); bottom: 262px; width: 52px; height: 44px; pointer-events: none; }
-.thought i { position: absolute; border-radius: 50%; background: linear-gradient(135deg, #ffffff1e, transparent 60%), linear-gradient(150deg, #34363bfb, #1c1d20fd); box-shadow: 0 6px 14px #0006, inset 0 1px #ffffff2e, inset 0 0 0 1px #ffffff0d; opacity: 0; transform: scale(.3); transition: opacity .35s ease, transform .6s cubic-bezier(.34, 1.56, .64, 1); }
+.thought i { position: absolute; border-radius: 50%; background: linear-gradient(135deg, #ffffff18, transparent 60%), linear-gradient(150deg, #292a2dfb, #141516fd); box-shadow: 0 6px 14px #0006, inset 0 1px #ffffff2e, inset 0 0 0 1px #ffffff0d; opacity: 0; transform: scale(.3); transition: opacity .35s ease, transform .6s cubic-bezier(.34, 1.56, .64, 1); }
 .thought i:first-child { left: 0; bottom: 0; width: 20px; height: 20px; }
 .thought i:last-child { right: 0; top: 0; width: 11px; height: 11px; }
 /* A thought forms from the head outward: the small bubble, the large one, then the card;
