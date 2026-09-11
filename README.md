@@ -53,7 +53,7 @@ The choice is saved in `settings.json` and applies at once, even while Kṛṣ�
 
 ## Voice
 
-On macOS, keep Terminal or an editor frontmost and hold Space for two seconds. The menu-bar icon's tooltip reports listening; say “Hare Kṛṣṇa” to open the next teaching, then release Space. The key is only observed, never swallowed, so the frontmost app still receives it normally. Supported apps are Terminal, iTerm2, Warp, Ghostty, Alacritty, kitty, WezTerm, VS Code, Cursor, Zed, JetBrains IDEs, Xcode, and Windsurf.
+On macOS, keep Terminal or an editor frontmost and hold Space for two seconds. The menu-bar icon's tooltip reports listening; say “Hare Kṛṣṇa” to open the next teaching, then release Space. While voice is on, a global key hook watches the Space key system-wide and compares key codes only. The key is only observed, never swallowed, so the frontmost app still receives it normally. Supported apps are Terminal, iTerm2, Warp, Ghostty, Alacritty, kitty, WezTerm, VS Code, Cursor, Zed, JetBrains IDEs, Xcode, and Windsurf.
 
 The first use asks macOS for Microphone, Speech Recognition, and Input Monitoring or Accessibility access. Enable Krishna Companion (or Electron while running from this checkout) under **System Settings → Privacy & Security** for those services. Recognition is forced to Apple's on-device recognizer: audio and transcripts are never saved, logged, sent to Krishna Companion's renderer, or sent over the network. If the recognizer is unavailable or permission is denied, voice remains off until the next launch and a single notification explains what to allow.
 
@@ -64,7 +64,7 @@ krshna voice off
 krshna voice on
 ```
 
-The menu-bar checkbox **Voice (hold Space)** controls the same setting. Its default is `voice: { enabled: true, key: "Space", holdMs: 2000 }` in `settings.json`.
+The menu-bar checkbox **Voice (hold Space)** controls the same setting. Voice is off by default (`voice: { enabled: false, key: "Space", holdMs: 2000 }` in `settings.json`) so a first launch raises no permission prompts; enable it from the tray checkbox or `krshna voice on`.
 
 `krshna install` also registers Claude Code's whole-prompt hook. Saying or typing “Hare Kṛṣṇa” as the whole prompt opens the next teaching; Claude does not receive or respond to it.
 

@@ -11,6 +11,7 @@ function holdHarness({ frontmost = true } = {}) {
   let timestamp = 0;
   let triggered = 0;
   let released = 0;
+  let gateCalls = 0;
   let nextTimer = 1;
   const timers = new Map();
 
@@ -25,7 +26,7 @@ function holdHarness({ frontmost = true } = {}) {
       return id;
     },
     cancelSchedule: (id) => timers.delete(id),
-    isFrontmostAllowed: () => frontmost,
+    isFrontmostAllowed: () => { gateCalls += 1; return frontmost; },
     onTrigger: () => { triggered += 1; },
     onRelease: () => { released += 1; }
   });
@@ -44,6 +45,7 @@ function holdHarness({ frontmost = true } = {}) {
     events,
     advanceTo,
     counts: () => ({ triggered, released }),
+    gateCalls: () => gateCalls,
     stop: observer.stop
   };
 }
@@ -88,6 +90,19 @@ test("a disallowed frontmost app blocks the hold", () => {
   harness.events.emit("keydown", { keycode: SPACE });
   harness.advanceTo(2_000);
   assert.equal(harness.counts().triggered, 0);
+});
+
+test("keydown never consults the frontmost gate; hold completion does", () => {
+  const harness = holdHarness();
+  harness.events.emit("keydown", { keycode: SPACE });
+  // The synchronous osascript gate must not run on the trigger key's keydown.
+  assert.equal(harness.gateCalls(), 0);
+  harness.advanceTo(1_999);
+  assert.equal(harness.gateCalls(), 0);
+  // Only once the hold reaches holdMs is the gate consulted, and then the hold fires.
+  harness.advanceTo(2_000);
+  assert.equal(harness.gateCalls(), 1);
+  assert.equal(harness.counts().triggered, 1);
 });
 
 test("normalizeVoiceKey accepts only allow-listed keys and never passes untrusted text through", () => {
