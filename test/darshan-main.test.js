@@ -56,10 +56,11 @@ async function harness(argv = [], saved = null) {
   app.whenReady = () => Promise.resolve();
   app.getPath = () => "/in-memory";
   app.quit = () => {};
+  let lastTrayMenu = null;
   const electron = {
     app, BrowserWindow: Window, ipcMain: ipc,
     Menu: { buildFromTemplate: (menu) => menu },
-    Tray: class extends EventEmitter { setToolTip() {} setContextMenu() {} },
+    Tray: class extends EventEmitter { setToolTip() {} setContextMenu(menu) { lastTrayMenu = menu; } },
     Notification: { isSupported: () => false },
     globalShortcut: { register: () => true, unregisterAll() {} },
     nativeImage: { createFromPath: () => ({}) },
@@ -91,7 +92,9 @@ async function harness(argv = [], saved = null) {
   advance(450);
   return { app, windows, writes, advance, ipc,
     command: (command) => app.emit("second-instance", {}, [], "", readConfig([`--command=${command}`])),
-    shows: () => windows.at(-1).sent.filter((entry) => entry.channel === "companion:show")
+    shows: () => windows.at(-1).sent.filter((entry) => entry.channel === "companion:show"),
+    trayMenu: () => lastTrayMenu,
+    workArea: { x: 0, y: 0, width: 1470, height: 956 }
   };
 }
 
@@ -218,4 +221,44 @@ test("a style command persists the figure style and tells the renderer on the sp
   h.ipc.emit("companion:ready"); h.ipc.emit("companion:next");
   assert.equal(h.shows().at(-1).payload.style, "cartoon", "later shows carry the chosen style");
   assert.ok(FIGURE_STYLES.includes("cartoon"));
+});
+
+test("companion:resize clamps the reading height to the work area", async () => {
+  const h = await harness(); // first launch shows 1.1, so a darshan is present and expanded
+  // Ask for a height far taller than the display; the window must not exceed the work
+  // area minus its margins on either edge.
+  h.ipc.emit("companion:resize", {}, 100_000);
+  const bounds = h.windows.at(-1).getBounds();
+  const maxHeight = h.workArea.height - 8 * 2; // SCREEN_MARGIN top and bottom
+  assert.ok(bounds.height <= maxHeight, `height ${bounds.height} exceeds the clamped max ${maxHeight}`);
+  assert.equal(bounds.height, maxHeight, "an oversized request lands exactly on the clamp");
+  assert.ok(bounds.y >= h.workArea.y, "the window stays within the top of the work area");
+});
+
+test("companion:open-source opens a corpus URL and refuses anything else", async () => {
+  const { reflections } = require("../src/content");
+  const h = await harness();
+  const corpus = reflections[0].source;
+  h.ipc.emit("companion:open-source", {}, corpus);
+  assert.equal(h.writes.get("source"), corpus, "a URL that exists in the corpus is opened");
+  h.ipc.emit("companion:open-source", {}, "https://evil.example.com/phish");
+  assert.equal(h.writes.get("source"), corpus, "a URL not in the corpus is never opened");
+});
+
+test("the tray menu carries the expected items and a Figure submenu from FIGURE_STYLES", async () => {
+  const { FIGURE_STYLES } = require("../src/config");
+  const h = await harness();
+  const menu = h.trayMenu();
+  assert.ok(Array.isArray(menu), "a menu was built");
+  const labels = menu.filter((item) => item.label).map((item) => item.label);
+  assert.ok(labels.includes("Next teaching now"));
+  assert.ok(labels.some((l) => /Pause teachings|Resume teachings/.test(l)));
+  assert.ok(labels.includes("Every"));
+  assert.ok(labels.includes("Figure"));
+  assert.ok(labels.some((l) => /^Voice/.test(l)));
+  assert.ok(labels.includes("Quit Krishna Companion"));
+  const figure = menu.find((item) => item.label === "Figure");
+  const figureLabels = figure.submenu.map((item) => item.label.toLowerCase());
+  assert.deepEqual(figureLabels, FIGURE_STYLES, "the Figure submenu lists every style, in order");
+  for (const item of figure.submenu) assert.equal(item.type, "radio", "each style is a radio item");
 });

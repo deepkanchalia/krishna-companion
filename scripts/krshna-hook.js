@@ -13,8 +13,25 @@ const { matchesInvocation } = require("../src/voice");
 const nodeBinary = process.env.KRSHNA_HOOK_NODE || process.execPath;
 const cli = path.join(__dirname, "..", "bin", "krshna.js");
 const MAX_INPUT_BYTES = 64 * 1024;
-const ACK_TIMEOUT_MS = 6000;
+// How long the hook waits for `krshna now` to acknowledge before it force-kills the child
+// and passes the prompt through. The production default is 6000 ms; KRSHNA_ACK_TIMEOUT_MS
+// overrides it (finite and positive only, otherwise ignored) so a test need not spend the
+// full budget proving the timeout path.
+const DEFAULT_ACK_TIMEOUT_MS = 6000;
+function ackTimeoutMs() {
+  const override = Number(process.env.KRSHNA_ACK_TIMEOUT_MS);
+  return Number.isFinite(override) && override > 0 ? override : DEFAULT_ACK_TIMEOUT_MS;
+}
+const ACK_TIMEOUT_MS = ackTimeoutMs();
 
+// Exported for the unit test (which asserts the production default and the override
+// validation without spending the full budget); the stdin runtime below runs only when
+// this file is executed directly as the hook.
+module.exports = { ackTimeoutMs, DEFAULT_ACK_TIMEOUT_MS };
+
+if (require.main === module) runHook();
+
+function runHook() {
 let input = "";
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", (chunk) => {
@@ -50,8 +67,9 @@ process.stdin.on("end", () => {
     settled = true;
     // Ask the child to stop; if it ignores SIGTERM, wait 500 ms and SIGKILL it, then
     // pass the prompt through (nothing on stdout) and exit. Staying alive for the
-    // escalation keeps the child from being orphaned; total budget stays under 6.6 s.
-    process.stderr.write("krshna-hook: companion did not acknowledge within 6 s\n");
+    // escalation keeps the child from being orphaned; total budget stays 500 ms over
+    // ACK_TIMEOUT_MS.
+    process.stderr.write(`krshna-hook: companion did not acknowledge within ${ACK_TIMEOUT_MS / 1000} s\n`);
     try { child.kill("SIGTERM"); } catch { /* already exited */ }
     setTimeout(() => {
       try { child.kill("SIGKILL"); } catch { /* already exited */ }
@@ -77,3 +95,4 @@ process.stdin.on("end", () => {
     }
   });
 });
+}

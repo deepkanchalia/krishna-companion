@@ -67,7 +67,11 @@ test("two corrupt reads produce two quarantine files with distinct names", (t) =
   for (const name of names) assert.ok(fs.existsSync(path.join(dir, name)));
 });
 
-test("a failed quarantine rename keeps the file read-only; a later save cannot overwrite it", (t) => {
+test("a failed quarantine rename keeps the file read-only; a later save cannot overwrite it", {
+  // Relies on a 0o500 directory blocking the rename; root ignores that mode, so the
+  // rename would succeed and this failure path never run.
+  skip: process.getuid && process.getuid() === 0 ? "root bypasses the read-only directory mode" : false
+}, (t) => {
   const dir = tempDir(t);
   const file = path.join(dir, "settings.json");
   const originalBytes = "{ corrupt but precious";
