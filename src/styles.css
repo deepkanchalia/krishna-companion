@@ -126,13 +126,24 @@ body.sprite[data-phase="withdrawing"] .halo, body.sprite[data-phase="withdrawing
 body.sprite.continuing[data-phase="arriving"] .halo, body.sprite.continuing[data-phase="arriving"] .presence-caption { animation: none; }
 @keyframes presence-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes presence-fade-out { from { opacity: 1; } to { opacity: 0; } }
-/* The oval behind him throws a soft golden light: a warm core, a glow past the rim, a
-   faint ring, and a slow breath while he is present. */
-.halo { position: absolute; inset: 10px 13px 80px; border-radius: 50%; background: radial-gradient(ellipse at 50% 42%, #f9d99a7a, #f0c66f44 34%, #dcb0601a 56%, transparent 72%); box-shadow: 0 0 60px 16px #ecc26a2c, 0 0 140px 40px #d9a85a16; }
-.halo::before { content: ""; position: absolute; inset: 13px 19px 48px; border: 1px solid #f6dca85c; border-radius: 50%; box-shadow: inset 0 0 34px #f4cf7f2e, 0 0 18px #f2c97a22; }
-body[data-phase="present"] .halo { animation: halo-breathe 6s ease-in-out infinite; }
-/* Starts and ends at the arrival fade's endpoint (opacity 1) so the phase change is seamless. */
-@keyframes halo-breathe { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .86; transform: scale(1.03); } }
+/* A soft, uneven light behind his head and shoulders — three warm layers, each on its
+   own slow drift so the pattern never repeats. Every layer is a radial gradient that
+   reaches full transparency well inside its own box, so no edge, ring, or band can show
+   on the transparent window. No box-shadow, filter, or background-position animation:
+   only transform and opacity, which the compositor moves without a per-frame repaint
+   (same rule as the comment on .seal::after). It reads like a subtle fire behind him. */
+.halo { position: absolute; inset: 10px 13px 80px; border-radius: 50%; background: radial-gradient(58% 52% at 50% 36%, #f2c97a5e, #e7be6626 42%, transparent 70%); }
+.halo::before, .halo::after { content: ""; position: absolute; }
+.halo::before { inset: -6% 8% 30% -4%; border-radius: 58% 42% 55% 45% / 62% 55% 45% 38%; background: radial-gradient(60% 55% at 46% 34%, #f9d99a4a, #f0c66f1c 44%, transparent 72%); }
+.halo::after { inset: 4% -6% 24% 10%; border-radius: 46% 54% 48% 52% / 54% 46% 54% 46%; background: radial-gradient(56% 50% at 56% 40%, #f6dca844, transparent 66%); }
+body[data-phase="present"] .halo { animation: glow-core 8.5s ease-in-out infinite; }
+body[data-phase="present"] .halo::before { animation: glow-drift-a 6.5s ease-in-out infinite; }
+body[data-phase="present"] .halo::after { animation: glow-drift-b 10.5s ease-in-out infinite; }
+/* Each starts and ends at the arrival fade's endpoint (its rest opacity, no transform)
+   so the phase change stays seamless. Different periods so the flicker never syncs. */
+@keyframes glow-core { 0%, 100% { opacity: 1; transform: scale(1) translate(0, 0); } 50% { opacity: .88; transform: scale(1.05) translate(0, -2px); } }
+@keyframes glow-drift-a { 0%, 100% { opacity: .9; transform: translate(0, 0) scale(1) rotate(0deg); } 35% { opacity: 1; transform: translate(3px, -3px) scale(1.04) rotate(2deg); } 70% { opacity: .8; transform: translate(-2px, 2px) scale(1.02) rotate(-1.5deg); } }
+@keyframes glow-drift-b { 0%, 100% { opacity: .78; transform: translate(0, 0) scale(1) rotate(0deg); } 45% { opacity: 1; transform: translate(-3px, -2px) scale(1.06) rotate(-2deg); } 75% { opacity: .85; transform: translate(2px, 1px) scale(1.03) rotate(1.5deg); } }
 .presence-caption { position: absolute; bottom: 12px; left: 0; right: 0; text-align: center; text-shadow: 0 2px 6px #000; }
 .presence-caption span { display: block; color: #ffe7b9; font-family: "Iowan Old Style", Georgia, serif; font-size: 24px; letter-spacing: .04em; }
 .presence-caption small { display: block; margin-top: 4px; color: #d3c3a7; font-size: 9px; }
