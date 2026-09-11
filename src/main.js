@@ -40,6 +40,7 @@ const {
   observeHold
 } = require("./voice-hold");
 const { createVoiceRuntime } = require("./voice-runtime");
+const { buildTrayMenuTemplate } = require("./tray");
 
 // Exactly 10% smaller than the previous 176 × 224 resting widget.
 const RESTING_SIZE = { width: 158, height: 202 };
@@ -646,49 +647,27 @@ function setFigureStyle(style) {
 }
 
 function trayMenu() {
-  return Menu.buildFromTemplate([
-    { label: "Next teaching now", click: () => showCompanion(true) },
-    { type: "separator" },
-    {
-      label: paused ? "Resume teachings" : "Pause teachings",
-      click: () => {
-        paused = !paused;
-        if (paused) collapseCompanion();
-        saveState();
-        tray.setContextMenu(trayMenu());
-      }
+  return Menu.buildFromTemplate(buildTrayMenuTemplate({
+    paused,
+    intervalMinutes: config.intervalMinutes,
+    figureStyle: settings.figure.style,
+    voiceEnabled: settings.voice.enabled,
+    figureStyles: FIGURE_STYLES,
+    onShowNow: () => showCompanion(true),
+    onTogglePause: () => {
+      paused = !paused;
+      if (paused) collapseCompanion();
+      saveState();
+      tray.setContextMenu(trayMenu());
     },
-    {
-      label: "Every",
-      submenu: [30, 60, 90].map((minutes) => ({
-        label: `${minutes} minutes`,
-        type: "radio",
-        checked: config.intervalMinutes === minutes,
-        click: () => {
-          config.intervalMinutes = minutes;
-          restartCadence(minutes);
-          tray.setContextMenu(trayMenu());
-        }
-      }))
+    onSetInterval: (minutes) => {
+      config.intervalMinutes = minutes;
+      restartCadence(minutes);
+      tray.setContextMenu(trayMenu());
     },
-    {
-      label: "Figure",
-      submenu: FIGURE_STYLES.map((style) => ({
-        label: style[0].toUpperCase() + style.slice(1),
-        type: "radio",
-        checked: settings.figure.style === style,
-        click: () => setFigureStyle(style)
-      }))
-    },
-    {
-      label: "Voice (hold Space)",
-      type: "checkbox",
-      checked: settings.voice.enabled,
-      click: (item) => setVoiceEnabled(item.checked)
-    },
-    { type: "separator" },
-    { label: "Quit Krishna Companion", role: "quit" }
-  ]);
+    onSetStyle: setFigureStyle,
+    onSetVoiceEnabled: setVoiceEnabled
+  }));
 }
 
 function createTray() {
