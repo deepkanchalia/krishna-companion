@@ -140,6 +140,8 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       const img = image(name);
       if (!loaded(img)) return;
+      // A pixel-art style keeps hard block edges when scaled; every other style is smoothed.
+      ctx.imageSmoothingEnabled = manifest.pixelated !== true;
       // Independent x/y scales: rounding the backing store can make them differ slightly.
       ctx.drawImage(img, f.sx, f.sy, f.w, f.h, p.x * sx, p.y * sy, p.w * sx, p.h * sy);
     }

@@ -118,6 +118,18 @@ test("a sheet that fails to load ends its segment instead of spinning, and a sta
   assert.equal(drawn.length, 0, "cancelled still did not paint");
 });
 
+test("a pixel-art style is drawn without image smoothing; every other style with it", () => {
+  const smoothing = [];
+  const ctx = { clearRect() {}, drawImage() {}, set imageSmoothingEnabled(v) { smoothing.push(v); } };
+  const canvas = { width: 440, height: 572, clientWidth: 220, clientHeight: 286, getContext: () => ctx };
+  const env = { canvas, loadImage: () => ({ complete: true, naturalWidth: 1 }), raf: () => 1, caf() {}, now: () => 0 };
+  assert.equal(combined.styles.pixel.pixelated, true);
+  assert.equal(combined.styles.pixel.derivedFrom, "warrior");
+  Sprite.createSpritePlayer(combined.styles.pixel, env).still();
+  Sprite.createSpritePlayer(combined.styles.warrior, env).still();
+  assert.deepEqual(smoothing, [false, true]);
+});
+
 test("the player draws only while a segment plays and stops cleanly", () => {
   const drawn = [];
   const ctx = { clearRect() {}, drawImage: (...a) => drawn.push(a) };

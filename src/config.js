@@ -16,7 +16,7 @@ const DURATION_SECONDS_MAX = 120;
 // Figure styles: one sprite-sheet set each under assets/anim/<style>/. The list is the
 // single source for the tray radio group, the CLI, the second-instance validator and the
 // settings normaliser, so a style name never has to be typed twice.
-const FIGURE_STYLES = ["realistic", "cartoon", "painterly", "gyan", "warrior"];
+const FIGURE_STYLES = ["realistic", "cartoon", "painterly", "gyan", "warrior", "pixel"];
 const DEFAULT_FIGURE_STYLE = "realistic";
 
 function normalizeFigureStyle(value) {
