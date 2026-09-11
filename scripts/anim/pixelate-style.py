@@ -12,6 +12,8 @@ The player switches off image smoothing for a style whose manifest carries
 `pixelated: true`.
 
 Shipped: pixelate-style.py assets/anim/warrior assets/anim/pixel --factor 3 --colors 24 --line 0.85 --edge 48
+
+Dependencies are pinned in scripts/anim/requirements.txt (numpy, Pillow).
 """
 import argparse, json, os
 import numpy as np

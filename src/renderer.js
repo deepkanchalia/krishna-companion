@@ -49,7 +49,14 @@ function createPlayer(manifest) {
 }
 
 function initSprite() {
-  if (!spriteReady) return;
+  if (!spriteReady) {
+    // No sprite manifest: fall back to the single still image and the CSS slide. The 1.4 MB
+    // PNG is loaded only here, so a normal sprite launch never fetches it. index.html ships
+    // the <img> without a src (and keeps its alt text) precisely so this stays lazy.
+    const fallbackImage = document.querySelector(".figure img");
+    if (fallbackImage) fallbackImage.src = "../assets/krishna.png";
+    return;
+  }
   // The class goes on first so the canvas is displayed and measurable; the player sizes
   // its backing store from the live CSS size on every draw.
   document.body.classList.add("sprite");

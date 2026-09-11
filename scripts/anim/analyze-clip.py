@@ -3,6 +3,8 @@
 plus a dense contact sheet of the standing section, to choose segment bounds.
 
 Usage: analyze-clip.py <clip.mp4> <frames_dir> [--matte rembg]
+
+Dependencies are pinned in scripts/anim/requirements.txt (numpy, Pillow, rembg).
 """
 import sys, os, subprocess, glob, json
 import numpy as np

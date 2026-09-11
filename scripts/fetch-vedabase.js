@@ -37,7 +37,10 @@ async function fetchPage(urlPath, cacheName) {
       headers: { "User-Agent": "krishna-companion-fetch/0.1 (personal study tool; respects Crawl-delay)" },
       signal: AbortSignal.timeout(30_000)
     }).catch((error) => ({ ok: false, status: error.name }));
-    if (response.ok) {
+    // Only a 200 is cached. Anything else (an error page, a redirect body, a soft 4xx/5xx)
+    // is retried and never written, so a later run cannot read a bad page back from the
+    // cache and treat it as scripture.
+    if (response.status === 200) {
       const html = await response.text();
       fs.mkdirSync(cacheDir, { recursive: true });
       fs.writeFileSync(cacheFile, html);

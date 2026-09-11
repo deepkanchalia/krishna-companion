@@ -71,7 +71,7 @@ function harness({ reduced = false, hidden = false } = {}) {
   };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "src", "renderer.js"), "utf8"), context);
   return {
-    calls, player, bridge, timers, playersCreated, body: element("body"),
+    calls, player, bridge, timers, playersCreated, body: element("body"), figureImage: () => element(".figure img"),
     setStyle: (name) => bridge.onStyle(name),
     showStyled: (style) => bridge.onShow({ reflection: reflections[46], durationSeconds: 0, continuing: false, style, arrivalMs: 2200, withdrawalMs: 4000, breathMs: 4000, settleMs: 400, settlePx: 6 }),
     endSegment: () => { const cb = endCallback; const name = currentSegment; currentSegment = null; endCallback = null; if (cb) cb(name); },
@@ -146,6 +146,11 @@ test("the figure style follows the show payload and the style message; unknown n
   h.setStyle("gyan");
   h.collapse(); h.endSegment();
   assert.equal(h.body.dataset.style, "gyan", "the stale deferred style never overrides a later choice");
+});
+
+test("with a sprite manifest the fallback still image is never loaded", () => {
+  const h = harness();
+  assert.equal(h.figureImage().src, undefined, "the 1.4 MB PNG is not fetched when sprites are on");
 });
 
 test("a continuing verse keeps the idle loop; nothing re-walks", () => {

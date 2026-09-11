@@ -64,6 +64,14 @@ function harness(reduced = false) {
   };
 }
 
+test("without a sprite manifest the fallback still image is loaded", () => {
+  // This harness provides no window.KRISHNA_ANIM, so the renderer is in its fallback mode
+  // and must set the <img> src (index.html ships it without one so a sprite launch never
+  // fetches the 1.4 MB PNG).
+  const h = harness();
+  assert.equal(h.element(".figure img").src, "../assets/krishna.png");
+});
+
 test("every corpus entry reaches the renderer verbatim, with correct source and no invented purport", () => {
   const h = harness();
   for (const reflection of reflections) {

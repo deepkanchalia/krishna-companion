@@ -72,15 +72,29 @@
   // uneven size read as a wobble. The snap is skipped when it would move the size by more
   // than a tenth (a 1x display with a fine grid), and steps down if the scene would no
   // longer fit the box.
+  // The scene's full vertical extent (highest head to lowest foot across every frame of
+  // every segment) is fixed for a manifest but placement() runs on every drawn frame, so
+  // memoise it per manifest instead of scanning all frames each draw.
+  const sceneExtents = new WeakMap();
+  function sceneExtent(manifest) {
+    let extent = sceneExtents.get(manifest);
+    if (!extent) {
+      const all = Object.values(manifest.segments).flatMap((s) => s.frames);
+      extent = {
+        top: Math.min(...all.map((g) => g.oy)),
+        bottom: Math.max(...all.map((g) => g.oy + g.h))
+      };
+      sceneExtents.set(manifest, extent);
+    }
+    return extent;
+  }
+
   function placement(manifest, segName, index, cw, ch, pad = 14, blockUnit = 0) {
     const seg = manifest.segments[segName];
     const rest = manifest.segments.idle.frames[0];
-    const all = Object.values(manifest.segments).flatMap((s) => s.frames);
-    // Map the scene's full vertical extent (highest head to lowest foot across every
-    // frame of every segment) onto the box once, so each frame keeps its true scene
-    // position and none can leave the box.
-    const sceneTop = Math.min(...all.map((g) => g.oy));
-    const sceneBottom = Math.max(...all.map((g) => g.oy + g.h));
+    // Map the scene's full vertical extent onto the box once, so each frame keeps its
+    // true scene position and none can leave the box.
+    const { top: sceneTop, bottom: sceneBottom } = sceneExtent(manifest);
     let s = (ch - pad) / (sceneBottom - sceneTop);
     if (blockUnit > 0) {
       let n = Math.max(1, Math.round(s * blockUnit));

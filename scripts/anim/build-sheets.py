@@ -7,6 +7,8 @@ Each segment becomes <out_dir>/<name>.webp (grid sheet) and an entry in
 <out_dir>/manifest.json with per-frame source rects and scene offsets so the
 renderer can place each frame where the figure actually was (walk motion kept).
 Keying: chroma distance from green, with spill suppression and a 1 px feather.
+
+Dependencies are pinned in scripts/anim/requirements.txt (numpy, Pillow, rembg).
 """
 import sys, os, json, math, argparse
 import numpy as np
