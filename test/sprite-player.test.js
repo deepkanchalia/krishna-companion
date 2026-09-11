@@ -152,6 +152,30 @@ test("a pixel-art style is drawn without image smoothing; every other style with
   assert.deepEqual(smoothing, [false, true]);
 });
 
+test("dispose stops the player, cancels a queued still and releases every sheet", () => {
+  const drawn = [];
+  const ctx = { clearRect() {}, drawImage: (...a) => drawn.push(a) };
+  const canvas = { width: 440, height: 572, clientWidth: 220, clientHeight: 286, getContext: () => ctx };
+  const images = [];
+  const loadImage = () => {
+    const img = { complete: false, naturalWidth: 0, src: "x", listeners: {}, addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); } };
+    images.push(img);
+    return img;
+  };
+  let cancelled = 0;
+  const player = Sprite.createSpritePlayer(manifest, { canvas, loadImage, raf: () => 1, caf: () => { cancelled++; }, now: () => 0 });
+  player.preload();
+  player.still();
+  player.play("idle");
+  player.dispose();
+  assert.equal(player.isPlaying(), false);
+  assert.ok(cancelled >= 1, "the frame loop was cancelled");
+  assert.equal(images.length, 4, "one image per segment");
+  assert.ok(images.every((img) => img.src === ""), "every sheet source is released");
+  for (const img of images) { img.complete = true; img.naturalWidth = 1; (img.listeners.load || []).forEach((fn) => fn()); }
+  assert.equal(drawn.length, 0, "a queued still does not paint after dispose");
+});
+
 test("the player draws only while a segment plays and stops cleanly", () => {
   const drawn = [];
   const ctx = { clearRect() {}, drawImage: (...a) => drawn.push(a) };

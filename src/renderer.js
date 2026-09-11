@@ -55,13 +55,18 @@ function initSprite() {
 
 // Switch the figure style: unknown or invalid names are ignored, a present darshan
 // changes on the spot (the idle loop restarts in the new style).
+let pendingStyle = null; // a switch asked for during withdrawal, applied once absent
+
 function selectStyle(name) {
   if (!spriteReady || !name || name === currentStyle) return;
   const manifest = animStyles[name];
   if (!manifest || Sprite.validateManifest(manifest).length > 0) return;
-  // clear(), not stop(): a still queued on a sheet that has not decoded yet must not
-  // paint the old style over the new one.
-  if (player) player.clear();
+  // A farewell already under way keeps its style: the native window hides on the old
+  // farewell's clock, so a restarted one could not finish. The new style waits for absent.
+  if (phase === "withdrawing") { pendingStyle = name; return; }
+  // dispose(), not stop(): a still queued on a sheet that has not decoded yet must not
+  // paint the old style over the new one, and the old sheets are released.
+  if (player) player.dispose();
   currentStyle = name;
   animManifest = manifest;
   player = createPlayer(manifest);
@@ -74,10 +79,6 @@ function selectStyle(name) {
     clearTimeout(revealTimer);
     revealTimer = setTimeout(revealMessage, reducedMotion.matches ? 0 : Sprite.durationMs(manifest.segments.walkin) + 800);
   }
-  if (phase === "withdrawing") {
-    clearTimeout(withdrawTimer);
-    withdrawTimer = setTimeout(setAbsent, Sprite.durationMs(manifest.segments.farewell) + 800);
-  }
 }
 
 function setAbsent() {
@@ -85,6 +86,7 @@ function setAbsent() {
   document.body.dataset.phase = phase;
   clearTimeout(withdrawTimer);
   if (player) player.clear();
+  if (pendingStyle) { const name = pendingStyle; pendingStyle = null; selectStyle(name); }
 }
 
 // Keep the flipbook in step with the darshan phase. Absent: nothing drawn, no frame

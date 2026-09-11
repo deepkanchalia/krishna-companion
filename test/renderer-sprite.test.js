@@ -39,6 +39,7 @@ function harness({ reduced = false, hidden = false } = {}) {
     play: (name, onEnd) => { calls.push(`play:${name}`); currentSegment = name; endCallback = onEnd; return true; },
     still: (name = "idle", index = Sprite.STILL_FRAME) => { calls.push(`still:${name}:${index}`); currentSegment = null; },
     clear: () => { calls.push("clear"); currentSegment = null; },
+    dispose: () => { calls.push("dispose"); currentSegment = null; },
     stop: () => { currentSegment = null; },
     current: () => currentSegment,
     isPlaying: () => currentSegment !== null
@@ -113,12 +114,24 @@ test("the figure style follows the show payload and the style message; unknown n
   h.endSegment();
   h.setStyle("painterly"); // a present darshan switches on the spot and keeps standing
   assert.equal(h.playersCreated.at(-1), "painterly");
-  assert.deepEqual(h.calls.slice(-3), ["clear", "preload", "play:idle"], "the old player is cleared before the new one plays");
+  assert.deepEqual(h.calls.slice(-3), ["dispose", "preload", "play:idle"], "the old player is disposed before the new one plays");
   assert.equal(h.player.current(), "idle");
   const before = h.playersCreated.length;
   h.setStyle("nope");
   h.setStyle("painterly");
   assert.equal(h.playersCreated.length, before, "unknown or unchanged styles create no player");
+  // A switch during withdrawal waits: the farewell keeps its style (the native window
+  // hides on that farewell's clock), and the new style applies once absent.
+  h.collapse();
+  assert.equal(h.player.current(), "farewell");
+  h.setStyle("gyan");
+  assert.equal(h.playersCreated.at(-1), "painterly", "no new player while withdrawing");
+  assert.equal(h.player.current(), "farewell", "the farewell is not restarted");
+  h.endSegment();
+  assert.equal(h.body.dataset.phase, "absent");
+  assert.equal(h.playersCreated.at(-1), "gyan", "the pending style applies once absent");
+  assert.equal(h.body.dataset.style, "gyan");
+  assert.equal(h.player.current(), null, "absent draws nothing in the new style");
 });
 
 test("a continuing verse keeps the idle loop; nothing re-walks", () => {

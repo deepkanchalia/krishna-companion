@@ -3994,6 +3994,14 @@
    "pixelated": true,
    "derivedFrom": "warrior",
    "pixelFactor": 3,
+   "pixelColors": 24,
+   "pixelOptions": {
+    "saturation": 1.7,
+    "contrast": 1.25,
+    "outline": true,
+    "edge": 48,
+    "line": 0.85
+   },
    "lossless": true,
    "style": "pixel"
   },

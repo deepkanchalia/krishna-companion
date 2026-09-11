@@ -156,7 +156,10 @@
       ctx.imageSmoothingEnabled = !pixel;
       const snap = (v) => (pixel ? Math.round(v) : v);
       // Independent x/y scales: rounding the backing store can make them differ slightly.
-      ctx.drawImage(img, f.sx, f.sy, f.w, f.h, snap(p.x * sx), snap(p.y * sy), p.w * sx, p.h * sy);
+      // Pixel art uses one axis scale for both dimensions so blocks stay square when the
+      // backing store's rounded width and height imply slightly different ratios.
+      const ky = pixel ? sx : sy;
+      ctx.drawImage(img, f.sx, f.sy, f.w, f.h, snap(p.x * sx), snap(p.y * ky), p.w * sx, p.h * ky);
     }
 
     function loaded(img) {
@@ -225,6 +228,18 @@
         this.stop();
         stillToken++;
         canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+      },
+      // Retire the player: stop, cancel any queued still, and release its sheets so a
+      // style switch does not keep six decoded sets alive. Clearing `src` aborts a load
+      // still in flight and lets the decoded bitmap go.
+      dispose() {
+        this.clear();
+        for (const name of Object.keys(images)) {
+          const img = images[name];
+          img.__failed = true;
+          if ("src" in img) img.src = "";
+          delete images[name];
+        }
       },
       isPlaying() { return active !== null; },
       current() { return active ? active.name : null; }

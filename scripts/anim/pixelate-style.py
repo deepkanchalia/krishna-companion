@@ -11,7 +11,7 @@ the source style (sheets are written lossless so the palette survives): the moti
 The player switches off image smoothing for a style whose manifest carries
 `pixelated: true`.
 
-Usage: pixelate-style.py assets/anim/warrior assets/anim/pixel --factor 4 --colors 32
+Shipped: pixelate-style.py assets/anim/warrior assets/anim/pixel --factor 3 --colors 24 --line 0.85 --edge 48
 """
 import argparse, json, os
 import numpy as np
@@ -108,13 +108,13 @@ def pixelate(frame, palette, args, anchor=(0, 0)):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('src'); ap.add_argument('out')
-    ap.add_argument('--factor', type=int, default=4, help='source pixels per art pixel')
-    ap.add_argument('--colors', type=int, default=32)
+    ap.add_argument('--factor', type=int, default=3, help='source pixels per art pixel')
+    ap.add_argument('--colors', type=int, default=24)
     ap.add_argument('--saturation', type=float, default=1.7)
     ap.add_argument('--contrast', type=float, default=1.25)
     ap.add_argument('--outline', action=argparse.BooleanOptionalAction, default=True)
-    ap.add_argument('--edge', type=int, default=36, help='luminance step that draws an interior line')
-    ap.add_argument('--line', type=float, default=0.7, help='how dark an interior line is, 0..1')
+    ap.add_argument('--edge', type=int, default=48, help='luminance step that draws an interior line')
+    ap.add_argument('--line', type=float, default=0.85, help='how dark an interior line is, 0..1')
     args = ap.parse_args()
     manifest = json.load(open(os.path.join(args.src, 'manifest.json')))
     sheets = frames(manifest, args.src)
@@ -133,6 +133,8 @@ def main():
     manifest['pixelated'] = True
     manifest['derivedFrom'] = os.path.basename(os.path.normpath(args.src))
     manifest['pixelFactor'] = args.factor
+    manifest['pixelColors'] = args.colors
+    manifest['pixelOptions'] = {'saturation': args.saturation, 'contrast': args.contrast, 'outline': args.outline, 'edge': args.edge, 'line': args.line}
     manifest['lossless'] = True
     json.dump(manifest, open(os.path.join(args.out, 'manifest.json'), 'w'), indent=1)
     total = sum(os.path.getsize(os.path.join(args.out, p)) for p in os.listdir(args.out))

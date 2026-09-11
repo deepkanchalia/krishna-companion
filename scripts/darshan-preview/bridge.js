@@ -47,7 +47,7 @@ window.addEventListener("message", (event) => {
     show();
   }
   if (event.data.type === "withdraw") withdraw();
-  if (event.data.type === "style" && window.KRISHNA_ANIM_STYLES && window.KRISHNA_ANIM_STYLES[event.data.style]) {
+  if (event.data.type === "style" && window.KRISHNA_ANIM_STYLES && typeof event.data.style === "string" && Object.hasOwn(window.KRISHNA_ANIM_STYLES, event.data.style)) {
     previewStyle = event.data.style;
     if (styleCallback) styleCallback(previewStyle);
   }
