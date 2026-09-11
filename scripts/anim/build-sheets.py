@@ -1,14 +1,6 @@
 #!/usr/bin/env python3
 """Turn the green-screen darshan clip into sprite sheets + a manifest.
 
-Source clip (not committed, 2.2 MB): one 15 s image-to-video generation, 1344x768,
-24 fps, solid green background, of a single Krishna painting walking in from the
-right, standing and breathing, raising a teaching hand, and leaving with a farewell
-palm. Prompt and shipped segment bounds:
-  walkin 1.2-3.35 s @12 fps | idle 3.35-6.2 s @8 fps ping-pong | teach 6.2-9.9 s @10 fps
-  | farewell 11.2-14.4 s @12 fps ; --scale 0.8 --quality 74 --cols 8
-Frames come from `ffmpeg -i clip.mp4 -vsync 0 frames/f%04d.png`.
-
 Usage: build-sheets.py <frames_dir> <out_dir> --segments name:start_s:end_s:fps:loop ...
 
 Each segment becomes <out_dir>/<name>.webp (grid sheet) and an entry in
@@ -22,6 +14,16 @@ from PIL import Image
 
 SRC_FPS = 24
 SRC_W, SRC_H = 1344, 768
+
+_session = None
+def matte_frame(rgb):
+    """AI matte (rembg u2net_human_seg) for clips without a clean green screen."""
+    global _session
+    from rembg import remove, new_session
+    if _session is None:
+        _session = new_session('u2net_human_seg')
+    out = np.array(remove(Image.fromarray(rgb, 'RGB'), session=_session))
+    return out[..., :3], out[..., 3]
 
 def key_frame(rgb):
     im = rgb.astype(np.int16)
@@ -48,7 +50,10 @@ def main():
     ap.add_argument('--scale', type=float, default=1.0, help='scale factor applied to every frame')
     ap.add_argument('--quality', type=int, default=82)
     ap.add_argument('--cols', type=int, default=8)
+    ap.add_argument('--matte', choices=['chroma', 'rembg'], default='chroma', help='background removal method')
+    ap.add_argument('--prefix', default='', help='path prefix for sheet files in the manifest (e.g. "cartoon/")')
     args = ap.parse_args()
+    keyer = matte_frame if args.matte == 'rembg' else key_frame
     os.makedirs(args.out_dir, exist_ok=True)
     manifest = {'sourceFps': SRC_FPS, 'sourceWidth': SRC_W, 'sourceHeight': SRC_H, 'scale': args.scale, 'segments': {}}
     for spec in args.segments:
@@ -63,7 +68,7 @@ def main():
             if not os.path.exists(p):
                 continue
             rgb = np.array(Image.open(p).convert('RGB'))
-            out, a = key_frame(rgb)
+            out, a = keyer(rgb)
             bb = bbox(a)
             if bb is None:
                 continue
@@ -87,7 +92,7 @@ def main():
                             'ox': round(x0 * args.scale), 'oy': round(y0 * args.scale)})
         path = os.path.join(args.out_dir, f'{name}.webp')
         sheet.save(path, 'WEBP', quality=args.quality, method=6)
-        manifest['segments'][name] = {'file': f'{name}.webp', 'fps': fps, 'loop': loop, 'cell': [fw, fh],
+        manifest['segments'][name] = {'file': f'{args.prefix}{name}.webp', 'fps': fps, 'loop': loop, 'cell': [fw, fh],
                                       'frames': entries, 'source': [s, e]}
         print(f'{name}: {len(frames)} frames, cell {fw}x{fh}, sheet {sheet.width}x{sheet.height}, {os.path.getsize(path)//1024} KB')
     if 'idle' in manifest['segments']:

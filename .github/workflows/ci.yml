@@ -53,6 +53,11 @@ jobs:
       - name: npm pack --dry-run must not ship binaries, candidates, experiments, evidence or preview tooling
         run: |
           npm pack --dry-run 2>&1 | tee pack.txt
-          if grep -E '(^|[[:space:]])helpers/listen([[:space:]]|$)|assets/candidates|experiments/|scripts/darshan-preview|scripts/preview-darshan\.js|docs/evidence' pack.txt; then
+          if grep -E '(^|[[:space:]])helpers/listen([[:space:]]|$)|assets/candidates|experiments/|scripts/darshan-preview|scripts/preview-darshan\.js|docs/evidence|scripts/anim/|assets/anim/[^/]+/manifest\.json' pack.txt; then
             echo "tarball contains a compiled helper, artwork candidates, experiments, evidence, or preview tooling"; exit 1
+          fi
+          sheets=$(grep -cE 'assets/anim/[a-z]+/(walkin|idle|teach|farewell)\.webp' pack.txt)
+          styles=$(node -p "require('./src/config').FIGURE_STYLES.length")
+          if [ "$sheets" -ne $((styles * 4)) ] || ! grep -q 'assets/anim/manifest\.js' pack.txt; then
+            echo "tarball must ship four sheets per figure style ($styles styles, found $sheets sheets) and assets/anim/manifest.js"; exit 1
           fi

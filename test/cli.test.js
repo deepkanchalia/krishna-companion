@@ -247,3 +247,21 @@ test("zsh prompt segment does not assign to read-only special parameters", {
 
   assert.equal(output, "%F{yellow}🪶 Kṛṣṇa · paused%f");
 });
+
+test("krshna style validates the name against the app's style list", () => {
+  const { FIGURE_STYLES } = require("../src/config");
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-style-"));
+  const env = { ...process.env, HOME: home, KRSHNA_HOME: home, XDG_CONFIG_HOME: path.join(home, ".config") };
+  const run = (args) => require("node:child_process").spawnSync(process.execPath, [cli, ...args], { encoding: "utf8", env });
+  const bad = run(["style", "nope"]);
+  assert.equal(bad.status, 1);
+  assert.match(bad.stderr, new RegExp(FIGURE_STYLES.join("\\|")));
+  const empty = run(["style"]);
+  assert.equal(empty.status, 1);
+  const notRunning = run(["style", FIGURE_STYLES[0]]);
+  assert.equal(notRunning.status, 0);
+  assert.match(notRunning.stdout, /not running/);
+  const help = run(["help"]);
+  assert.match(help.stdout, /krshna style <name>/);
+  fs.rmSync(home, { recursive: true, force: true });
+});

@@ -19,17 +19,20 @@ let withdrawTimer;
 // Sprite flipbook (src/sprite-player.js + assets/anim/manifest.js). Optional: when the
 // manifest or the player is missing the CSS slide and the still image are used instead.
 const spriteCanvas = document.querySelector(".sprite");
-const animManifest = window.KRISHNA_ANIM;
 const Sprite = window.KrishnaSprite;
-const spriteReady = Boolean(spriteCanvas && animManifest && Sprite && Sprite.validateManifest(animManifest).length === 0);
+// One manifest per figure style (assets/anim/<style>/), assembled into manifest.js. A
+// build with a single manifest still works: it becomes the only style.
+const animStyles = window.KRISHNA_ANIM_STYLES
+  || (window.KRISHNA_ANIM ? { [window.KRISHNA_ANIM_DEFAULT_STYLE || "default"]: window.KRISHNA_ANIM } : null);
+const defaultStyle = window.KRISHNA_ANIM_DEFAULT_STYLE || (animStyles ? Object.keys(animStyles)[0] : null);
+const spriteReady = Boolean(spriteCanvas && Sprite && animStyles && defaultStyle
+  && Sprite.validateManifest(animStyles[defaultStyle]).length === 0);
+let animManifest = spriteReady ? animStyles[defaultStyle] : null;
+let currentStyle = spriteReady ? defaultStyle : null;
 let player = null;
 
-function initSprite() {
-  if (!spriteReady) return;
-  // The class goes on first so the canvas is displayed and measurable; the player sizes
-  // its backing store from the live CSS size on every draw.
-  document.body.classList.add("sprite");
-  player = Sprite.createSpritePlayer(animManifest, {
+function createPlayer(manifest) {
+  const created = Sprite.createSpritePlayer(manifest, {
     canvas: spriteCanvas,
     loadImage: (file) => { const img = new Image(); img.decoding = "async"; img.src = `../assets/anim/${file}`; return img; },
     raf: (fn) => window.requestAnimationFrame(fn),
@@ -37,7 +40,47 @@ function initSprite() {
     now: () => performance.now(),
     pixelRatio: () => window.devicePixelRatio || 1
   });
-  player.preload();
+  created.preload();
+  return created;
+}
+
+function initSprite() {
+  if (!spriteReady) return;
+  // The class goes on first so the canvas is displayed and measurable; the player sizes
+  // its backing store from the live CSS size on every draw.
+  document.body.classList.add("sprite");
+  document.body.dataset.style = currentStyle;
+  player = createPlayer(animManifest);
+  applySpriteTimings();
+}
+
+// Switch the figure style: unknown or invalid names are ignored, a present darshan
+// changes on the spot (the idle loop restarts in the new style).
+let pendingStyle = null; // a switch asked for during withdrawal, applied once absent
+
+function selectStyle(name, { force = false } = {}) {
+  if (!spriteReady || !name || name === currentStyle) return;
+  const manifest = animStyles[name];
+  if (!manifest || Sprite.validateManifest(manifest).length > 0) return;
+  // A farewell already under way keeps its style: the native window hides on the old
+  // farewell's clock, so a restarted one could not finish. The new style waits for absent,
+  // unless a new show is starting (force).
+  if (phase === "withdrawing" && !force) { pendingStyle = name; return; }
+  // dispose(), not stop(): a still queued on a sheet that has not decoded yet must not
+  // paint the old style over the new one, and the old sheets are released.
+  if (player) player.dispose();
+  currentStyle = name;
+  animManifest = manifest;
+  player = createPlayer(manifest);
+  document.body.dataset.style = name;
+  applySpriteTimings();
+  if (phase !== "absent") syncSprite();
+  // The fallback timers were armed from the previous style's segment lengths; the
+  // restarted segment needs its own.
+  if (phase === "arriving" && !continuingVerse) {
+    clearTimeout(revealTimer);
+    revealTimer = setTimeout(revealMessage, reducedMotion.matches ? 0 : Sprite.durationMs(manifest.segments.walkin) + 800);
+  }
 }
 
 function setAbsent() {
@@ -45,6 +88,7 @@ function setAbsent() {
   document.body.dataset.phase = phase;
   clearTimeout(withdrawTimer);
   if (player) player.clear();
+  if (pendingStyle) { const name = pendingStyle; pendingStyle = null; selectStyle(name); }
 }
 
 // Keep the flipbook in step with the darshan phase. Absent: nothing drawn, no frame
@@ -94,6 +138,16 @@ function applyMotionTimings({ arrivalMs, withdrawalMs, breathMs, settleMs, settl
   // A continuing verse keeps the figure present, so its reveal only waits out the settle.
   arrivalDelay = Number.isFinite(arrivalMs) ? arrivalMs : 0;
   continuingDelay = Number.isFinite(settleMs) ? settleMs : 0;
+  applySpriteTimings();
+}
+
+// With sprites on, the halo and caption fade over the selected style's own walk-in and
+// farewell (they differ per style); ARRIVAL_MS and WITHDRAWAL_MS remain the upper bounds
+// the timers use.
+function applySpriteTimings() {
+  if (!player) return;
+  rootStyle.setProperty("--arrival", `${Sprite.durationMs(animManifest.segments.walkin)}ms`);
+  rootStyle.setProperty("--withdraw", `${Sprite.durationMs(animManifest.segments.farewell)}ms`);
 }
 
 function revealMessage() {
@@ -108,9 +162,13 @@ function revealMessage() {
   fitWindowToCard();
 }
 
-function showTeaching({ reflection: incoming, durationSeconds, preview = false, continuing = false, ...timings }) {
+function showTeaching({ reflection: incoming, durationSeconds, preview = false, continuing = false, style, ...timings }) {
   clearTimeout(revealTimer);
   applyMotionTimings(timings);
+  // A show interrupting a farewell (krshna now, tray, shortcut) starts fresh: the payload's
+  // style applies now and any switch deferred during that farewell is dropped.
+  pendingStyle = null;
+  if (style) selectStyle(style, { force: true });
   reflection = incoming;
   currentSource = reflection.source;
   expanded = false;
@@ -205,3 +263,4 @@ if (reducedMotion.addEventListener) reducedMotion.addEventListener("change", syn
 initSprite();
 window.krishna.onShow(showTeaching);
 window.krishna.onCollapse(collapse);
+if (window.krishna.onStyle) window.krishna.onStyle(selectStyle);

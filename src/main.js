@@ -15,7 +15,7 @@ const {
   shell,
   systemPreferences
 } = require("electron");
-const { readConfig } = require("./config");
+const { readConfig, FIGURE_STYLES, normalizeFigureStyle } = require("./config");
 const { reflections, findVerseIndex } = require("./content");
 const { readJson, writeJson } = require("./store");
 const { normalizeJourney, recordTeaching } = require("./journey");
@@ -125,6 +125,8 @@ function readPersistentData() {
       ...(savedSettings.voice || {})
     }
   };
+  // The figure style is validated against the fixed list (C3: settings.json is untrusted).
+  settings.figure = { style: normalizeFigureStyle(savedSettings.figure?.style) };
   settings.voice.enabled = settings.voice.enabled !== false;
   // Validate the key against the fixed allow-list before it can reach the hook or any
   // notice text: settings.json is untrusted input and must never reach a display sink (C3).
@@ -197,7 +199,8 @@ function saveSettings() {
   settings = {
     ...settings,
     version: 1,
-    voice: { ...settings.voice }
+    voice: { ...settings.voice },
+    figure: { style: normalizeFigureStyle(settings.figure?.style) }
   };
   if (restingPosition) settings.restingPosition = restingPosition;
   writeJson(settingsPath, settings);
@@ -369,6 +372,7 @@ function showCompanion(force = false) {
   companionWindow.webContents.send("companion:show", {
     ...nextReflection(),
     ...MOTION_TIMINGS,
+    style: settings.figure.style,
     durationSeconds: encounterDuration,
     preview: previewEncounter
   });
@@ -383,7 +387,7 @@ function showNextVerse() {
   readingHeight = READING_SIZE.height;
   // Only this explicit action may advance while a teaching is already open.
   companionWindow.webContents.send("companion:show", {
-    ...nextReflection(), ...MOTION_TIMINGS, durationSeconds: encounterDuration, continuing: true
+    ...nextReflection(), ...MOTION_TIMINGS, style: settings.figure.style, durationSeconds: encounterDuration, continuing: true
   });
 }
 
@@ -724,9 +728,24 @@ function handleCommand(command) {
       app.quit();
       return;
     default:
+      if (command.startsWith("style-") && FIGURE_STYLES.includes(command.slice(6))) {
+        setFigureStyle(command.slice(6));
+        break;
+      }
       return;
   }
   saveState();
+}
+
+// Switch the figure's sprite style: persisted in settings.json, applied live to the
+// renderer (a present darshan changes on the spot), reflected in the tray radio group.
+function setFigureStyle(style) {
+  settings.figure = { style: normalizeFigureStyle(style) };
+  saveSettings();
+  if (companionWindow && !companionWindow.isDestroyed()) {
+    companionWindow.webContents.send("companion:style", settings.figure.style);
+  }
+  if (tray) tray.setContextMenu(trayMenu());
 }
 
 function trayMenu() {
@@ -753,6 +772,15 @@ function trayMenu() {
           restartCadence(minutes);
           tray.setContextMenu(trayMenu());
         }
+      }))
+    },
+    {
+      label: "Figure",
+      submenu: FIGURE_STYLES.map((style) => ({
+        label: style[0].toUpperCase() + style.slice(1),
+        type: "radio",
+        checked: settings.figure.style === style,
+        click: () => setFigureStyle(style)
       }))
     },
     {

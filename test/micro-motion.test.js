@@ -102,7 +102,7 @@ test("the only frame loop is the sprite player's, and it is cleared while absent
   // The still is the player's default eyes-open frame (STILL_FRAME), never frame 0.
   assert.match(rendererSource, /if \(document\.hidden \|\| reducedMotion\.matches\) \{ player\.still\(\); return; \}/);
   assert.doesNotMatch(rendererSource, /still\("idle", 0\)/);
-  assert.match(rendererSource, /player\.preload\(\)/);
+  assert.match(rendererSource, /created\.preload\(\)/);
   assert.match(rendererSource, /if \(name === "farewell"\) \{ if \(phase === "withdrawing"\) setAbsent\(\)/);
 });
 

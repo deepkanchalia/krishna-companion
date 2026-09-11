@@ -17,12 +17,11 @@ const files = new Map([
   ["/src/styles.css", ["src/styles.css", "text/css"]],
   ["/assets/krishna.png", ["assets/krishna.png", "image/png"]],
   ["/src/sprite-player.js", ["src/sprite-player.js", "text/javascript"]],
-  ["/assets/anim/manifest.js", ["assets/anim/manifest.js", "text/javascript"]],
-  ["/assets/anim/walkin.webp", ["assets/anim/walkin.webp", "image/webp"]],
-  ["/assets/anim/idle.webp", ["assets/anim/idle.webp", "image/webp"]],
-  ["/assets/anim/teach.webp", ["assets/anim/teach.webp", "image/webp"]],
-  ["/assets/anim/farewell.webp", ["assets/anim/farewell.webp", "image/webp"]]
+  ["/assets/anim/manifest.js", ["assets/anim/manifest.js", "text/javascript"]]
 ]);
+// Sprite sheets: /assets/anim/<style>/<segment>.webp, style and segment names restricted
+// to letters so the preview never serves anything else from the tree.
+const SHEET_PATH = /^\/assets\/anim\/([a-z]+)\/([a-z]+)\.webp$/;
 const server = http.createServer((request, response) => {
   const url = new URL(request.url, "http://127.0.0.1");
   response.setHeader("Cache-Control", "no-store");
@@ -37,8 +36,9 @@ const server = http.createServer((request, response) => {
     response.end(`const previewTimings = ${JSON.stringify(timings)};`);
     return;
   }
-  const entry = files.get(url.pathname);
-  if (!entry) { response.writeHead(404); response.end(); return; }
+  const sheet = url.pathname.match(SHEET_PATH);
+  const entry = sheet ? [`assets/anim/${sheet[1]}/${sheet[2]}.webp`, "image/webp"] : files.get(url.pathname);
+  if (!entry || !fs.existsSync(path.join(root, entry[0]))) { response.writeHead(404); response.end(); return; }
   let body = fs.readFileSync(path.join(root, entry[0]));
   if (url.pathname === "/src/index.html") {
     body = body.toString().replace('<script src="renderer.js">', '<script src="/preview-corpus.js"></script><script src="/preview-timings.js"></script><script src="/preview-bridge.js"></script><script src="renderer.js">');

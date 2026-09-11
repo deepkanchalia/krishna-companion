@@ -13,8 +13,19 @@ const DURATION_SECONDS_MAX = 120;
 // Commands a second launch may forward to a running instance: exactly those bin/krshna.js
 // starts Electron for, plus the /krshna hook alias. Single source of truth shared with the
 // second-instance validator so the accepted set and the dispatcher cannot drift apart.
+// Figure styles: one sprite-sheet set each under assets/anim/<style>/. The list is the
+// single source for the tray radio group, the CLI, the second-instance validator and the
+// settings normaliser, so a style name never has to be typed twice.
+const FIGURE_STYLES = ["realistic", "cartoon", "painterly", "gyan", "warrior", "pixel"];
+const DEFAULT_FIGURE_STYLE = "realistic";
+
+function normalizeFigureStyle(value) {
+  return FIGURE_STYLES.includes(value) ? value : DEFAULT_FIGURE_STYLE;
+}
+
 const SECOND_INSTANCE_COMMANDS = [
-  "live", "start", "now", "pause", "resume", "stop", "voice-on", "voice-off", "/krshna"
+  "live", "start", "now", "pause", "resume", "stop", "voice-on", "voice-off", "/krshna",
+  ...FIGURE_STYLES.map((style) => `style-${style}`)
 ];
 
 function numberArgument(argv, name, fallback, minimum, maximum) {
@@ -70,6 +81,9 @@ module.exports = {
   DURATION_SECONDS_MIN,
   DURATION_SECONDS_MAX,
   SECOND_INSTANCE_COMMANDS,
+  FIGURE_STYLES,
+  DEFAULT_FIGURE_STYLE,
+  normalizeFigureStyle,
   hasFlag,
   numberArgument,
   readConfig
