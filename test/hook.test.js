@@ -136,6 +136,16 @@ test("a companion that never acknowledges is abandoned, not waited out", {
   assert.ok(processGoneWithin(pid, 1000), `the stub process ${pid} was killed, not orphaned`);
 });
 
+test("the installed hook command POSIX-quotes its paths so the shell takes them literally", () => {
+  const { shQuote } = require("../bin/krshna.js");
+  // Paths with a space, a $ (shell variable), and a single quote must survive a real shell
+  // exactly as written, with no expansion, word-splitting, or premature quote close.
+  for (const raw of ["/a b/node", "/home/$USER/x", "/it's here/krshna-hook.js", "/weird $HOME 'x' y/scripts/krshna-hook.js"]) {
+    const out = execFileSync("/bin/sh", ["-c", `printf %s ${shQuote(raw)}`], { encoding: "utf8" });
+    assert.equal(out, raw, `the shell yields the exact path for: ${raw}`);
+  }
+});
+
 test("the ack timeout defaults to 6000 ms and only a finite, positive override wins", () => {
   const { ackTimeoutMs, DEFAULT_ACK_TIMEOUT_MS } = require("../scripts/krshna-hook.js");
   assert.equal(DEFAULT_ACK_TIMEOUT_MS, 6000, "production default unchanged");
@@ -178,7 +188,8 @@ test("install merges the Claude hook idempotently and uninstall removes only it"
 
   const installed = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
   const commands = installed.hooks.UserPromptSubmit.flatMap((group) => group.hooks || []).map((item) => item.command);
-  const expectedCommand = `KRSHNA_HOOK=1 ${JSON.stringify(process.execPath)} ${JSON.stringify(hook)}`;
+  const { shQuote } = require("../bin/krshna.js");
+  const expectedCommand = `KRSHNA_HOOK=1 ${shQuote(process.execPath)} ${shQuote(hook)}`;
   assert.equal(commands.filter((item) => item === expectedCommand).length, 1);
   assert.ok(commands.includes("existing-hook"));
   assert.deepEqual(JSON.parse(fs.readFileSync(`${settingsFile}.krshna-backup`, "utf8")), original);

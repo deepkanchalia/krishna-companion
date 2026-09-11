@@ -6,6 +6,9 @@ function '/krshna' {
 
 function _krshna_prompt_segment {
   local state_dir state_file line live pid paused next_at seg
+  # Source of truth for this path is src/paths.js (appDataDirectory), shared by the app
+  # and the CLI. A shell cannot import it, so this reconstructs the same location by hand;
+  # keep the two in step. (Windows has no zsh prompt segment, so only these two cases.)
   case "$OSTYPE" in
     darwin*) state_dir="$HOME/Library/Application Support/krishna-companion" ;;
     *) state_dir="${XDG_CONFIG_HOME:-$HOME/.config}/krishna-companion" ;;

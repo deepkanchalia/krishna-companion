@@ -42,6 +42,7 @@ const {
 const { createVoiceRuntime } = require("./voice-runtime");
 const { buildTrayMenuTemplate } = require("./tray");
 const { createWindowGeometry } = require("./window-geometry");
+const { appDataDirectory } = require("./paths");
 
 // Exactly 10% smaller than the previous 176 × 224 resting widget.
 const RESTING_SIZE = { width: 158, height: 202 };
@@ -656,7 +657,10 @@ if (instanceLock) app.on("second-instance", (_event, _argv, _directory, addition
 });
 
 if (instanceLock) app.whenReady().then(() => {
-  const userData = app.getPath("userData");
+  // Resolve the data directory through src/paths.js, the single source the CLI also uses,
+  // so the app and `krshna` never disagree about where state lives. In production this is
+  // the same location as Electron's default userData (app name "krishna-companion").
+  const userData = appDataDirectory();
   statePath = path.join(userData, "state.json");
   journeyPath = path.join(userData, "journey.json");
   settingsPath = path.join(userData, "settings.json");
