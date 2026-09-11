@@ -24,6 +24,7 @@ const { containsInvocation } = require("./voice");
 const { windowCanAcknowledge } = require("./ack");
 const { planSecondInstance } = require("./second-instance");
 const { shortcutUnavailableMessage } = require("./shortcut");
+const { safeLabel } = require("./sanitize");
 const {
   createDarshan,
   ARRIVAL_MS,
@@ -58,6 +59,17 @@ const MOTION_TIMINGS = {
 // ⌘⌥K / Ctrl+Alt+K: ⌘⇧K is "Delete Line" in VS Code and would be stolen from every editor.
 const SHORTCUT = "CommandOrControl+Alt+K";
 const LISTEN_TIMEOUT_MS = 6_000;
+// How long a programmatic setBounds keeps the "moved" listener from mistaking our own
+// move for a user drag: long enough for the native move event to arrive and be ignored.
+const PROGRAMMATIC_MOVE_RESET_MS = 100;
+// Delay after the renderer's first load before the launch command runs, so the resting
+// figure is painted and placed before an arrival can begin.
+const BOOT_DELAY_MS = 450;
+// Delay before capturing the preview screenshot, so arrival/idle frames have decoded and
+// the figure is drawn rather than a blank card.
+const SCREENSHOT_DELAY_MS = 2_600;
+// The command prefix `style-<name>` carries a figure style; the name is everything after it.
+const STYLE_COMMAND_PREFIX = "style-";
 const projectRoot = path.join(__dirname, "..");
 const helperPath = path.join(projectRoot, "helpers", "listen");
 const helperBuildPath = path.join(projectRoot, "scripts", "build-helper.sh");
@@ -107,6 +119,17 @@ const darshan = createDarshan({
 // interval, duration, demo or screenshot passed to a second launch (planSecondInstance).
 const instanceLock = app.requestSingleInstanceLock(config);
 if (!instanceLock) app.quit();
+
+// The core loop must never die silently: a stray rejection or thrown error writes one
+// sanitised line to stderr (safeLabel strips control bytes and caps length so an error
+// message built from untrusted text cannot inject a newline or escape sequence) and the
+// tray stays alive. We never rethrow — crashing would take the whole companion down.
+process.on("unhandledRejection", (reason) => {
+  process.stderr.write(`Krishna Companion unhandled rejection: ${safeLabel(reason?.message || reason, 200)}\n`);
+});
+process.on("uncaughtException", (error) => {
+  process.stderr.write(`Krishna Companion uncaught exception: ${safeLabel(error?.message || error, 200)}\n`);
+});
 
 // Files that were found corrupt and moved aside during this launch. Turned into one
 // startup notification so the reader learns their originals were kept, not lost.
@@ -253,7 +276,7 @@ function widgetBounds(expanded) {
 function setWidgetBounds(expanded) {
   programmaticMove = true;
   companionWindow.setBounds(widgetBounds(expanded), false);
-  setTimeout(() => { programmaticMove = false; }, 100);
+  setTimeout(() => { programmaticMove = false; }, PROGRAMMATIC_MOVE_RESET_MS);
 }
 
 function setGlass(active) {
@@ -484,15 +507,11 @@ function startListening() {
     // Input Monitoring may already be sufficient for this hook.
   }
 
-  let child;
-  try {
-    child = spawn(helperPath, [`--timeout=${LISTEN_TIMEOUT_MS}`], {
-      stdio: ["pipe", "pipe", "ignore"]
-    });
-  } catch {
-    disableVoiceForLaunch("Krishna Companion voice is unavailable for this launch.", { log: true });
-    return false;
-  }
+  // spawn does not throw when the helper is missing; it emits an "error" event, handled
+  // by the child.once("error") listener below. So no try/catch is needed around it.
+  const child = spawn(helperPath, [`--timeout=${LISTEN_TIMEOUT_MS}`], {
+    stdio: ["pipe", "pipe", "ignore"]
+  });
 
   const session = { child, buffer: "", timeout: undefined };
   listeningSession = session;
@@ -686,15 +705,18 @@ function applySecondInstance(incoming) {
 // a direct launch and when forwarded to a running instance.
 function captureScreenshotAndQuit(demo = config.demo) {
   setTimeout(async () => {
-    if (!companionWindow || companionWindow.isDestroyed()) {
+    try {
+      if (!companionWindow || companionWindow.isDestroyed()) return;
+      const preview = await companionWindow.webContents.capturePage();
+      const previewName = demo ? "preview.png" : "resting-preview.png";
+      await writeFile(path.join(__dirname, "..", previewName), preview.toPNG());
+    } catch (error) {
+      process.stderr.write(`Krishna Companion could not save the preview: ${safeLabel(error?.message || error, 200)}\n`);
+    } finally {
+      // Whatever happened above, the screenshot launch must terminate.
       app.quit();
-      return;
     }
-    const preview = await companionWindow.webContents.capturePage();
-    const previewName = demo ? "preview.png" : "resting-preview.png";
-    await writeFile(path.join(__dirname, "..", previewName), preview.toPNG());
-    app.quit();
-  }, 2600);
+  }, SCREENSHOT_DELAY_MS);
 }
 
 function handleCommand(command) {
@@ -728,9 +750,12 @@ function handleCommand(command) {
       app.quit();
       return;
     default:
-      if (command.startsWith("style-") && FIGURE_STYLES.includes(command.slice(6))) {
-        setFigureStyle(command.slice(6));
-        break;
+      if (command.startsWith(STYLE_COMMAND_PREFIX)) {
+        const style = command.slice(STYLE_COMMAND_PREFIX.length);
+        if (FIGURE_STYLES.includes(style)) {
+          setFigureStyle(style);
+          break;
+        }
       }
       return;
   }
@@ -836,7 +861,7 @@ if (instanceLock) app.whenReady().then(() => {
       else handleCommand(config.command);
 
       if (config.screenshot) captureScreenshotAndQuit();
-    }, 450);
+    }, BOOT_DELAY_MS);
   });
 });
 

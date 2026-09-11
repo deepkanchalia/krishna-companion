@@ -106,11 +106,17 @@ function reportQuarantinedFiles() {
 // stamping state.json. Returns the exit code: 0 on ack, 1 if the launcher could not
 // start, 2 on timeout (with one stderr line). Dependencies are injectable so a test
 // can drive it with a fake launcher and clock, without Electron.
+// How long `krshna now` waits for the companion to stamp state.json before giving up
+// with exit code 2. Deliberately below the hook's ACK_TIMEOUT_MS (scripts/krshna-hook.js,
+// 6000 ms): the hook spawns this CLI, so the CLI must time out and report first, leaving
+// the hook to pass the prompt through rather than force-killing a CLI still waiting.
+const ACK_BUDGET_MS = 4000;
+
 function runNow({
   launch: launchFn = launch,
   stateFile: stateFilePath = stateFile(),
   clock = Date.now,
-  budgetMs = 4000
+  budgetMs = ACK_BUDGET_MS
 } = {}) {
   const t0 = clock();
   if (!launchFn("now")) return 1; // launcher missing: launch() already set the message

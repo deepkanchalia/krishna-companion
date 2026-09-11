@@ -70,7 +70,7 @@ async function harness(argv = [], saved = null) {
   const localRequire = createRequire(mainFile);
   const context = {
     __dirname: path.dirname(mainFile), console,
-    process: { platform: "linux", pid: 42 },
+    process: { platform: "linux", pid: 42, on: () => {}, stderr: { write: () => {} } },
     Date: class extends Date { static now() { return now; } },
     setTimeout: schedule, clearTimeout: cancel,
     setInterval: () => ({}), clearInterval() {},
