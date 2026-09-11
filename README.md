@@ -134,12 +134,12 @@ Built and verified on macOS. Windows (acrylic) and Linux (needs a compositor for
 - `docs/DOGFOOD.md` is where wrong or badly timed darshans get logged, for review before each milestone.
 - `CLAUDE.md` holds the rules any agent must follow when editing this repo.
 
-## Adversarial release review
+## Adversarial review
 
-After authenticating Claude Code with `claude /login`, run the repository's read-only public-release review:
+An optional local review pass. After authenticating Claude Code with `claude /login`, run the repository's read-only review:
 
 ```bash
 npm run review:claude
 ```
 
-The review command disables session persistence and gives Claude only `Read`, `Glob`, and `Grep` tools; it cannot modify the project.
+The review command disables session persistence and gives the review seat only `Read`, `Glob`, and `Grep` tools; it cannot modify the project.
