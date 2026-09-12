@@ -1,5 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const { reflections, purportExcerpt, findVerseIndex } = require("../src/content");
 
 const VERSES_IN_GITA = 700;
@@ -36,6 +38,22 @@ test("the corpus is the complete Bhagavad-gītā As It Is, in order, from VedaBa
 
   assert.equal(chapter, 18, "all eighteen chapters present");
   assert.equal(verseCount, VERSES_IN_GITA);
+});
+
+test("no entry carries VedaBase pager labels swallowed into the scripture text", () => {
+  // The fetch script's last block on a page (translation-only verse, or purport)
+  // used to swallow the "prev / next" pager anchors (e.g. "TEXT 4TEXT 6",
+  // "TEXTS 16-18"). Assert every string field of every raw entry is free of the
+  // pager pattern, on the full corpus (not the truncated purport excerpt).
+  const raw = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "data", "gita.json"), "utf8"));
+  const pager = /TEXTS?\s+[\d-]/;
+  assert.equal(raw.length, 657, "entry count unchanged");
+  for (const entry of raw) {
+    for (const [field, value] of Object.entries(entry)) {
+      if (typeof value !== "string") continue;
+      assert.doesNotMatch(value, pager, `${entry.reference} field "${field}" carries a pager label`);
+    }
+  }
 });
 
 test("findVerseIndex resolves grouped verses, exact verses, and rejects bad input", () => {
