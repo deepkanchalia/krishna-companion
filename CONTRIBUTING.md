@@ -5,7 +5,7 @@ Read `CLAUDE.md` and `docs/SUCCESS-CRITERIA.md` before you change behavior.
 
 ## Development setup
 
-You need Node.js 20 or newer.
+You need Node.js 22.12 or newer.
 
 ```bash
 git clone https://github.com/deepkanchalia/krishna-companion.git
