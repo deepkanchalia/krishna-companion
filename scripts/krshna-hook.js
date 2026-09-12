@@ -3,6 +3,7 @@
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { matchesInvocation } = require("../src/voice");
+const { safeLabel } = require("../src/sanitize");
 
 // Resolve the CLI by absolute path so the hook never depends on PATH, and run it
 // with this same Node. Unlike the fire-and-forget spawn this replaced, the hook now
@@ -57,7 +58,9 @@ process.stdin.on("end", () => {
   try {
     child = spawn(nodeBinary, [cli, "now"], { stdio: "ignore" });
   } catch (error) {
-    process.stderr.write(`krshna-hook: could not start companion (${error.message})\n`);
+    // error.message can embed an environment-controlled path (KRSHNA_HOOK_NODE), so strip
+    // control characters through safeLabel before it reaches a terminal line.
+    process.stderr.write(`krshna-hook: could not start companion (${safeLabel(error.message, 200)})\n`);
     return; // Fail open: no block decision, prompt passes through.
   }
 
@@ -82,7 +85,7 @@ process.stdin.on("end", () => {
     if (settled) return;
     settled = true;
     clearTimeout(timer);
-    process.stderr.write(`krshna-hook: could not start companion (${error.message})\n`);
+    process.stderr.write(`krshna-hook: could not start companion (${safeLabel(error.message, 200)})\n`);
   });
   child.on("exit", (code) => {
     if (settled) return;

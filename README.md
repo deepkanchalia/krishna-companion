@@ -14,14 +14,14 @@ A quiet Bhagavad-gītā companion for long terminal sessions. Kṛṣṇa walks 
 - Nothing leaves the machine. The app makes no network request of its own.
 - The journey runs Chapter 1 text 1 through all 700 verses in order, and your place is saved locally.
 
-## Quickstart (macOS, about 60 seconds)
+## Quickstart (macOS)
 
 You need Node.js 20 or newer. From a clean clone:
 
 ```bash
 git clone https://github.com/deepkanchalia/krishna-companion.git
 cd krishna-companion
-npm install
+npm install --ignore-scripts
 mkdir -p ~/.local/bin
 ln -s "$PWD/bin/krshna.js" ~/.local/bin/krshna
 export PATH="$HOME/.local/bin:$PATH"                     # this shell
@@ -30,14 +30,17 @@ krshna install   # optional: adds /krshna, the status segment, and the Claude Co
 krshna           # make the companion live
 ```
 
-`npm install` rebuilds one native module (`uiohook-napi`, used only by voice), which needs the Xcode Command Line Tools (`xcode-select --install`). If you do not want voice, `npm install --ignore-scripts` skips that rebuild and the companion still runs.
+`--ignore-scripts` skips the native rebuild of `uiohook-napi`, which is used only by voice; voice is off by default, so the companion runs without it. The first launch still downloads Electron (about 90 MB) on demand even after `--ignore-scripts`, so allow time for that download the first time you run `krshna`.
 
-`krshna install` edits two files and nothing else:
+To enable voice later, run a plain `npm install` (no `--ignore-scripts`). That rebuilds `uiohook-napi`, which needs the Xcode Command Line Tools (`xcode-select --install`). See the Voice section below.
+
+`krshna install` writes or refreshes four paths and nothing else:
 
 - `~/.zshrc`: it appends one marked block that adds the `/krshna` command and a `🪶 Kṛṣṇa · 30m` right-prompt.
 - `~/.claude/settings.json`: it adds one marked `UserPromptSubmit` hook entry for Claude Code.
+- `~/.zshrc.krshna-backup` and `~/.claude/settings.json.krshna-backup`: a snapshot of each file as it was before the last install.
 
-`krshna uninstall` removes exactly those two additions, byte for byte, and leaves the rest of both files untouched.
+`krshna uninstall` removes exactly the two additions above, byte for byte, and leaves the rest of both files untouched. It leaves the two `*.krshna-backup` snapshots in place; delete them by hand when you no longer want them. If it ever finds `settings.json` unparseable, it moves the damaged file aside to `settings.corrupt-<timestamp>.json` rather than editing it.
 
 The `krshna` command returns at once; the companion runs in the background while you use a shell or a terminal agent. `krishna` is an alias for `krshna`, and `krshna start` is an alias for the bare `krshna`.
 
@@ -71,7 +74,7 @@ krshna voice on
 krshna voice off
 ```
 
-While voice is on, keep Terminal or a supported editor frontmost and hold Space for two seconds, then say "Hare Kṛṣṇa" to open the next teaching. It needs macOS Microphone, Speech Recognition, and Input Monitoring access, and the Xcode Command Line Tools to build the on-device speech helper on first use. Recognition is forced to Apple's on-device recognizer; audio and transcripts are never saved, logged, or sent anywhere. Windows and Linux run the companion without voice.
+While voice is on, keep Terminal or a supported editor frontmost and hold Space for two seconds, then say "Hare Kṛṣṇa" to open the next teaching. Enabling voice can raise up to five macOS permission prompts: Input Monitoring, Accessibility, and Automation (for the global key hook and frontmost-app check) and Microphone and Speech Recognition (for the on-device recognizer). It also needs the Xcode Command Line Tools to build the on-device speech helper on first use. Recognition is forced to Apple's on-device recognizer; audio and transcripts are never saved, logged, or sent anywhere. A voice-off first launch asks for none of these. Windows and Linux run the companion without voice.
 
 ## Claude Code hook and zsh segment
 
@@ -120,12 +123,12 @@ npm start -- --interval=45 --duration=20 --demo --verse=2.47
 
 ## Privacy
 
-The companion never reads or stores your terminal output, source code, or conversations. It makes no network request of its own; the only outbound action is opening a VedaBase verse URL in your browser on an explicit click. Voice, when on, runs entirely on device and writes no audio or transcript.
+The running app never reads or stores your terminal output, source code, or conversations. The one exception is the optional Claude Code prompt hook: when it is enabled, each prompt you submit is checked in memory to detect the "Hare Kṛṣṇa" invocation, and is never stored, logged, or forwarded. The running app makes no network request of its own; the only outbound action is opening a VedaBase verse URL in your browser on an explicit click. Voice, when on, runs entirely on device and writes no audio or transcript.
 
 ## Platform support
 
-macOS is first-class and is where the app is built and used daily. Linux runs in CI and needs a compositor for the transparent window; it is not yet tested by a person. Windows is experimental: its CI lane reports but never blocks.
+macOS is where the app is built and used daily. Linux runs in CI and needs a compositor for the transparent window; it is not yet tested by a person. Windows is experimental: its CI lane reports but never blocks.
 
-## Licence
+## License
 
-The MIT licence in [LICENSE](LICENSE) covers the software code only. The Bhagavad-gītā As It Is text and the artwork are not MIT licensed; their terms are in [LICENSE-ASSETS.md](LICENSE-ASSETS.md). This is an independent project and is not affiliated with or endorsed by ISKCON, the Bhaktivedanta Book Trust, or VedaBase.
+The MIT license in [LICENSE](LICENSE) covers the software code only. The Bhagavad-gītā As It Is text and the artwork are not MIT licensed; their terms are in [LICENSE-ASSETS.md](LICENSE-ASSETS.md). This is an independent project and is not affiliated with or endorsed by ISKCON, the Bhaktivedanta Book Trust, or VedaBase.

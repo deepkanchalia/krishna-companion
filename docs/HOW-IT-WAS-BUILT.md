@@ -24,8 +24,9 @@ I ran the build as a pipeline, not a chat:
 4. Then a triage, where each finding got a decision: fix, defer with a reason, or
    reject.
 5. Then a fix round, then a second audit of the fixed head.
-6. I tested on the real app and merged. Evidence (the test summary, the package
-   contents, screen captures) is attached to every pull request.
+6. I tested on the real app and merged. Evidence appropriate to the change is
+   attached to each pull request: the test summary on every one, and the package
+   contents or a screen capture where those apply.
 7. A rules file for any agent working in the repo (`CLAUDE.md`) states the
    non-negotiables, so a new seat cannot quietly break them.
 
@@ -49,8 +50,8 @@ I ran the build as a pipeline, not a chat:
 | What | Value |
 |------|-------|
 | First commit | 2026-09-04 |
-| Pull requests merged | 8 (#2 through #9), the last a hardening pass |
-| Tests | 153, none start Electron |
+| Pull requests merged | 8 into main (#2 through #9; #1 was a duplicate merge of #2's branch), the last a hardening pass |
+| Tests | 155, none start Electron |
 | CI | 5 test lanes (macOS and Ubuntu on Node 20 and 22, plus a Windows experimental lane), a lint-and-audit job, and a pack-guard job |
 | Findings on the figure-styles pull request | 13 by the audit, 18 by the adversarial review with 8 overlapping, and 1 regression caught by the second audit |
 | Findings on the process pull request | 27, all addressed |

@@ -6,17 +6,24 @@ All notable changes to this project are recorded here. The format is based on
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.9.0] - 2026-09-12
+
+### Added
+
+- First public release: the darshan loop, six figure styles, voice off by
+  default, the Claude Code prompt hook, and the zsh status segment.
+
 ### Changed
 
-- Public-release pass: one licence posture (`LICENSE-ASSETS.md`), repository
+- Public-release pass: one license posture (`LICENSE-ASSETS.md`), repository
   hygiene, a rewritten README, and new docs (`ARCHITECTURE.md`,
   `HOW-IT-WAS-BUILT.md`, `ANIMATION.md`), plus the standard project files
   (contributing, security, code of conduct, changelog, issue and pull request
   templates).
 
-## [0.9.0]
-
-Merged pull requests, newest first.
+Merged pull requests, newest first:
 
 - #9 Engineering hardening before the public release (2026-09-11)
 - #8 Six figure styles, a thought card, and a moving darshan (2026-09-11)

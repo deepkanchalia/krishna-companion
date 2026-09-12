@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { execFileSync, spawn } = require("node:child_process");
+const { execFileSync, spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -74,6 +74,23 @@ test("a non-zero CLI exit fails open: empty stdout, exit 0", () => {
 test("a spawn failure (missing launcher) fails open: empty stdout, exit 0", () => {
   const bogusNode = path.join(os.tmpdir(), "krshna-no-such-node-binary");
   assert.equal(runHook(JSON.stringify({ prompt: "Hare Kṛṣṇa!" }), bogusNode), "");
+});
+
+test("a spawn error message cannot inject a second terminal line", () => {
+  // The launcher path is environment-controlled (KRSHNA_HOOK_NODE). A newline in it
+  // ends up in the ENOENT error.message; without sanitising, it would write a forged
+  // standalone stderr line. safeLabel strips the control character, so stderr stays one line.
+  const forged = "/no/such/node\nFORGED INJECTED LINE";
+  const result = spawnSync(process.execPath, [hook], {
+    input: JSON.stringify({ prompt: "Hare Kṛṣṇa!" }),
+    encoding: "utf8",
+    env: { ...process.env, PATH: "", KRSHNA_HOOK_NODE: forged }
+  });
+  assert.equal(result.status, 0, "fail-open: exit 0");
+  assert.equal(result.stdout, "", "no block decision");
+  const lines = result.stderr.split("\n").filter((line) => line.length > 0);
+  assert.equal(lines.length, 1, `stderr must be one line, got ${JSON.stringify(result.stderr)}`);
+  assert.ok(!/^FORGED INJECTED LINE/m.test(result.stderr), "no forged standalone line");
 });
 
 test("an oversized payload passes through untouched", () => {

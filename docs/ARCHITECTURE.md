@@ -10,20 +10,27 @@ reading the code. Every claim names a file.
 
 - Electron main process (`src/main.js`). Owns the tray, the single companion
   window, saved placement, the hidden-window lifecycle, focus gating, verse
-  progression, and the timers. It is the only process that reads and writes the
-  data files and the only one that can open an external URL.
+  progression, and the timers. It is the authoritative writer of the data files
+  at runtime and the only process that can open an external URL. The CLI and the
+  zsh segment also read those files (see below), but only main writes them while
+  the app is live.
 - Sandboxed renderer (`src/renderer.js`, `src/index.html`, `src/styles.css`).
   Draws the card and drives the sprite player. It runs with `contextIsolation:
-  true`, `nodeIntegration: false`, and `sandbox: true` (`src/main.js:298`), so it
+  true`, `nodeIntegration: false`, and `sandbox: true` (`src/main.js:301`), so it
   has no Node access. It talks to main only through a small preload bridge
   (`src/preload.js`) that exposes a fixed set of channels on `window.krishna`
-  (dismiss, engage, expand, next, ready, openSource, resize, onShow, onCollapse).
-- Node CLI (`bin/krshna.js`). The `krshna` command. A second launch does not
-  start a new process: it acquires nothing, hands its parsed config to the
-  running instance through Electron's single-instance lock
-  (`app.requestSingleInstanceLock`, `src/main.js:118`), and quits. What the
-  running instance should do with that config is decided as a pure list of
-  actions in `src/second-instance.js` (`planSecondInstance`) and carried out at
+  (dismiss, engage, expand, next, ready, openSource, resize, onShow, onCollapse,
+  onStyle, onListening); `test/preload.test.js` is the source of truth for the
+  full surface.
+- Node CLI (`bin/krshna.js`). The `krshna` command. It reads `state.json` and
+  `journey.json` directly (for `status` and `context`). Every launch spawns a
+  detached Electron process; only the first one acquires Electron's
+  single-instance lock (`app.requestSingleInstanceLock`, `src/main.js:118`) and
+  becomes the live app. A later launch is a short-lived forwarder: its Electron
+  loses the lock, hands its parsed config to the running instance, and quits, so
+  no second persistent app instance exists. What the running instance should do
+  with that config is decided as a pure list of actions in
+  `src/second-instance.js` (`planSecondInstance`) and carried out at
   `src/main.js:662`.
 
 ## The shell pieces
@@ -97,7 +104,7 @@ sheets, then a manifest, then the canvas player.
   `base-uri 'none'`, `form-action 'none'`). There is no `fetch`, `net`, or remote
   `loadURL` under `src/` (criterion C10).
 - The renderer is isolated and sandboxed with node integration off
-  (`src/main.js:298`); the preload bridge exposes only a fixed channel list.
+  (`src/main.js:301`); the preload bridge exposes only a fixed channel list.
 - The only outbound action is opening a VedaBase URL, and only one that already
   exists in the corpus, on an explicit click. Main validates the URL against the
   loaded reflections before `shell.openExternal` (`src/main.js:721`).
@@ -105,7 +112,9 @@ sheets, then a manifest, then the canvas player.
   reaches a display sink (criterion C3). Every string shown on the card comes
   from `data/gita.json` through `src/content.js`. Strings that must be echoed to
   a log or error line first pass through `safeLabel` (`src/sanitize.js`), which
-  strips control characters and caps the length.
+  strips control characters and caps the length; the Claude Code hook
+  (`scripts/krshna-hook.js`) runs its own error text through the same
+  `safeLabel` before writing to stderr.
 
 ## Test strategy
 

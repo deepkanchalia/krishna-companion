@@ -64,8 +64,8 @@ function printStatus() {
 
   console.log(`Kṛṣṇa Companion is live (PID ${state.pid}).`);
   console.log(state.paused
-    ? "Reflections are paused."
-    : `Next reflection in ${timeUntil(state.nextReflectionAt)}; cadence ${state.intervalMinutes} minutes.`);
+    ? "Teachings are paused."
+    : `Next teaching in ${timeUntil(state.nextReflectionAt)}; cadence ${state.intervalMinutes} minutes.`);
   if (state.nextReference) console.log(`Next in sequence: ${state.nextReference}.`);
 }
 
@@ -427,11 +427,11 @@ Krishna Companion
 
   krshna             Make the companion live
   krshna start       Alias of krshna (make the companion live)
-  krshna now         Invite a reflection now
-  krshna pause       Pause scheduled reflections
+  krshna now         Invite a teaching now
+  krshna pause       Pause scheduled teachings
   krshna resume      Resume the companion
   krshna status      Show its current state
-  krshna context     Recall the last explanation and next verse
+  krshna context     Recall the last teaching and next verse
   krshna voice on    Enable hold-Space voice
   krshna voice off   Disable hold-Space voice
   krshna style <name>  Figure style: ${FIGURE_STYLES.join(" | ")}

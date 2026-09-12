@@ -1,7 +1,7 @@
 # Contributing
 
 Thank you for looking at Krishna Companion. This is a small, careful project.
-Read `CLAUDE.md` and `docs/SUCCESS-CRITERIA.md` before you change behaviour.
+Read `CLAUDE.md` and `docs/SUCCESS-CRITERIA.md` before you change behavior.
 
 ## Development setup
 
@@ -29,7 +29,7 @@ node scripts/preview-darshan.js
 
 ## The rules that bind a change
 
-- Scripture is verbatim Bhagavad-gītā As It Is. Never paraphrase, summarise, or
+- Scripture is verbatim Bhagavad-gītā As It Is. Never paraphrase, summarize, or
   generate a verse, translation, or purport. `data/gita.json` is produced only by
   `npm run fetch`.
 - Teaching content shown anywhere comes only from the corpus. Untrusted text
@@ -38,7 +38,7 @@ node scripts/preview-darshan.js
 - Do not add a language model to the product.
 - Match the existing code style by hand. There is no formatter. No new dependency
   without a stated reason in the pull request.
-- Do not change `data/`, `assets/`, or the licence terms of the text and artwork.
+- Do not change `data/`, `assets/`, or the license terms of the text and artwork.
   See `LICENSE-ASSETS.md`.
 
 The full list is in `CLAUDE.md`.

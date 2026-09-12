@@ -1,8 +1,8 @@
 # Krishna Companion: rules for any agent working in this repo
 
-Rules first, rationale in brackets. Read `docs/SUCCESS-CRITERIA.md` before changing behaviour.
+Rules first, rationale in brackets. Read `docs/SUCCESS-CRITERIA.md` before changing behavior.
 
-- Scripture is verbatim Bhagavad-gītā As It Is from vedabase.io. Never paraphrase, summarise, or generate a verse, translation, or purport. `data/gita.json` is produced only by `npm run fetch`; a pull request that changes it says which fetch run produced it. [The audience is Bhaktivedanta followers; a misquote is a public failure.]
+- Scripture is verbatim Bhagavad-gītā As It Is from vedabase.io. Never paraphrase, summarize, or generate a verse, translation, or purport. `data/gita.json` is produced only by `npm run fetch`; a pull request that changes it says which fetch run produced it. [The audience is Bhaktivedanta followers; a misquote is a public failure.]
 - Teaching content on any display sink (card, bubble, CLI, prompt segment, notifications) comes only from the corpus. Fixed product chrome such as "Continue", the source label, and status words is fine. Untrusted text (prompt text, tool output, paths, voice transcripts) never reaches a display sink. [C3]
 - Do not add a language model to the product: no chat, no "ask Krishna", no generated text. [Product decision, see README Source policy.]
 - Tests never start the Electron app and never spawn the production `krshna now` path. Inject a stub launcher instead. [On macOS Electron's user data dir ignores `$HOME`, so a test launch writes to the real `state.json` and can trigger a darshan on the developer's screen.]

@@ -27,7 +27,12 @@ What you expected instead.
 - App version (`package.json`):
 - Figure style, if relevant:
 
+## Success criterion, if you know it
+
+Which criterion in `docs/SUCCESS-CRITERIA.md` this breaks (for example, C3, C9,
+UI3), if you can identify it. Leave blank if unsure.
+
 ## Evidence
 
-Screenshots, a recording, or the relevant lines from `krshna context`. Please do
-not paste any personal terminal content.
+Screenshots, a recording, or the relevant lines from `krshna context` that show
+the behavior. Please do not paste any personal terminal content.

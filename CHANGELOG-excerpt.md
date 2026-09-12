@@ -1,11 +1,11 @@
-Krishna Companion 0.9.0
+Krishna Companion 0.9.0 - 2026-09-12
 
 A quiet Bhagavad-gītā As It Is companion for long terminal sessions. Kṛṣṇa walks
 in, a verse opens, and he withdraws. Verbatim text only, no language model, and
 no network call from the running app.
 
 This is the first public release. It gathers eight merged pull requests (#2
-through #9) and a public-release pass that added one licence posture
+through #9) and a public-release pass that added one license posture
 (LICENSE-ASSETS.md), a rewritten README with a hero recording, and new docs
 (ARCHITECTURE.md, HOW-IT-WAS-BUILT.md, ANIMATION.md).
 
@@ -18,8 +18,8 @@ Highlights:
 - Voice off by default, on-device only, so a first launch asks for no
   permission.
 - A Claude Code prompt hook and a zsh status segment.
-- 153 tests, none of which start Electron; CI on macOS and Ubuntu for Node 20
+- 155 tests, none of which start Electron; CI on macOS and Ubuntu for Node 20
   and 22.
 
-Platform support: macOS is first-class. Linux runs in CI but is untested by a
-person. Windows is experimental.
+Platform support: macOS is built and used daily. Linux runs in CI but is
+untested by a person. Windows is experimental.

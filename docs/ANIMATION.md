@@ -67,7 +67,7 @@ for gyan and warrior, the Mahabharat-era lean and powerful build. Segment bounds
 
 The pixel style is derived from the warrior sheets by
 `scripts/anim/pixelate-style.py --factor 3 --colors 24 --line 0.85 --edge 48`.
-It shares one 24-colour palette, is written lossless, and is drawn with image
+It shares one 24-color palette, is written lossless, and is drawn with image
 smoothing off.
 
 The six figure sets are about 15 MB in total. The selected style's four decoded
@@ -87,7 +87,8 @@ into segments and replayed.
 ## Rebuilding the sheets
 
 1. Extract frames: `ffmpeg -i clip.mp4 -vsync 0 frames/f%04d.png`.
-2. Find segment bounds: `scripts/anim/analyze-clip.py`.
+2. Find segment bounds:
+   `scripts/anim/analyze-clip.py <clip.mp4> <frames_dir> [--matte rembg]`.
 3. Build the sheets:
    `scripts/anim/build-sheets.py <frames_dir> assets/anim/<style> --prefix <style>/ [--matte rembg] --segments ...`.
 4. Assemble the combined manifest:
