@@ -126,7 +126,7 @@ sheets, then a manifest, then the canvas player.
 - The CLI is tested by `spawnSync` on `bin/krshna.js` (`test/cli.test.js`),
   which also spawns `zsh -f` to prove the prompt segment renders.
 - CI (`.github/workflows/ci.yml`) runs `npm ci --ignore-scripts` then `npm test`
-  on macOS and Ubuntu for Node 20 and 22, with a Windows lane that reports but
+  on macOS and Ubuntu on Node 22, with a Windows lane that reports but
   never blocks. A separate lint-and-audit job runs `eslint` and
   `npm audit --omit=dev`, and a pack job asserts the tarball ships four sheets
   per style and no binary, candidate, or evidence file (criterion C13).

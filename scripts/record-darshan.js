@@ -14,14 +14,16 @@
  *      (start `node scripts/preview-darshan.js` first), which auto-plays the
  *      walk-in.
  *   4. Page.startScreencast (png, everyFrame 1); save every Page.screencastFrame
- *      and ack each one. Capture the walk-in, three seconds standing, then click
- *      #expand inside the iframe for the teaching gesture, wait four seconds,
- *      click #withdraw on the outer page, wait five seconds, stop.
+ *      and ack each one. Capture the walk-in plus about two seconds standing
+ *      (~5 s total), then click #expand inside the iframe for the teaching
+ *      gesture, wait ~3.5 s, click #withdraw on the outer page, wait ~3.5 s,
+ *      stop.
  *   5. Crop every frame to the iframe region (the darshan area, found from
  *      document.querySelector('#darshan').getBoundingClientRect()), so the
  *      preview page header stays out of the crop, then ffmpeg to a 12 fps GIF
- *      with a generated palette, width 800, kept under 6 MB. An animated webp is
- *      written too when ffmpeg supports it, otherwise it is skipped.
+ *      with a generated palette, width 800. The encode is asserted to stay under
+ *      6 MB and fails otherwise. An animated webp is written too when ffmpeg
+ *      supports it, otherwise it is skipped.
  *
  * Fallback method: if the screencast approach fails after two attempts, the GIF
  * is composed from the real sprite frames in assets/anim/realistic/*.webp using
@@ -45,12 +47,25 @@ const MEDIA_DIR = path.join(REPO_ROOT, "docs", "media");
 const GIF_OUT = path.join(MEDIA_DIR, "darshan.gif");
 const WEBP_OUT = path.join(MEDIA_DIR, "darshan.webp");
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+const MAX_GIF_BYTES = 6 * 1024 * 1024; // README asset budget for the hero GIF.
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Fail the run if the encoded GIF exceeds the asset budget, so regeneration
+// can never silently ship an oversized hero.
+function assertGifUnderCap() {
+  const bytes = fs.statSync(GIF_OUT).size;
+  if (bytes > MAX_GIF_BYTES) {
+    throw new Error(`GIF is ${bytes} bytes, over the ${MAX_GIF_BYTES}-byte cap`);
+  }
+  return bytes;
+}
 
 // A minimal DevTools protocol client over one page WebSocket.
 class Devtools {
   constructor(url) {
+    // Node's global WebSocket is stable without a flag on Node >=22.12 (the
+    // project's engine floor); Node 20 would need --experimental-websocket.
     this.ws = new WebSocket(url);
     this.id = 0;
     this.pending = new Map();
@@ -102,6 +117,13 @@ function launchChrome() {
     `--user-data-dir=${profile}`,
     "about:blank"
   ], { stdio: "ignore" });
+  // A missing Chrome binary emits an async 'error' (ENOENT). Without a handler
+  // that is an unhandled ChildProcess error that crashes the process; capture it
+  // so it becomes an attempt failure that pageTarget's timeout surfaces, and the
+  // run falls back to the sprite path instead.
+  child.on("error", (error) => {
+    process.stderr.write(`Chrome failed to launch: ${error.message}\n`);
+  });
   return { child, profile };
 }
 
@@ -190,6 +212,7 @@ async function recordOnce(framesDir) {
   fs.mkdirSync(MEDIA_DIR, { recursive: true });
   const gifFilter = `${crop},fps=12,scale=800:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=128:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4`;
   execFileSync("ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", listFile, "-filter_complex", gifFilter, "-loop", "0", GIF_OUT], { stdio: "inherit" });
+  assertGifUnderCap();
 
   try {
     const webpFilter = `${crop},fps=12,scale=800:-1:flags=lanczos`;
@@ -202,11 +225,23 @@ async function recordOnce(framesDir) {
 }
 
 // Fallback: build the GIF straight from the shipped sprite frames with PIL.
+// Throws on any failure (missing python3/PIL, nonzero exit, no output, or an
+// oversized GIF) so the caller exits nonzero rather than leaving a stale GIF.
 function fallback() {
   process.stdout.write("Screencast failed twice; falling back to sprite frames.\n");
   const py = path.join(os.tmpdir(), "krshna-fallback.py");
   fs.writeFileSync(py, FALLBACK_PY);
-  spawnSync("python3", [py, REPO_ROOT, GIF_OUT], { stdio: "inherit" });
+  const result = spawnSync("python3", [py, REPO_ROOT, GIF_OUT], { stdio: "inherit" });
+  if (result.error) {
+    throw new Error(`sprite-frame fallback could not run python3: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    throw new Error(`sprite-frame fallback exited ${result.status}`);
+  }
+  if (!fs.existsSync(GIF_OUT)) {
+    throw new Error("sprite-frame fallback produced no GIF");
+  }
+  assertGifUnderCap();
 }
 
 const FALLBACK_PY = `
@@ -220,15 +255,17 @@ bg = (16, 23, 20)
 frames, durations = [], []
 for name in order:
     seg = manifest['segments'][name]
-    sheet = Image.open(os.path.join(root, 'assets', 'anim', seg['file'])).convert('RGBA')
+    sheet = Image.open(os.path.join(anim, seg['file'])).convert('RGBA')
     fps = seg.get('fps', 12)
     for fr in seg['frames']:
-        r = fr['rect'] if 'rect' in fr else fr
-        x, y, w, h = r['x'], r['y'], r['w'], r['h']
+        # Manifest frames use sheet coordinates sx/sy with size w/h.
+        x, y, w, h = fr['sx'], fr['sy'], fr['w'], fr['h']
         crop = sheet.crop((x, y, x + w, y + h))
         canvas = Image.new('RGBA', (800, 460), bg + (255,))
         canvas.alpha_composite(crop, (400 - w // 2, 440 - h))
-        frames.append(canvas.convert('P', palette=Image.ADAPTIVE))
+        # 128-colour adaptive palette matches the primary ffmpeg path and keeps
+        # the fallback GIF inside the 6 MB budget the caller asserts.
+        frames.append(canvas.convert('P', palette=Image.ADAPTIVE, colors=128))
         durations.append(int(1000 / fps))
 frames[0].save(out, save_all=True, append_images=frames[1:], duration=durations, loop=0, disposal=2)
 print('wrote', out, len(frames), 'frames')

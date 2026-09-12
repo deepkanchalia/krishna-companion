@@ -16,7 +16,7 @@ A quiet Bhagavad-gītā companion for long terminal sessions. Kṛṣṇa walks 
 
 ## Quickstart (macOS)
 
-You need Node.js 20 or newer. From a clean clone:
+You need Node.js 22.12 or newer (Electron 44.2 requires it). From a clean clone:
 
 ```bash
 git clone https://github.com/deepkanchalia/krishna-companion.git

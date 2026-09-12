@@ -11,5 +11,5 @@ Rules first, rationale in brackets. Read `docs/SUCCESS-CRITERIA.md` before chang
 - Before overwriting a file you did not create in this session, run `git show HEAD:<file>` and preserve what is there. [More than one agent works in this repo.]
 - Match the existing code style by hand. No formatter. No new dependency without a stated reason in the pull request.
 - Pull requests target `main` (`gh pr create --base main`). The body cites the success-criteria IDs touched and attaches evidence: the `npm test` summary line, and a screenshot or recording for anything visual.
-- Do not change the Electron range in `package.json` or its resolution in `package-lock.json` without a stated reason. Node 20 or newer.
+- Do not change the Electron range in `package.json` or its resolution in `package-lock.json` without a stated reason. Node 22.12 or newer (Electron 44.2 requires Node >=22.12; this floor also clears the `@electron/rebuild` transitive-`tar` advisory).
 - Text and artwork are not MIT. Do not change `LICENSE`, `data/`, or `assets/` licensing metadata without the owner's explicit decision.
