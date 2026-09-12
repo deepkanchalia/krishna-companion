@@ -52,7 +52,7 @@ I ran the build as a pipeline, not a chat:
 | First commit | 2026-09-04 |
 | Pull requests merged | 8 into main (#2 through #9; #1 was a duplicate merge of #2's branch), the last a hardening pass |
 | Tests | 155, none start Electron |
-| CI | 3 test lanes (macOS and Ubuntu on Node 22, plus a Windows experimental lane), a lint-and-audit job, and a pack-guard job |
+| CI | three jobs on Ubuntu (Node 22): a pure-Node test run, a lint-and-audit job, and a pack-guard job |
 | Findings on the figure-styles pull request | 13 by the audit, 18 by the adversarial review with 8 overlapping, and 1 regression caught by the second audit |
 | Findings on the process pull request | 27, all addressed |
 | Package | about 17 MB, six figure sets |

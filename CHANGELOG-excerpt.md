@@ -18,7 +18,7 @@ Highlights:
 - Voice off by default, on-device only, so a first launch asks for no
   permission.
 - A Claude Code prompt hook and a zsh status segment.
-- 155 tests, none of which start Electron; CI on macOS and Ubuntu on Node 22.
+- 155 tests, none of which start Electron; CI runs them on Ubuntu (Node 22).
 
 Platform support: macOS is built and used daily. Linux runs in CI but is
 untested by a person. Windows is experimental.

@@ -127,7 +127,7 @@ The running app never reads or stores your terminal output, source code, or conv
 
 ## Platform support
 
-macOS is where the app is built and used daily. Linux runs in CI and needs a compositor for the transparent window; it is not yet tested by a person. Windows is experimental: its CI lane reports but never blocks.
+macOS is where the app is built and used daily. CI runs the pure-Node test suite on Linux. The Linux app itself needs a compositor for the transparent window and is not yet tested by a person; Windows is untested.
 
 ## License
 

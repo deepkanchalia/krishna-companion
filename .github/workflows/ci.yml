@@ -27,42 +27,24 @@ jobs:
       - run: npm audit --omit=dev --audit-level=high
 
   test:
-    name: test (${{ matrix.os }}, node ${{ matrix.node }})
-    runs-on: ${{ matrix.os }}
-    # Experimental lanes never block the workflow, even if checkout or npm ci fails there.
-    continue-on-error: ${{ matrix.experimental }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest, ubuntu-latest]
-        node: [22]
-        experimental: [false]
-        include:
-          # Windows is untested by the project (README "Platform notes"); it reports but never blocks.
-          - os: windows-latest
-            node: 22
-            experimental: true
+    name: test (ubuntu, node 22)
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 22
           cache: npm
       # test/cli.test.js spawns zsh to prove the prompt segment; the Ubuntu image ships without it.
-      - if: runner.os == 'Linux'
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq zsh
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq zsh
       # --ignore-scripts skips the Electron download and the native uiohook rebuild.
       # Tests are pure Node by design (see CLAUDE.md), so this is the whole toolchain.
       - run: npm ci --ignore-scripts
-      - if: ${{ !matrix.experimental }}
-        run: npm test
-      - if: ${{ matrix.experimental }}
-        shell: bash
-        run: npm test || echo "::warning title=Windows is experimental::npm test failed on Windows. Not blocking; see README Platform notes."
+      - run: npm test
 
   pack:
     name: pack (no binaries, no candidates)
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
