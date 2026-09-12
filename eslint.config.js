@@ -7,8 +7,8 @@ const globals = require("globals");
 // never reassigned.
 module.exports = [
   {
-    // Parked experiment code and throwaway agent worktrees are not part of the product.
-    ignores: ["node_modules/**", "assets/**", "data/**", "docs/**", "experiments/**", ".claude/**"]
+    // Generated assets, corpus data, prose docs, and throwaway agent worktrees are not linted.
+    ignores: ["node_modules/**", "assets/**", "data/**", "docs/**", ".claude/**"]
   },
   js.configs.recommended,
   {

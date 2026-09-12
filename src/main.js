@@ -1,6 +1,6 @@
 const path = require("node:path");
 const { existsSync } = require("node:fs");
-const { writeFile } = require("node:fs/promises");
+const { writeFile, mkdir } = require("node:fs/promises");
 const { spawn } = require("node:child_process");
 const {
   app,
@@ -556,7 +556,9 @@ function captureScreenshotAndQuit(demo = config.demo) {
       if (!companionWindow || companionWindow.isDestroyed()) return;
       const preview = await companionWindow.webContents.capturePage();
       const previewName = demo ? "preview.png" : "resting-preview.png";
-      await writeFile(path.join(__dirname, "..", previewName), preview.toPNG());
+      const mediaDir = path.join(__dirname, "..", "docs", "media");
+      await mkdir(mediaDir, { recursive: true });
+      await writeFile(path.join(mediaDir, previewName), preview.toPNG());
     } catch (error) {
       process.stderr.write(`Krishna Companion could not save the preview: ${safeLabel(error?.message || error, 200)}\n`);
       // A failed capture must be visible to a script that ran `npm run preview`.
