@@ -60,7 +60,7 @@
     "electron"
   ],
   "author": "Deep Kanchalia",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "dependencies": {
     "electron": "^44.2.0",
     "uiohook-napi": "1.5.5"
