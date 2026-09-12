@@ -9,3 +9,6 @@ __pycache__/
 *.py[cod]
 *.log
 .env*
+docs/media/preview.png
+docs/media/resting-preview.png
+docs/media/darshan.webp

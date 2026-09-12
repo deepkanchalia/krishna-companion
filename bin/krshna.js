@@ -64,8 +64,8 @@ function printStatus() {
 
   console.log(`Kṛṣṇa Companion is live (PID ${state.pid}).`);
   console.log(state.paused
-    ? "Reflections are paused."
-    : `Next reflection in ${timeUntil(state.nextReflectionAt)}; cadence ${state.intervalMinutes} minutes.`);
+    ? "Teachings are paused."
+    : `Next teaching in ${timeUntil(state.nextReflectionAt)}; cadence ${state.intervalMinutes} minutes.`);
   if (state.nextReference) console.log(`Next in sequence: ${state.nextReference}.`);
 }
 
@@ -121,7 +121,12 @@ function printContext() {
   }
 
   const history = Array.isArray(savedJourney.history) ? savedJourney.history : [];
-  const readable = history.filter(isValidHistoryEntry);
+  // C3: journey.json sits in the user's data directory and can be edited by hand, so
+  // nothing stored in it reaches the terminal. An entry counts as readable only when its
+  // reference names a verse in the corpus, and the lines printed below are the corpus's
+  // own text, never the strings the file carries.
+  const byReference = new Map(reflections.map((reflection) => [reflection.reference, reflection]));
+  const readable = history.filter((entry) => isValidHistoryEntry(entry) && byReference.has(entry.reference));
   const unreadable = history.length - readable.length;
   if (unreadable > 0) {
     console.log(`Note: journey has ${unreadable} unreadable ${unreadable === 1 ? "entry" : "entries"}; skipping.`);
@@ -132,8 +137,9 @@ function printContext() {
     console.log("No teaching has been shown yet. The journey will begin with Bhagavad-gītā As It Is 1.1.");
     return;
   }
-  console.log(`Last explained: ${last.reference}`);
-  console.log(last.explanation.replace("\n", " "));
+  const verse = byReference.get(last.reference);
+  console.log(`Last explained: ${verse.reference}`);
+  console.log((verse.meaning || verse.translation).replace("\n", " "));
   console.log(`Next in sequence: ${reflections[savedJourney.nextVerseIndex]?.reference || "the opening verse"}.`);
 }
 
@@ -427,11 +433,11 @@ Krishna Companion
 
   krshna             Make the companion live
   krshna start       Alias of krshna (make the companion live)
-  krshna now         Invite a reflection now
-  krshna pause       Pause scheduled reflections
+  krshna now         Invite a teaching now
+  krshna pause       Pause scheduled teachings
   krshna resume      Resume the companion
   krshna status      Show its current state
-  krshna context     Recall the last explanation and next verse
+  krshna context     Recall the last teaching and next verse
   krshna voice on    Enable hold-Space voice
   krshna voice off   Disable hold-Space voice
   krshna style <name>  Figure style: ${FIGURE_STYLES.join(" | ")}

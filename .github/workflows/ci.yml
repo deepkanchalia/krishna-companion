@@ -35,7 +35,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, ubuntu-latest]
-        node: [20, 22]
+        node: [22]
         experimental: [false]
         include:
           # Windows is untested by the project (README "Platform notes"); it reports but never blocks.
@@ -73,8 +73,12 @@ jobs:
       - name: npm pack --dry-run must not ship binaries, candidates, experiments, evidence or preview tooling
         run: |
           npm pack --dry-run 2>&1 | tee pack.txt
-          if grep -E '(^|[[:space:]])helpers/listen([[:space:]]|$)|assets/candidates|experiments/|scripts/darshan-preview|scripts/preview-darshan\.js|docs/evidence|scripts/anim/|assets/anim/[^/]+/manifest\.json' pack.txt; then
-            echo "tarball contains a compiled helper, artwork candidates, experiments, evidence, or preview tooling"; exit 1
+          if grep -E '(^|[[:space:]])helpers/listen([[:space:]]|$)|assets/candidates|experiments/|scripts/darshan-preview|scripts/preview-darshan\.js|scripts/review-with-claude\.sh|docs/claude-adversarial-review\.txt|docs/evidence|scripts/anim/|assets/anim/[^/]+/manifest\.json' pack.txt; then
+            echo "tarball contains a compiled helper, artwork candidates, experiments, evidence, review-only tooling, or preview tooling"; exit 1
+          fi
+          # The non-MIT assets/data ship, so their terms notice must ship with them (criterion C13).
+          if ! grep -qE '(^|[[:space:]/])LICENSE([[:space:]]|$)' pack.txt || ! grep -q 'LICENSE-ASSETS\.md' pack.txt; then
+            echo "tarball must ship both LICENSE and LICENSE-ASSETS.md"; exit 1
           fi
           sheets=$(grep -cE 'assets/anim/[a-z]+/(walkin|idle|teach|farewell)\.webp' pack.txt)
           styles=$(node -p "require('./src/config').FIGURE_STYLES.length")

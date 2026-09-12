@@ -1,145 +1,134 @@
 # Krishna Companion
 
-A quiet companion that visits during long terminal sessions. Start it once with `krshna`. On the first launch Kṛṣṇa walks into view for darshan; subsequent visits follow the 30-minute cadence or your invitation. A brief message indicator gives way to the next verse of *Bhagavad-gītā As It Is*, word for word.
+[![CI](https://github.com/deepkanchalia/krishna-companion/actions/workflows/ci.yml/badge.svg)](https://github.com/deepkanchalia/krishna-companion/actions/workflows/ci.yml)
 
-The first message previews up to three lines of the translation. Click it or “Read full verse & purport” to open the complete translation and a second message containing Śrīla Prabhupāda's purport opening. “Next verse” continues the saved sequence while Kṛṣṇa stays present. The × button or Escape ends the darshan with a gentle withdrawal. An untouched verse withdraws after three minutes; an expanded verse stays until you close it or choose the next verse. Long readings grow to the available display height, then scroll without discarding any text.
+A quiet Bhagavad-gītā companion for long terminal sessions. Kṛṣṇa walks into view, a verse opens, and he withdraws. Your work keeps running.
 
-Between darshans the companion window is hidden. Kṛṣṇa walks in from the right, stands breathing quietly while the verse is read, raises a teaching hand when you open the purport, and takes his leave with a raised palm before walking out. The motion is a flipbook of frames cut from one generated video of a single painting (`assets/anim`); nothing is drawn by rotating parts, and no frame loop runs while he is absent.
+![A darshan: Kṛṣṇa walks in, the verse of Bhagavad-gītā As It Is opens, and he withdraws](docs/media/darshan.gif)
 
-The journey begins at Chapter 1, text 1 and moves through all 700 verses in order (verses that Śrīla Prabhupāda translated together, such as 1.16-18, appear together). Progress is saved locally, so restarting the companion continues with the next teaching instead of choosing a random quote.
+## What it does
 
-## Make it live
+- Every 30 minutes (or on your invitation) a verse from *Bhagavad-gītā As It Is* appears as a darshan: a figure walks in, the verse opens, he withdraws.
+- The text is verbatim. Each verse and the opening of its purport are copied word for word from the BBT-authorized VedaBase edition. Nothing is paraphrased.
+- There is no language model. No chat, no generated text.
+- Nothing leaves the machine. The app makes no network request of its own.
+- The journey runs Chapter 1 text 1 through all 700 verses in order, and your place is saved locally.
 
-Requires Node.js 20 or newer. On macOS, the optional voice feature also needs the Xcode Command Line Tools (`xcode-select --install`).
+## Quickstart (macOS)
+
+You need Node.js 22.12 or newer (Electron 44.2 requires it). From a clean clone:
 
 ```bash
 git clone https://github.com/deepkanchalia/krishna-companion.git
 cd krishna-companion
-npm install
+npm install --ignore-scripts
 mkdir -p ~/.local/bin
 ln -s "$PWD/bin/krshna.js" ~/.local/bin/krshna
 export PATH="$HOME/.local/bin:$PATH"                     # this shell
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc  # future shells
-krshna install   # adds /krshna, the terminal status, and the Claude Code voice hook
+krshna install   # optional: adds /krshna, the status segment, and the Claude Code hook
 krshna           # make the companion live
 ```
 
-If `krshna` is still not found, `~/.local/bin` is not on your `PATH`; open a new terminal after the two lines above, or add them to your shell's startup file.
+`--ignore-scripts` skips the native rebuild of `uiohook-napi`, which is used only by voice; voice is off by default, so the companion runs without it. The first launch still downloads Electron (about 90 MB) on demand even after `--ignore-scripts`, so allow time for that download the first time you run `krshna`.
 
-The `krshna` command returns immediately; the companion continues in the background while you use Codex, Claude, Gemini, a regular shell, or another terminal agent.
+To enable voice later, run a plain `npm install` (no `--ignore-scripts`). That rebuilds `uiohook-napi`, which needs the Xcode Command Line Tools (`xcode-select --install`). See the Voice section below.
+
+`krshna install` writes or refreshes four paths and nothing else:
+
+- `~/.zshrc`: it appends one marked block that adds the `/krshna` command and a `🪶 Kṛṣṇa · 30m` right-prompt.
+- `~/.claude/settings.json`: it adds one marked `UserPromptSubmit` hook entry for Claude Code.
+- `~/.zshrc.krshna-backup` and `~/.claude/settings.json.krshna-backup`: a snapshot of each file as it was before the last install.
+
+`krshna uninstall` removes exactly the two additions above, byte for byte, and leaves the rest of both files untouched. It leaves the two `*.krshna-backup` snapshots in place; delete them by hand when you no longer want them. If it ever finds `settings.json` unparseable, it moves the damaged file aside to `settings.corrupt-<timestamp>.json` rather than editing it.
+
+The `krshna` command returns at once; the companion runs in the background while you use a shell or a terminal agent. `krishna` is an alias for `krshna`, and `krshna start` is an alias for the bare `krshna`.
 
 ```bash
 krshna now       # invite a teaching now
 krshna pause     # quiet mode
 krshna resume
 krshna status
-krshna context    # recall the previous teaching and the next verse
+krshna context   # the previous teaching and the next verse
 krshna stop
 ```
 
-`pause`, `resume` and `stop` only act on a running companion; they do not start one.
+`pause`, `resume`, and `stop` act only on a running companion; they do not start one.
 
-`krshna install` (run in the quickstart above) adds a literal `/krshna` command and a persistent `🪶 Kṛṣṇa · 30m` right-prompt to zsh. Open a new terminal, then `/krshna` summons a teaching. `/krshna pause`, `/krshna resume`, and `/krshna stop` work as expected. The unprefixed `krshna` command remains the portable option across shells and terminal agents. `krshna uninstall` removes both the zsh integration block and the Claude Code hook again, leaving the rest of your `.zshrc` untouched.
+## Figures
 
-## Figure style
-
-Six figures ship: five are flipbooks cut from one generated clip each, `realistic` (default), `cartoon`, `painterly`, and two Mahabharat-style figures, `gyan` (the teacher) and `warrior` (a powerful presence, no armour); `pixel` is the warrior redrawn as pixel art (`scripts/anim/pixelate-style.py`, one shared 24-colour palette, sheets written lossless, drawn without smoothing). Pick one from the tray menu under Figure, or:
+Six figures ship. Five are flipbooks cut from one generated clip each: `realistic` (the default), `cartoon`, `painterly`, `gyan` (the teacher), and `warrior`. The sixth, `pixel`, is the warrior redrawn as pixel art. Pick one from the tray Figure menu, or:
 
 ```bash
 krshna style cartoon
 ```
 
-The choice is saved in `settings.json` and applies at once, even while Kṛṣṇa is present. Sheets live under `assets/anim/<style>/`; `scripts/anim/` holds the pipeline that cut them (frame extraction, chroma key or AI matte, sheet assembly).
+The choice is saved and applies at once, even while Kṛṣṇa is present. How the figures were made is in [docs/ANIMATION.md](docs/ANIMATION.md).
 
 ## Voice
 
-On macOS, keep Terminal or an editor frontmost and hold Space for two seconds. The menu-bar icon's tooltip reports listening; say “Hare Kṛṣṇa” to open the next teaching, then release Space. While voice is on, a global key hook watches the Space key system-wide and compares key codes only. The key is only observed, never swallowed, so the frontmost app still receives it normally. Supported apps are Terminal, iTerm2, Warp, Ghostty, Alacritty, kitty, WezTerm, VS Code, Cursor, Zed, JetBrains IDEs, Xcode, and Windsurf.
-
-The first use asks macOS for Microphone, Speech Recognition, and Input Monitoring or Accessibility access. Enable Krishna Companion (or Electron while running from this checkout) under **System Settings → Privacy & Security** for those services. Recognition is forced to Apple's on-device recognizer: audio and transcripts are never saved, logged, sent to Krishna Companion's renderer, or sent over the network. If the recognizer is unavailable or permission is denied, voice remains off until the next launch and a single notification explains what to allow.
-
-The helper is built automatically at startup when voice is enabled and `helpers/listen` is missing. This requires Xcode Command Line Tools (`xcrun`); `npm run build:helper` remains available for a manual build. Windows and Linux continue to run the companion without voice.
+Voice is off by default, so a first launch asks for no permission. Turn it on with the tray checkbox or:
 
 ```bash
-krshna voice off
 krshna voice on
+krshna voice off
 ```
 
-The menu-bar checkbox **Voice (hold Space)** controls the same setting. Voice is off by default (`voice: { enabled: false, key: "Space", holdMs: 2000 }` in `settings.json`) so a first launch raises no permission prompts; enable it from the tray checkbox or `krshna voice on`.
+While voice is on, keep Terminal or a supported editor frontmost and hold Space for two seconds, then say "Hare Kṛṣṇa" to open the next teaching. Enabling voice can raise up to five macOS permission prompts: Input Monitoring, Accessibility, and Automation (for the global key hook and frontmost-app check) and Microphone and Speech Recognition (for the on-device recognizer). It also needs the Xcode Command Line Tools to build the on-device speech helper on first use. Recognition is forced to Apple's on-device recognizer; audio and transcripts are never saved, logged, or sent anywhere. A voice-off first launch asks for none of these. Windows and Linux run the companion without voice.
 
-`krshna install` also registers Claude Code's whole-prompt hook. Saying or typing “Hare Kṛṣṇa” as the whole prompt opens the next teaching; Claude does not receive or respond to it.
+## Claude Code hook and zsh segment
 
-To see the experience immediately (this also works while the companion is already live):
+`krshna install` registers a Claude Code prompt hook: typing "Hare Kṛṣṇa" as the whole prompt opens the next teaching, and the model never receives it. The `/krshna` zsh command summons a teaching, and a right-prompt segment shows the next teaching's countdown. The zsh segment reads `state.json` directly and spawns no process.
 
-```bash
-npm run demo
-```
+## Tray
 
-For an interactive design preview without starting Electron, requesting voice permissions, or touching your saved journey:
+The menu-bar icon is a peacock feather. From it you can show a teaching, pause or resume the schedule, change the cadence to 30, 60, or 90 minutes, switch the figure, and toggle voice. The shortcut `⌘⌥K` (`Ctrl+Alt+K` elsewhere) calls up a teaching at any time.
+
+## Settings and files
+
+Three small JSON files live in the app's data directory:
+
+- `state.json`: whether the app is live, the timer, and the next reference.
+- `journey.json`: the next verse index and up to 100 past teachings.
+- `settings.json`: the darshan position, the figure style, and the voice settings.
+
+On macOS these are under `~/Library/Application Support/krishna-companion/`. Linux uses the standard config directory and Windows uses AppData. Run `krshna context` to see the last teaching and what comes next.
+
+## Preview and options
+
+To see the renderer without starting Electron, requesting permissions, or touching your saved journey:
 
 ```bash
 node scripts/preview-darshan.js
-# Open http://127.0.0.1:4173
+# open http://127.0.0.1:4173
 ```
 
-The preview uses the real renderer and corpus inside a simulated workspace. Replay the arrival, expand messages, advance verses, or try long and grouped verses. Its source button displays the URL for inspection. It does not test native window focus, dragging, or voice.
-
-To render a native `preview.png`, stop the companion first, then:
+Options on launch:
 
 ```bash
-npm run preview
-npm run preview -- --verse=1.32-35   # preview one specific verse
+npm start -- --interval=45 --duration=20 --demo --verse=2.47
 ```
 
-Use `⌘⌥K` on macOS or `Ctrl+Alt+K` elsewhere to call up a teaching at any time. The menu-bar icon (a peacock feather) can also show a teaching, pause the schedule, or change the cadence to 30, 60, or 90 minutes.
-
-## Options
-
-```bash
-npm start -- --interval=45 --duration=20
-```
-
-- `--interval`: minutes between teachings (default: `30`)
-- `--duration`: override the untouched timeout in seconds after arrival (default: three minutes); opening the full verse cancels it
+- `--interval`: minutes between teachings (default 30)
+- `--duration`: override the untouched timeout in seconds (default three minutes)
 - `--demo`: show a teaching just after launch
-- `--verse`: start from one verse, e.g. `--verse=2.47` (does not change saved progress)
+- `--verse`: preview one verse without changing saved progress, for example `--verse=1.32-35`
 
-The card opens without taking keyboard focus. After clicking into it, `Esc` ends the darshan and `Enter` opens the full verse; focused buttons retain their normal keyboard action. If a scheduled interval arrives while a card is open, it is skipped without advancing the sequence. A specific `--verse` is a preview: “Next verse” is hidden and the saved journey is unchanged.
+## How it is built
 
-## Source policy
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the three processes, the data files, the security model, and the test strategy, in five minutes.
+- [docs/ANIMATION.md](docs/ANIMATION.md): the flipbook, where the timings live, and how to rebuild the sheets.
+- [docs/HOW-IT-WAS-BUILT.md](docs/HOW-IT-WAS-BUILT.md): the operating system behind the build.
+- [docs/SUCCESS-CRITERIA.md](docs/SUCCESS-CRITERIA.md): the acceptance bar every change is measured against.
 
-Every word shown to the reader is copied as is from A. C. Bhaktivedanta Swami Prabhupāda's *Bhagavad-gītā As It Is*, using the BBT-authorized [VedaBase](https://vedabase.io/en/library/bg/) edition: the translation of each verse and the opening sentences of its purport. Nothing is paraphrased, summarised or rewritten, and no other Gītā translation or commentary is used. Each teaching links to its source verse. A small number of verses carry no purport on VedaBase (32 of the 657 corpus entries); for those the card shows the translation only.
+## Privacy
 
-`data/gita.json` is built by `npm run fetch`, which reads VedaBase at the crawl delay its `robots.txt` asks for (about two hours for the full text) and caches every page under `data/cache/`.
+The running app never reads or stores your terminal output, source code, or conversations. The one exception is the optional Claude Code prompt hook: when it is enabled, each prompt you submit is checked in memory to detect the "Hare Kṛṣṇa" invocation, and is never stored, logged, or forwarded. The running app makes no network request of its own; the only outbound action is opening a VedaBase verse URL in your browser on an explicit click. Voice, when on, runs entirely on device and writes no audio or transcript.
 
-The text of *Bhagavad-gītā As It Is* is © The Bhaktivedanta Book Trust International, Inc. This repository's MIT license covers the software code only, not the quoted text. The Kṛṣṇa artwork is original to this project. This is an independent project and is not affiliated with or endorsed by ISKCON, the Bhaktivedanta Book Trust, or VedaBase. Obtain written permission from the BBT before distributing this repository publicly.
+## Platform support
 
-## How context and sequence are saved
+macOS is where the app is built and used daily. Linux runs in CI and needs a compositor for the transparent window; it is not yet tested by a person. Windows is experimental: its CI lane reports but never blocks.
 
-The companion never reads or stores terminal output, source code, or conversations, and makes no network requests of its own. The one prompt it sees is through Claude Code's `UserPromptSubmit` hook: each prompt you submit is passed to the hook, which checks its text in memory against the single invocation phrase (“Hare Kṛṣṇa” as the whole prompt). Nothing about a prompt is stored, logged, or sent anywhere, whether it matches or not; nothing else is read. Beyond that, the companion's “context” is limited to its own Gītā journey:
+## License
 
-- `journey.json` atomically stores the next verse index and up to 100 previously shown references, translations, purport excerpts, source links, and timestamps.
-- `settings.json` stores the darshan position and local voice settings (the existing `restingPosition` key is preserved).
-- `state.json` stores runtime information such as whether the app is live, the timer, and the next reference.
-
-On macOS these files live in `~/Library/Application Support/krishna-companion/`. Linux uses the standard config directory and Windows uses AppData. Run `krshna context` to see the last teaching and what comes next.
-
-## Platform notes
-
-Built and verified on macOS. Windows (acrylic) and Linux (needs a compositor for the transparent window) are supported by the code but not yet tested.
-
-## Quality bar
-
-- `docs/SUCCESS-CRITERIA.md` is the acceptance bar. Each row says whether a test enforces it or a written manual procedure does. Pull requests cite the criterion IDs they touch and attach the evidence.
-- `.github/workflows/ci.yml` runs `npm test` on macOS and Ubuntu (Node 20 and 22) and checks the npm tarball. The Windows lane is experimental: its failures are reported as warnings and do not block.
-- `docs/DOGFOOD.md` is where wrong or badly timed darshans get logged, for review before each milestone.
-- `CLAUDE.md` holds the rules any agent must follow when editing this repo.
-
-## Adversarial release review
-
-After authenticating Claude Code with `claude /login`, run the repository's read-only public-release review:
-
-```bash
-npm run review:claude
-```
-
-The review command disables session persistence and gives Claude only `Read`, `Glob`, and `Grep` tools; it cannot modify the project.
+The MIT license in [LICENSE](LICENSE) covers the software code only. The Bhagavad-gītā As It Is text and the artwork are not MIT licensed; their terms are in [LICENSE-ASSETS.md](LICENSE-ASSETS.md). This is an independent project and is not affiliated with or endorsed by ISKCON, the Bhaktivedanta Book Trust, or VedaBase.

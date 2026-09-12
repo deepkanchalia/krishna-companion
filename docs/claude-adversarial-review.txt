@@ -1,4 +1,4 @@
-Act as an adversarial release reviewer for this Electron desktop companion before it goes public.
+Act as an adversarial reviewer for this Electron desktop companion. This is an optional local review pass, run by the owner from the repository.
 
 Read the full repository. Do not modify files. Look for security and privacy risks, persistence and sequence corruption, multi-display and draggable-window bugs, focus or input disruption, cross-platform issues, installation hazards, accessibility problems, misleading ISKCON or BBT attribution and copyright claims, and gaps between README claims and actual behavior.
 

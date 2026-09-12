@@ -79,12 +79,24 @@ function htmlToLines(fragment) {
     .filter(Boolean);
 }
 
+// Defence-in-depth for the last block on a page: even after the pager container
+// is excluded structurally, drop any trailing run of VedaBase pager labels
+// ("TEXT 4", "TEXTS 16-18") that reached the joined text. Scripture never ends
+// in this pattern, so a legitimate translation or purport is left untouched.
+function stripTrailingPager(text) {
+  return text.replace(/\s*(?:TEXTS?\s+[\d-]+)+\s*$/, "");
+}
+
 function block(html, className) {
   const marker = `class="${className}"`;
   const start = html.indexOf(marker);
   if (start === -1) return "";
   const rest = html.slice(html.indexOf(">", start + marker.length) + 1);
-  const end = rest.search(/class="av-(devanagari|verse_text|synonyms|translation|purport)"|<div class="mt-8|<\/main>/);
+  // Stop before the next verse block, the mt-8 wrapper, the </main> tag, or the
+  // "prev / next" pager container that follows the last block on the page
+  // (<div class="mt-10 flex justify-between">). Without the pager boundary the
+  // pager anchors (TEXT 4, TEXT 6, ...) were swallowed into the final block.
+  const end = rest.search(/class="av-(devanagari|verse_text|synonyms|translation|purport)"|<div class="mt-10 flex justify-between"|<div class="mt-8|<\/main>/);
   const fragment = end > 0 ? rest.slice(0, end) : rest;
   return fragment.slice(0, fragment.lastIndexOf("<") === -1 ? undefined : fragment.lastIndexOf("<"));
 }
@@ -92,8 +104,8 @@ function block(html, className) {
 function parseVerse(html, chapter, slug) {
   const devanagari = htmlToLines(block(html, "av-devanagari"));
   const verseParts = htmlToLines(block(html, "av-verse_text"));
-  const translation = htmlToLines(block(html, "av-translation")).join(" ");
-  const purport = htmlToLines(block(html, "av-purport"));
+  const translation = stripTrailingPager(htmlToLines(block(html, "av-translation")).join(" "));
+  const purport = stripTrailingPager(htmlToLines(block(html, "av-purport")).join("\n\n"));
 
   return {
     chapter,
@@ -102,7 +114,7 @@ function parseVerse(html, chapter, slug) {
     shloka: devanagari.join("\n"),
     transliteration: verseParts.join("\n"),
     translation,
-    purport: purport.join("\n\n"),
+    purport,
     source: `${BASE}/en/library/bg/${chapter}/${slug}/`
   };
 }
