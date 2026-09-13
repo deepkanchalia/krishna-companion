@@ -15,8 +15,8 @@ jobs:
     name: lint and production audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
           cache: npm
@@ -30,8 +30,8 @@ jobs:
     name: test (ubuntu, node 22)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
           cache: npm
@@ -40,14 +40,17 @@ jobs:
       # --ignore-scripts skips the Electron download and the native uiohook rebuild.
       # Tests are pure Node by design (see CLAUDE.md), so this is the whole toolchain.
       - run: npm ci --ignore-scripts
-      - run: npm test
+      # Run with coverage measurement and a failing floor (see package.json test:coverage).
+      # A PR that drops line/branch/function coverage below the threshold fails here.
+      # Uses only Node's built-in coverage: no Electron download or native rebuild required.
+      - run: npm run test:coverage
 
   pack:
     name: pack (no binaries, no candidates)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
           cache: npm
