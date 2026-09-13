@@ -15,7 +15,7 @@ const {
   renameSync,
   writeFileSync
 } = require("node:fs");
-const { safeLabel } = require("./sanitize");
+const { safeLabel, isPlainObject } = require("./sanitize");
 
 // Strip control characters from a path/message before echoing it on one stderr line,
 // without truncating an ordinary path.
@@ -58,8 +58,9 @@ function readJson(filePath, fallback, quarantined) {
   } catch {
     return fallback;
   }
+  let parsed;
   try {
-    return JSON.parse(raw);
+    parsed = JSON.parse(raw);
   } catch {
     const quarantinedTo = quarantineTarget(filePath);
     try {
@@ -75,6 +76,11 @@ function readJson(filePath, fallback, quarantined) {
     }
     return fallback;
   }
+  // Parseable but wrong-shape JSON (a literal `null`, an array, or a scalar) is not a
+  // corrupt file to quarantine — the bytes are valid JSON — but it is not the object the
+  // app persists either. Fail closed to the fallback so the caller never receives a shape
+  // that will crash on a property access. Quarantine stays reserved for UNPARSEABLE files.
+  return isPlainObject(parsed) ? parsed : fallback;
 }
 
 // Write JSON atomically (temp file + rename). Any write or rename failure is logged

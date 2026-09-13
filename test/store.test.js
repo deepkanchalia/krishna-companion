@@ -41,6 +41,28 @@ test("valid JSON is returned and the file is left untouched", (t) => {
   assert.equal(fs.readFileSync(file, "utf8"), original, "file byte-identical");
 });
 
+test("parseable-but-wrong-shape JSON fails closed to the fallback without quarantine", (t) => {
+  const dir = tempDir(t);
+  // A literal null, an array, and scalars are valid JSON but not the object the app writes.
+  // Each must return the caller's default and leave the file in place (not quarantined:
+  // quarantine is reserved for UNPARSEABLE files).
+  for (const [name, bytes] of [
+    ["settings-null.json", "null"],
+    ["settings-array.json", "[1, 2, 3]"],
+    ["settings-string.json", "\"x\""],
+    ["settings-number.json", "42"],
+    ["settings-bool.json", "true"]
+  ]) {
+    const file = path.join(dir, name);
+    fs.writeFileSync(file, bytes);
+    const quarantined = [];
+    assert.deepEqual(readJson(file, { safe: true }, quarantined), { safe: true }, `${name} returns the fallback`);
+    assert.equal(quarantined.length, 0, `${name} is not quarantined`);
+    assert.equal(fs.readFileSync(file, "utf8"), bytes, `${name} is left byte-identical`);
+    assert.ok(fs.existsSync(file), `${name} still sits at its original name`);
+  }
+});
+
 test("a missing file returns the fallback with no quarantine", (t) => {
   const dir = tempDir(t);
   const quarantined = [];

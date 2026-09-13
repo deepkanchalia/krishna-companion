@@ -46,6 +46,19 @@ test("drops corrupt history entries while keeping readable ones", () => {
   assert.equal(isValidHistoryEntry(saved.history[3]), false);
 });
 
+test("nextVerseIndex fails closed to 0 when neither saved nor fallback is a finite integer", () => {
+  // A hand-edited or truncated state.json can hand a non-integer through as the fallback
+  // index; it must never reach the modulo as NaN and leave nextVerseIndex undefined/NaN.
+  assert.equal(normalizeJourney(null, 8, "abc").nextVerseIndex, 0);
+  assert.equal(normalizeJourney(null, 8, NaN).nextVerseIndex, 0);
+  assert.equal(normalizeJourney(null, 8, 1.5).nextVerseIndex, 0);
+  assert.equal(normalizeJourney({ nextVerseIndex: "7" }, 8, "bad").nextVerseIndex, 0, "a garbage saved value with a garbage fallback still yields 0");
+  // A wrong-typed saved value falls back to a valid integer fallback (state.nextVerseIndex).
+  assert.equal(normalizeJourney({ nextVerseIndex: "7" }, 8, 3).nextVerseIndex, 3);
+  // A negative saved integer still wraps into range, never a negative index.
+  assert.equal(normalizeJourney({ nextVerseIndex: -1 }, 8).nextVerseIndex, 7);
+});
+
 test("caps saved context at 100 teachings and counts completed cycles", () => {
   let journey = normalizeJourney(null, 2);
   for (let index = 0; index < 102; index += 1) {
