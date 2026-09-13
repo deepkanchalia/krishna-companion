@@ -12,11 +12,13 @@ const { createDarshan, ARRIVAL_MS, WITHDRAWAL_MS, UNTOUCHED_MS } = require("../s
 // Evaluate the actual main-process wiring against in-memory Electron doubles.
 // No Electron import, real window, native permission or production data writes.
 async function harness(argv = [], saved = null, opts = {}) {
-  const { settings: settingsSeed = null, throwInTray = false } = opts;
+  const { settings: settingsSeed = null, throwInTray = false, state: stateSeed = null } = opts;
   // Whether a settings seed was supplied at all, so a test can inject a literal null (a
   // wrong-shape settings.json) and see it reach readPersistentData, rather than the seed
   // being indistinguishable from "no seed".
   const hasSettingsSeed = Object.prototype.hasOwnProperty.call(opts, "settings");
+  // Same for state.json, so a test can seed a persisted `paused`/`intervalMinutes`.
+  const hasStateSeed = Object.prototype.hasOwnProperty.call(opts, "state");
   let now = 10_000;
   const timers = new Map();
   const writes = new Map();
@@ -102,6 +104,7 @@ async function harness(argv = [], saved = null, opts = {}) {
         readJson(file, fallback) {
           if (file.endsWith("journey.json")) return saved;
           if (file.endsWith("settings.json") && hasSettingsSeed) return settingsSeed;
+          if (file.endsWith("state.json") && hasStateSeed) return stateSeed;
           return fallback;
         },
         writeJson(file, value) { writes.set(path.basename(file), value); return true; }
@@ -344,4 +347,44 @@ test("voice.holdMs coerces out-of-range or garbage values to the default and kee
   }
   const valid = await harness([], null, { settings: { voice: { holdMs: 3000 } } });
   assert.equal(valid.writes.get("settings.json").voice.holdMs, 3000, "a valid in-range holdMs survives");
+});
+
+// Codex defect #5: pause is persisted to state.json and restored on the next load. A
+// returning-user journey keeps startup absent so the observable is only the restored pause.
+const returningJourney = { nextVerseIndex: 3, history: [{ reference: reflections[2].reference, explanation: reflections[2].meaning }] };
+
+test("a paused:true persisted in state.json is restored on the next load", async () => {
+  const h = await harness([], returningJourney, { state: { paused: true } });
+  assert.equal(h.writes.get("state.json").paused, true, "the restored pause is re-persisted as true");
+  const menu = h.trayMenu();
+  const toggle = menu.find((item) => /Pause teachings|Resume teachings/.test(item.label || ""));
+  assert.equal(toggle.label, "Resume teachings", "the tray reflects the restored paused state");
+});
+
+test("a non-boolean paused in state.json fails closed to not-paused", async () => {
+  // Anything but the boolean true must leave teachings running, matching the voice flag.
+  for (const paused of ["true", 1, 0, {}, [], null, "yes", "false"]) {
+    const h = await harness([], returningJourney, { state: { paused } });
+    assert.equal(h.writes.get("state.json").paused, false, `paused ${JSON.stringify(paused)} fails closed to not-paused`);
+    const menu = h.trayMenu();
+    const toggle = menu.find((item) => /Pause teachings|Resume teachings/.test(item.label || ""));
+    assert.equal(toggle.label, "Pause teachings", `paused ${JSON.stringify(paused)} leaves the tray un-paused`);
+  }
+});
+
+test("a persisted cadence interval is restored on load, and an invalid one fails closed to the default", async () => {
+  const { DEFAULT_INTERVAL_MINUTES } = require("../src/config");
+  const checked = (menu) => menu.find((item) => item.label === "Every").submenu.find((item) => item.checked);
+  // A valid saved interval is restored: the tray "Every" radio for it is checked.
+  const restored = await harness([], returningJourney, { state: { intervalMinutes: 60 } });
+  assert.equal(restored.writes.get("state.json").intervalMinutes, 60, "the saved interval is restored and re-persisted");
+  assert.equal(checked(restored.trayMenu()).label, "60 minutes", "the tray reflects the restored interval");
+  // Out-of-range or garbage values fall back to the default (state.json is untrusted).
+  for (const intervalMinutes of [0, 100000, "60", NaN, Infinity, null, {}]) {
+    const h = await harness([], returningJourney, { state: { intervalMinutes } });
+    assert.equal(h.writes.get("state.json").intervalMinutes, DEFAULT_INTERVAL_MINUTES, `interval ${JSON.stringify(intervalMinutes)} fails closed to the default`);
+  }
+  // An explicit --interval on this launch wins over the persisted value.
+  const overridden = await harness(["--interval=90"], returningJourney, { state: { intervalMinutes: 60 } });
+  assert.equal(overridden.writes.get("state.json").intervalMinutes, 90, "an explicit --interval overrides the persisted value");
 });
