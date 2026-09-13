@@ -19,9 +19,7 @@ const {
 const {
   readConfig,
   FIGURE_STYLES,
-  normalizeFigureStyle,
-  INTERVAL_MINUTES_MIN,
-  INTERVAL_MINUTES_MAX
+  normalizeFigureStyle
 } = require("./config");
 const { reflections, findVerseIndex } = require("./content");
 const { readJson, writeJson } = require("./store");
@@ -34,6 +32,13 @@ const { planSecondInstance } = require("./second-instance");
 const { shortcutUnavailableMessage } = require("./shortcut");
 const { safeLabel, isPlainObject } = require("./sanitize");
 const {
+  normalizeSettings,
+  validRestingPosition,
+  boundedInterval,
+  safeVerseIndex,
+  isTrueFlag
+} = require("./schema");
+const {
   createDarshan,
   ARRIVAL_MS,
   WITHDRAWAL_MS,
@@ -43,7 +48,6 @@ const {
 } = require("./darshan");
 const {
   DEFAULT_VOICE_SETTINGS,
-  normalizeVoiceKey,
   createFrontmostAppGate,
   observeHold
 } = require("./voice-hold");
@@ -70,12 +74,6 @@ const MOTION_TIMINGS = {
 // ⌘⌥K / Ctrl+Alt+K: ⌘⇧K is "Delete Line" in VS Code and would be stolen from every editor.
 const SHORTCUT = "CommandOrControl+Alt+K";
 const LISTEN_TIMEOUT_MS = 6_000;
-// The accepted range for the voice hold-to-talk duration read from settings.json. Below
-// the floor a hold is too twitchy to be deliberate; above the ceiling it is a 10-second
-// press no reader performs, so a hand-edited or garbage value outside [MIN, MAX] fails
-// closed to DEFAULT_VOICE_SETTINGS.holdMs (2000) rather than arming an unusable hold.
-const MIN_HOLD_MS = 250;
-const MAX_HOLD_MS = 10_000;
 // How long a programmatic setBounds keeps the "moved" listener from mistaking our own
 // move for a user drag: long enough for the native move event to arrive and be ignored.
 const PROGRAMMATIC_MOVE_RESET_MS = 100;
@@ -155,60 +153,23 @@ function readPersistentData() {
   const savedJourney = readJson(journeyPath, null, quarantined);
   const savedSettings = readJson(settingsPath, {}, quarantined);
 
-  // Fail closed on every persisted read. A file that is present but not the object shape
-  // the app writes — literal `null`, an array, a scalar left by a hand edit or a truncated
-  // write — is treated as absent, never trusted. store.readJson already coerces these to
-  // the fallback, but the guard is repeated here so main.js cannot be crashed by any
-  // readJson variant (the test harness injects its own). Each field is then schema-checked
-  // (allow-list / range / finite) before use, since settings.json is untrusted input (C3).
+  // Fail closed on every persisted read: a wrong-shape file (null, array, scalar from a hand
+  // edit or a truncated write) is treated as absent. store.readJson already coerces these,
+  // but the guard is repeated so main.js cannot be crashed by any injected readJson variant.
+  // Each field is validated by src/schema.js (allow-list / range / finite), since
+  // settings.json and state.json are untrusted input (C3, C7).
   const safeState = isPlainObject(oldState) ? oldState : {};
-  const safeSettings = isPlainObject(savedSettings) ? savedSettings : {};
-  const savedVoice = isPlainObject(safeSettings.voice) ? safeSettings.voice : {};
+  settings = normalizeSettings(savedSettings);
 
-  settings = {
-    ...safeSettings,
-    version: 1,
-    voice: {
-      ...DEFAULT_VOICE_SETTINGS,
-      ...savedVoice
-    }
-  };
-  // The figure style is validated against the fixed list (C3: settings.json is untrusted).
-  settings.figure = { style: normalizeFigureStyle(safeSettings.figure?.style) };
-  // Fail closed (C7): voice is enabled ONLY by a saved boolean true. A string "false", 0,
-  // the string "true", {} — anything but the boolean true — leaves voice off, so a
-  // hand-edited or wrong-typed value can never silently arm the global key hook or the
-  // macOS permission flow. A genuinely saved enabled:true still survives (C7).
-  settings.voice.enabled = savedVoice.enabled === true;
-  // Validate the key against the fixed allow-list before it can reach the hook or any
-  // notice text: settings.json is untrusted input and must never reach a display sink (C3).
-  settings.voice.key = normalizeVoiceKey(settings.voice.key);
-  settings.voice.holdMs = Number.isFinite(settings.voice.holdMs)
-    && settings.voice.holdMs >= MIN_HOLD_MS && settings.voice.holdMs <= MAX_HOLD_MS
-    ? settings.voice.holdMs
-    : DEFAULT_VOICE_SETTINGS.holdMs;
-
-  // nextVerseIndex must be a finite integer; normalizeJourney wraps it into range, but a
-  // non-integer fallback (a hand-edited state.json) could otherwise reach it as NaN, so it
-  // is coerced to 0 here before being handed over.
-  journey = normalizeJourney(savedJourney, reflections.length, Number.isInteger(safeState.nextVerseIndex) ? safeState.nextVerseIndex : 0);
-
+  journey = normalizeJourney(savedJourney, reflections.length, safeVerseIndex(safeState.nextVerseIndex));
   nextVerseIndex = journey.nextVerseIndex;
-
-  // Restore pause across restarts (Codex defect #5). Fail closed exactly like the voice
-  // flag (C7): pause is on ONLY for a saved boolean true; a string "true", 1, {}, or any
-  // other shape from a hand-edited state.json leaves teachings running.
-  paused = safeState.paused === true;
+  paused = isTrueFlag(safeState.paused);
 
   // The cadence interval is changeable at runtime (tray "Every" submenu and a
   // second-instance --interval), so it persists across restarts. An explicit --interval on
-  // this launch wins; otherwise restore the saved value, failing closed to the default when
-  // it is missing or outside the accepted [MIN, MAX] range (state.json is untrusted, C3).
+  // this launch wins; otherwise restore the saved value, failing closed to the default.
   if (!config.provided?.interval) {
-    const savedInterval = safeState.intervalMinutes;
-    if (Number.isFinite(savedInterval) && savedInterval >= INTERVAL_MINUTES_MIN && savedInterval <= INTERVAL_MINUTES_MAX) {
-      config.intervalMinutes = savedInterval;
-    }
+    config.intervalMinutes = boundedInterval(safeState.intervalMinutes, config.intervalMinutes);
   }
 
   if (config.provided?.verse) {
@@ -229,9 +190,8 @@ function readPersistentData() {
     }
     requestedVerseIndex = result.index;
   }
-  if (Number.isFinite(safeSettings.restingPosition?.x) && Number.isFinite(safeSettings.restingPosition?.y)) {
-    restingPosition = safeSettings.restingPosition;
-  }
+  const savedRestingPosition = validRestingPosition(savedSettings);
+  if (savedRestingPosition) restingPosition = savedRestingPosition;
   saveSettings();
 }
 
@@ -485,10 +445,9 @@ function showShortcutNotice(body) {
   }
 }
 
-// The voice runtime owns the helper spawn, the listen session, and the trigger-key hook.
-// It receives its Electron/native pieces and the app state it reacts to through this
-// factory; no voice state lives in this file. loadHook is lazy so nothing requires the
-// native key hook until voice actually starts.
+// The voice runtime (src/voice-runtime.js) owns all voice state; it receives its
+// Electron/native pieces and the app state it reacts to through this factory. loadHook is
+// lazy so nothing requires the native key hook until voice actually starts.
 const voice = createVoiceRuntime({
   platform: process.platform,
   spawn,
@@ -557,15 +516,12 @@ function reconcileAfterWake() {
   cadenceTimer = setInterval(reconcileCadenceNow, cadenceIntervalMs());
 }
 
-// Show a darshan for a `now` invocation. Recreate the window if the app is alive
-// without one; acknowledge (which blocks the prompt in the hook) and show only when
-// a window can actually display it, otherwise skip so the CLI exits 2 and the hook
-// passes the prompt through. Whenever the renderer has not finished loading — a
-// just-created window or a cold launch still in flight — defer the reveal to
-// did-finish-load: sending companion:show before then loses the teaching (and
-// advances the saved journey past a verse the reader never saw) and flashes a blank
-// card. nextReflection/saveJourney run inside reveal(), so the journey only advances
-// when the show is actually delivered to a ready renderer.
+// Show a darshan for a `now` invocation. Acknowledge and show only when a window can
+// display it, else skip so the CLI exits 2 and the hook passes the prompt through. If the
+// renderer has not finished loading, defer the reveal to did-finish-load: sending
+// companion:show before then loses the teaching and advances the saved journey past a verse
+// the reader never saw. nextReflection/saveJourney run inside reveal(), so the journey only
+// advances once the show is actually delivered to a ready renderer.
 function revealNow({ index, durationSeconds } = {}) {
   const recreated = !companionWindow || companionWindow.isDestroyed();
   if (recreated) createWindow();
