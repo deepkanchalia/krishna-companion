@@ -18,17 +18,29 @@ function withHome(t, fn) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "krshna-unit-"));
   t.after(() => fs.rmSync(home, { recursive: true, force: true }));
   const savedHome = process.env.KRSHNA_HOME;
+  // appDataDirectory() (src/paths.js) honours XDG_CONFIG_HOME on Linux and APPDATA on
+  // Windows before falling back to $home/.config or $home/AppData/Roaming. CI runners set
+  // XDG_CONFIG_HOME, which would send readState() outside this temp home and make dataDirFor
+  // disagree with the code. Neutralise both so every path is deterministically under `home`.
+  const savedXdg = process.env.XDG_CONFIG_HOME;
+  const savedAppData = process.env.APPDATA;
   const savedExit = process.exitCode;
   const logs = [];
   const restore = console.log;
   console.log = (message) => logs.push(String(message));
   process.env.KRSHNA_HOME = home;
+  delete process.env.XDG_CONFIG_HOME;
+  delete process.env.APPDATA;
   try {
     return fn(home, logs);
   } finally {
     console.log = restore;
     if (savedHome === undefined) delete process.env.KRSHNA_HOME;
     else process.env.KRSHNA_HOME = savedHome;
+    if (savedXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = savedXdg;
+    if (savedAppData === undefined) delete process.env.APPDATA;
+    else process.env.APPDATA = savedAppData;
     process.exitCode = savedExit;
   }
 }
