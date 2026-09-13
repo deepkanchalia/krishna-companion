@@ -11,15 +11,23 @@ const {
   globalShortcut,
   ipcMain,
   nativeImage,
+  powerMonitor,
   screen,
   shell,
   systemPreferences
 } = require("electron");
-const { readConfig, FIGURE_STYLES, normalizeFigureStyle } = require("./config");
+const {
+  readConfig,
+  FIGURE_STYLES,
+  normalizeFigureStyle,
+  INTERVAL_MINUTES_MIN,
+  INTERVAL_MINUTES_MAX
+} = require("./config");
 const { reflections, findVerseIndex } = require("./content");
 const { readJson, writeJson } = require("./store");
 const { normalizeJourney, recordTeaching } = require("./journey");
 const { canShowTeaching } = require("./schedule");
+const { reconcileCadence } = require("./cadence");
 const { containsInvocation } = require("./voice");
 const { windowCanAcknowledge } = require("./ack");
 const { planSecondInstance } = require("./second-instance");
@@ -186,6 +194,23 @@ function readPersistentData() {
   journey = normalizeJourney(savedJourney, reflections.length, Number.isInteger(safeState.nextVerseIndex) ? safeState.nextVerseIndex : 0);
 
   nextVerseIndex = journey.nextVerseIndex;
+
+  // Restore pause across restarts (Codex defect #5). Fail closed exactly like the voice
+  // flag (C7): pause is on ONLY for a saved boolean true; a string "true", 1, {}, or any
+  // other shape from a hand-edited state.json leaves teachings running.
+  paused = safeState.paused === true;
+
+  // The cadence interval is changeable at runtime (tray "Every" submenu and a
+  // second-instance --interval), so it persists across restarts. An explicit --interval on
+  // this launch wins; otherwise restore the saved value, failing closed to the default when
+  // it is missing or outside the accepted [MIN, MAX] range (state.json is untrusted, C3).
+  if (!config.provided?.interval) {
+    const savedInterval = safeState.intervalMinutes;
+    if (Number.isFinite(savedInterval) && savedInterval >= INTERVAL_MINUTES_MIN && savedInterval <= INTERVAL_MINUTES_MAX) {
+      config.intervalMinutes = savedInterval;
+    }
+  }
+
   if (config.provided?.verse) {
     // --verse=1.32-35 previews one specific teaching without touching the saved journey.
     // A verse that is missing/empty/nonexistent is a hard error on a direct launch: exit
@@ -492,15 +517,44 @@ function setVoiceEnabled(enabled) {
   if (tray) tray.setContextMenu(trayMenu());
 }
 
+function cadenceIntervalMs() {
+  return config.intervalMinutes * 60 * 1000;
+}
+
+// Run the pure reconciler (src/cadence.js) against the real wall clock and act on its
+// decision: advance the schedule, fire AT MOST ONE darshan if one came due (a normal
+// boundary, or time that elapsed during sleep, a pause, or an open card), and persist the
+// corrected nextReflectionAt. Never fires more than one darshan for many missed intervals.
+function reconcileCadenceNow() {
+  const decision = reconcileCadence({
+    now: Date.now(),
+    nextReflectionAt,
+    intervalMs: cadenceIntervalMs(),
+    paused,
+    isExpanded
+  });
+  nextReflectionAt = decision.nextReflectionAt;
+  if (decision.due) showCompanion();
+  saveState();
+}
+
 function restartCadence(minutes = config.intervalMinutes) {
   clearInterval(cadenceTimer);
   nextReflectionAt = Date.now() + minutes * 60 * 1000;
-  cadenceTimer = setInterval(() => {
-    showCompanion();
-    nextReflectionAt = Date.now() + minutes * 60 * 1000;
-    saveState();
-  }, minutes * 60 * 1000);
+  cadenceTimer = setInterval(reconcileCadenceNow, minutes * 60 * 1000);
   saveState();
+}
+
+// Sleep/wake reconciliation (Codex defect #5). Node's timers are suspended while the
+// machine sleeps, so on wake the interval is behind the wall clock. Re-run the reconciler
+// against the real clock (firing once if a boundary passed during sleep) and re-arm the
+// interval so later ticks stay aligned rather than drifting. Wired to powerMonitor
+// resume/unlock-screen. The reconciler guards paused/expanded, so a wake behind an open
+// card or a paused loop never fires.
+function reconcileAfterWake() {
+  clearInterval(cadenceTimer);
+  reconcileCadenceNow();
+  cadenceTimer = setInterval(reconcileCadenceNow, cadenceIntervalMs());
 }
 
 // Show a darshan for a `now` invocation. Recreate the window if the app is alive
@@ -602,13 +656,18 @@ function handleCommand(command) {
       collapseCompanion();
       break;
     case "resume":
+      // Explicit unpause. `resume` is the only command that clears a persisted pause.
       paused = false;
       restartCadence();
       showRestingCompanion();
       break;
     case "live":
     case "start":
-      paused = false;
+      // Ensure the loop is running, but HONOUR a persisted pause (Codex defect #5). A plain
+      // relaunch carries the defaulted command "live"; clearing pause here would forget the
+      // reader's pause on every restart, exactly the bug this batch fixes. Unpausing is the
+      // job of `resume` and the tray toggle. (planSecondInstance already refuses to forward a
+      // defaulted "live" for the same reason — see test/second-instance.test.js.)
       restartCadence();
       showRestingCompanion();
       break;
@@ -702,6 +761,14 @@ if (instanceLock) app.whenReady().then(() => {
   createTray();
   notifyQuarantines();
   restartCadence();
+  // Sleep/wake reconciliation (Codex defect #5). powerMonitor is a built-in Electron
+  // module, so this adds no dependency. Guard it: the in-memory test harness's electron
+  // double has no powerMonitor, and any non-Electron path must be a no-op. unlock-screen
+  // covers a lid-open that the OS reports as an unlock rather than a resume.
+  if (powerMonitor && typeof powerMonitor.on === "function") {
+    powerMonitor.on("resume", reconcileAfterWake);
+    powerMonitor.on("unlock-screen", reconcileAfterWake);
+  }
   voice.initialize();
 
   const shortcutRegistered = globalShortcut.register(SHORTCUT, () => showCompanion(true));
