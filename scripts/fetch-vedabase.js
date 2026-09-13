@@ -12,6 +12,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const crypto = require("node:crypto");
 
 const BASE = "https://vedabase.io";
 const DELAY_MS = Number(process.env.VEDABASE_DELAY_MS || 10_000);
@@ -19,6 +20,7 @@ const CHAPTERS = 18;
 const root = path.resolve(__dirname, "..");
 const cacheDir = path.join(root, "data", "cache");
 const outputFile = path.join(root, "data", "gita.json");
+const manifestFile = path.join(root, "data", "gita.manifest.json");
 const buildOnly = process.argv.includes("--build");
 
 const CHAPTER_WORDS = ["One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
@@ -137,6 +139,37 @@ function verifySequence(chapter, slugs) {
   return expected - 1;
 }
 
+// Count the individual verses a corpus entry covers ("16-18" is three verses).
+function versesInEntry(entry) {
+  const [from, to] = String(entry.verse).split("-").map(Number);
+  return (to || from) - from + 1;
+}
+
+// Emit data/gita.manifest.json describing the corpus this build wrote: its
+// origin, the exact bytes' sha256, and counts derived from the data itself.
+// Produced by the pipeline so provenance cannot drift from the corpus.
+function writeManifest(entries) {
+  const bytes = fs.readFileSync(outputFile);
+  const verseCount = entries.reduce((sum, entry) => sum + versesInEntry(entry), 0);
+  const chapterCount = new Set(entries.map((entry) => entry.chapter)).size;
+  const cachePages = fs.existsSync(cacheDir)
+    ? fs.readdirSync(cacheDir).filter((name) => fs.statSync(path.join(cacheDir, name)).isFile()).length
+    : 0;
+  const manifest = {
+    source: `Bhagavad-gītā As It Is, vedabase.io (${BASE}/en/library/bg/)`,
+    generatedAt: new Date().toISOString(),
+    verseCount,
+    entryCount: entries.length,
+    chapterCount,
+    sha256: crypto.createHash("sha256").update(bytes).digest("hex"),
+    fetchScript: "scripts/fetch-vedabase.js",
+    crawlDelaySeconds: DELAY_MS / 1000,
+    cachePages
+  };
+  fs.writeFileSync(manifestFile, JSON.stringify(manifest, null, 2) + "\n");
+  return manifest;
+}
+
 async function main() {
   const reflections = [];
   let verseTotal = 0;
@@ -162,9 +195,12 @@ async function main() {
   }
 
   console.log(`Wrote ${reflections.length} entries covering ${verseTotal} verses to ${path.relative(root, outputFile)}`);
+
+  const manifest = writeManifest(reflections);
+  console.log(`Wrote manifest to ${path.relative(root, manifestFile)} (sha256 ${manifest.sha256})`);
 }
 
-module.exports = { parseChapter, parseVerse, verifySequence };
+module.exports = { parseChapter, parseVerse, verifySequence, versesInEntry, writeManifest };
 
 if (require.main === module) {
   main().catch((error) => {

@@ -65,6 +65,10 @@ jobs:
           if ! grep -qE '(^|[[:space:]/])LICENSE([[:space:]]|$)' pack.txt || ! grep -q 'LICENSE-ASSETS\.md' pack.txt; then
             echo "tarball must ship both LICENSE and LICENSE-ASSETS.md"; exit 1
           fi
+          # The corpus ships with its provenance manifest, so the two never travel apart.
+          if grep -q 'data/gita\.json' pack.txt && ! grep -q 'data/gita\.manifest\.json' pack.txt; then
+            echo "tarball ships data/gita.json but not its data/gita.manifest.json"; exit 1
+          fi
           sheets=$(grep -cE 'assets/anim/[a-z]+/(walkin|idle|teach|farewell)\.webp' pack.txt)
           styles=$(node -p "require('./src/config').FIGURE_STYLES.length")
           if [ "$sheets" -ne $((styles * 4)) ] || ! grep -q 'assets/anim/manifest\.js' pack.txt; then

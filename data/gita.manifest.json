@@ -1,0 +1,11 @@
+{
+  "source": "Bhagavad-gītā As It Is, vedabase.io (https://vedabase.io/en/library/bg/)",
+  "generatedAt": "2026-09-13T14:37:51.594Z",
+  "verseCount": 700,
+  "entryCount": 657,
+  "chapterCount": 18,
+  "sha256": "38828c9e17a2cde2fc04b30c1482e2a411109008689952e082df5d66836f0a27",
+  "fetchScript": "scripts/fetch-vedabase.js",
+  "crawlDelaySeconds": 10,
+  "cachePages": 675
+}
