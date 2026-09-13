@@ -110,6 +110,17 @@ function runNow({
   return 2;
 }
 
+// Launch the companion for `live`/`start`, and only claim it is live when the launch
+// actually succeeded. Returns the exit code: 0 on a successful launch, 1 when launch()
+// could not start the app (launch() has already written the specific reason, e.g. a
+// missing Electron, to stderr). launch is injectable so a test can drive a failing launch
+// without Electron, per CLAUDE.md (never start the real app in a test).
+function runLive(nextCommand, { launch: launchFn = launch } = {}) {
+  if (!launchFn(nextCommand)) return 1;
+  console.log("🪶 Kṛṣṇa Companion is live. Your terminal work will continue normally.");
+  return 0;
+}
+
 function printContext() {
   reportQuarantinedFiles();
   let savedJourney;
@@ -120,7 +131,10 @@ function printContext() {
     return;
   }
 
-  const history = Array.isArray(savedJourney.history) ? savedJourney.history : [];
+  // Fail closed on a parseable-but-wrong-shape journey.json (a literal `null`, an array, a
+  // scalar from a hand edit): `savedJourney?.history` never throws, and a non-array history
+  // becomes empty, so `krshna context` reports "no teaching yet" rather than crashing.
+  const history = Array.isArray(savedJourney?.history) ? savedJourney.history : [];
   // C3: journey.json sits in the user's data directory and can be edited by hand, so
   // nothing stored in it reaches the terminal. An entry counts as readable only when its
   // reference names a verse in the corpus, and the lines printed below are the corpus's
@@ -140,7 +154,8 @@ function printContext() {
   const verse = byReference.get(last.reference);
   console.log(`Last explained: ${verse.reference}`);
   console.log((verse.meaning || verse.translation).replace("\n", " "));
-  console.log(`Next in sequence: ${reflections[savedJourney.nextVerseIndex]?.reference || "the opening verse"}.`);
+  const nextIndex = Number.isInteger(savedJourney?.nextVerseIndex) ? savedJourney.nextVerseIndex : undefined;
+  console.log(`Next in sequence: ${reflections[nextIndex]?.reference || "the opening verse"}.`);
 }
 
 function launch(nextCommand) {
@@ -174,32 +189,41 @@ function zshBlock() {
   return `${ZSH_START}\nsource ${JSON.stringify(sourcePath)}\n${ZSH_END}`;
 }
 
+// Add or refresh the marked block in ~/.zshrc. Returns true on success and false if any
+// filesystem step fails (an unreadable or unwritable .zshrc, a failed backup), so install()
+// can roll the Claude hook back rather than reporting a success that never happened. The
+// specific reason is left to install() so this stays a plain success/failure reporter.
 function installZsh() {
-  const zshrc = zshrcFile();
-  const existing = fs.existsSync(zshrc) ? fs.readFileSync(zshrc, "utf8") : "";
-  const backup = `${zshrc}.krshna-backup`;
-  // Refresh the backup on every install so it tracks the user's current .zshrc, but store
-  // it with our own block stripped: a restore must return their file, not one that already
-  // carries our integration. The backup keeps the original's file mode.
-  if (fs.existsSync(zshrc)) {
-    fs.writeFileSync(backup, zshWithoutBlock(existing).content);
-    fs.chmodSync(backup, fs.statSync(zshrc).mode & 0o777);
-  }
+  try {
+    const zshrc = zshrcFile();
+    const existing = fs.existsSync(zshrc) ? fs.readFileSync(zshrc, "utf8") : "";
+    const backup = `${zshrc}.krshna-backup`;
+    // Refresh the backup on every install so it tracks the user's current .zshrc, but store
+    // it with our own block stripped: a restore must return their file, not one that already
+    // carries our integration. The backup keeps the original's file mode.
+    if (fs.existsSync(zshrc)) {
+      fs.writeFileSync(backup, zshWithoutBlock(existing).content);
+      fs.chmodSync(backup, fs.statSync(zshrc).mode & 0o777);
+    }
 
-  const startIndex = existing.indexOf(ZSH_START);
-  const endIndex = existing.indexOf(ZSH_END, startIndex);
-  if (startIndex !== -1 && endIndex !== -1) {
-    // Replace the existing block in place so a moved checkout points at the current
-    // path instead of accumulating a second block.
-    const after = endIndex + ZSH_END.length;
-    fs.writeFileSync(zshrc, existing.slice(0, startIndex) + zshBlock() + existing.slice(after));
-    return;
+    const startIndex = existing.indexOf(ZSH_START);
+    const endIndex = existing.indexOf(ZSH_END, startIndex);
+    if (startIndex !== -1 && endIndex !== -1) {
+      // Replace the existing block in place so a moved checkout points at the current
+      // path instead of accumulating a second block.
+      const after = endIndex + ZSH_END.length;
+      fs.writeFileSync(zshrc, existing.slice(0, startIndex) + zshBlock() + existing.slice(after));
+      return true;
+    }
+    // Always separate the block from prior content with exactly one newline (even when
+    // the file already ends in one); uninstallZsh strips that same newline back, so a
+    // file with or without a trailing newline round-trips byte-identical.
+    const prefix = existing.length ? "\n" : "";
+    fs.appendFileSync(zshrc, `${prefix}${zshBlock()}\n`);
+    return true;
+  } catch {
+    return false;
   }
-  // Always separate the block from prior content with exactly one newline (even when
-  // the file already ends in one); uninstallZsh strips that same newline back, so a
-  // file with or without a trailing newline round-trips byte-identical.
-  const prefix = existing.length ? "\n" : "";
-  fs.appendFileSync(zshrc, `${prefix}${zshBlock()}\n`);
 }
 
 // Remove the marked block, including its markers and the newline install wrote after
@@ -356,7 +380,9 @@ function installClaudeHook() {
     }
   }
 
-  updateJsonFile(settingsFile, {}, (settings) => {
+  // Return whether the hook write actually landed (writeJson returns false on any write or
+  // rename failure) so install() can tell success from a swallowed failure and roll back.
+  return updateJsonFile(settingsFile, {}, (settings) => {
     settings.hooks ||= {};
     settings.hooks.UserPromptSubmit ||= [];
     // Replace any prior marker entry (e.g. from a different checkout or Node) so we
@@ -404,8 +430,22 @@ function install() {
     process.exitCode = 1;
     return;
   }
-  installClaudeHook();
-  installZsh();
+  // Write the Claude Code hook first (the JSON step). If it fails, nothing else was touched,
+  // so there is nothing to roll back: report and exit non-zero rather than claiming success.
+  if (!installClaudeHook()) {
+    process.stderr.write(`Krishna Companion could not write the Claude Code hook to ${path.basename(claudeSettingsFile())}; nothing was changed.\n`);
+    process.exitCode = 1;
+    return;
+  }
+  // If the shell step then fails, the hook is already installed. Roll it back so the machine
+  // is left in the exact pre-install state instead of carrying an orphaned hook, then report.
+  if (!installZsh()) {
+    uninstallClaudeHook();
+    process.stderr.write("Krishna Companion could not update ~/.zshrc; rolled back the Claude Code hook. Nothing was changed.\n");
+    process.exitCode = 1;
+    return;
+  }
+  // Both steps truly succeeded: only now is it safe to claim success.
   console.log("Installed the /krshna shortcut, terminal status, and Claude Code voice hook.");
   console.log("Open a new terminal to use the shell integrations.");
 }
@@ -489,8 +529,7 @@ function main() {
       break;
     case "live":
     case "start":
-      launch(command);
-      console.log("🪶 Kṛṣṇa Companion is live. Your terminal work will continue normally.");
+      process.exitCode = runLive(command);
       break;
     case "pause":
     case "resume":
@@ -518,7 +557,7 @@ function main() {
   }
 }
 
-module.exports = { runNow, installZsh, uninstallZsh, isKrshnaHook, reportQuarantinedFiles, shQuote, claudeHookCommand };
+module.exports = { runNow, runLive, installZsh, uninstallZsh, isKrshnaHook, reportQuarantinedFiles, shQuote, claudeHookCommand };
 
 // Run the CLI only when invoked directly, so tests can import the functions above
 // without executing a command.

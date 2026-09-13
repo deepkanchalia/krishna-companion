@@ -13,6 +13,10 @@ const { createDarshan, ARRIVAL_MS, WITHDRAWAL_MS, UNTOUCHED_MS } = require("../s
 // No Electron import, real window, native permission or production data writes.
 async function harness(argv = [], saved = null, opts = {}) {
   const { settings: settingsSeed = null, throwInTray = false } = opts;
+  // Whether a settings seed was supplied at all, so a test can inject a literal null (a
+  // wrong-shape settings.json) and see it reach readPersistentData, rather than the seed
+  // being indistinguishable from "no seed".
+  const hasSettingsSeed = Object.prototype.hasOwnProperty.call(opts, "settings");
   let now = 10_000;
   const timers = new Map();
   const writes = new Map();
@@ -97,7 +101,7 @@ async function harness(argv = [], saved = null, opts = {}) {
       if (name === "./store") return {
         readJson(file, fallback) {
           if (file.endsWith("journey.json")) return saved;
-          if (file.endsWith("settings.json") && settingsSeed !== null) return settingsSeed;
+          if (file.endsWith("settings.json") && hasSettingsSeed) return settingsSeed;
           return fallback;
         },
         writeJson(file, value) { writes.set(path.basename(file), value); return true; }
@@ -302,4 +306,42 @@ test("a saved voice preference of enabled survives startup", async () => {
   const voiceItem = menu.find((item) => /^Voice/.test(item.label || ""));
   assert.ok(voiceItem, "a Voice tray item is present");
   assert.equal(voiceItem.checked, true, "a saved enabled:true is not reset to off on startup");
+});
+
+test("a settings.json of the wrong shape loads to safe defaults and never crashes", async () => {
+  const { DEFAULT_FIGURE_STYLE } = require("../src/config");
+  const { DEFAULT_VOICE_SETTINGS } = require("../src/voice-hold");
+  // A parseable but wrong-shape settings.json — literal null, an array, a scalar — must be
+  // treated as absent, not dereferenced. Before the fix, savedSettings.figure?.style and
+  // savedSettings.voice threw before any guard on null/array/scalar shapes.
+  for (const shape of [null, [], "x", 42, {}, true]) {
+    const h = await harness([], null, { settings: shape });
+    assert.deepEqual(h.exits, [], `shape ${JSON.stringify(shape) ?? "null"} does not crash startup`);
+    const written = h.writes.get("settings.json");
+    assert.equal(written.voice.enabled, false, "voice stays off");
+    assert.equal(written.figure.style, DEFAULT_FIGURE_STYLE, "figure falls back to the default style");
+    assert.equal(written.voice.key, DEFAULT_VOICE_SETTINGS.key, "voice key falls back to the default");
+    assert.equal(written.voice.holdMs, DEFAULT_VOICE_SETTINGS.holdMs, "holdMs falls back to the default");
+  }
+});
+
+test("voice.enabled is armed only by a saved boolean true (fails closed)", async () => {
+  // Anything but the boolean true must leave voice off, so a hand-edited or wrong-typed
+  // value can never silently arm the global key hook or the macOS permission flow.
+  for (const enabled of ["false", 0, "true", {}, 1, "yes", "no", null]) {
+    const h = await harness([], null, { settings: { voice: { enabled } } });
+    assert.equal(h.writes.get("settings.json").voice.enabled, false, `enabled ${JSON.stringify(enabled)} stays off`);
+  }
+  const on = await harness([], null, { settings: { voice: { enabled: true } } });
+  assert.equal(on.writes.get("settings.json").voice.enabled, true, "a genuine boolean true survives");
+});
+
+test("voice.holdMs coerces out-of-range or garbage values to the default and keeps a valid one", async () => {
+  const { DEFAULT_VOICE_SETTINGS } = require("../src/voice-hold");
+  for (const holdMs of [10, 999999, "abc", NaN, Infinity, -1, null, {}]) {
+    const h = await harness([], null, { settings: { voice: { holdMs } } });
+    assert.equal(h.writes.get("settings.json").voice.holdMs, DEFAULT_VOICE_SETTINGS.holdMs, `holdMs ${JSON.stringify(holdMs)} coerces to the default`);
+  }
+  const valid = await harness([], null, { settings: { voice: { holdMs: 3000 } } });
+  assert.equal(valid.writes.get("settings.json").voice.holdMs, 3000, "a valid in-range holdMs survives");
 });

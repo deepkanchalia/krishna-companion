@@ -10,9 +10,14 @@ function isValidHistoryEntry(entry) {
 }
 
 function normalizeJourney(saved, reflectionCount, fallbackIndex = 0) {
+  // Fail closed to 0 when neither the saved value nor the fallback is a finite integer, so
+  // a hand-edited or wrong-typed nextVerseIndex can never reach the modulo as NaN and leave
+  // nextVerseIndex undefined/NaN (which would index the corpus out of bounds).
   const candidate = Number.isInteger(saved?.nextVerseIndex)
     ? saved.nextVerseIndex
-    : fallbackIndex;
+    : Number.isInteger(fallbackIndex)
+      ? fallbackIndex
+      : 0;
   const nextVerseIndex = ((candidate % reflectionCount) + reflectionCount) % reflectionCount;
   return {
     version: 1,

@@ -24,7 +24,7 @@ const { containsInvocation } = require("./voice");
 const { windowCanAcknowledge } = require("./ack");
 const { planSecondInstance } = require("./second-instance");
 const { shortcutUnavailableMessage } = require("./shortcut");
-const { safeLabel } = require("./sanitize");
+const { safeLabel, isPlainObject } = require("./sanitize");
 const {
   createDarshan,
   ARRIVAL_MS,
@@ -62,6 +62,12 @@ const MOTION_TIMINGS = {
 // ⌘⌥K / Ctrl+Alt+K: ⌘⇧K is "Delete Line" in VS Code and would be stolen from every editor.
 const SHORTCUT = "CommandOrControl+Alt+K";
 const LISTEN_TIMEOUT_MS = 6_000;
+// The accepted range for the voice hold-to-talk duration read from settings.json. Below
+// the floor a hold is too twitchy to be deliberate; above the ceiling it is a 10-second
+// press no reader performs, so a hand-edited or garbage value outside [MIN, MAX] fails
+// closed to DEFAULT_VOICE_SETTINGS.holdMs (2000) rather than arming an unusable hold.
+const MIN_HOLD_MS = 250;
+const MAX_HOLD_MS = 10_000;
 // How long a programmatic setBounds keeps the "moved" listener from mistaking our own
 // move for a user drag: long enough for the native move event to arrive and be ignored.
 const PROGRAMMATIC_MOVE_RESET_MS = 100;
@@ -141,25 +147,43 @@ function readPersistentData() {
   const savedJourney = readJson(journeyPath, null, quarantined);
   const savedSettings = readJson(settingsPath, {}, quarantined);
 
+  // Fail closed on every persisted read. A file that is present but not the object shape
+  // the app writes — literal `null`, an array, a scalar left by a hand edit or a truncated
+  // write — is treated as absent, never trusted. store.readJson already coerces these to
+  // the fallback, but the guard is repeated here so main.js cannot be crashed by any
+  // readJson variant (the test harness injects its own). Each field is then schema-checked
+  // (allow-list / range / finite) before use, since settings.json is untrusted input (C3).
+  const safeState = isPlainObject(oldState) ? oldState : {};
+  const safeSettings = isPlainObject(savedSettings) ? savedSettings : {};
+  const savedVoice = isPlainObject(safeSettings.voice) ? safeSettings.voice : {};
+
   settings = {
-    ...savedSettings,
+    ...safeSettings,
     version: 1,
     voice: {
       ...DEFAULT_VOICE_SETTINGS,
-      ...(savedSettings.voice || {})
+      ...savedVoice
     }
   };
   // The figure style is validated against the fixed list (C3: settings.json is untrusted).
-  settings.figure = { style: normalizeFigureStyle(savedSettings.figure?.style) };
-  settings.voice.enabled = settings.voice.enabled !== false;
+  settings.figure = { style: normalizeFigureStyle(safeSettings.figure?.style) };
+  // Fail closed (C7): voice is enabled ONLY by a saved boolean true. A string "false", 0,
+  // the string "true", {} — anything but the boolean true — leaves voice off, so a
+  // hand-edited or wrong-typed value can never silently arm the global key hook or the
+  // macOS permission flow. A genuinely saved enabled:true still survives (C7).
+  settings.voice.enabled = savedVoice.enabled === true;
   // Validate the key against the fixed allow-list before it can reach the hook or any
   // notice text: settings.json is untrusted input and must never reach a display sink (C3).
   settings.voice.key = normalizeVoiceKey(settings.voice.key);
-  settings.voice.holdMs = Number.isFinite(settings.voice.holdMs) && settings.voice.holdMs >= 250
+  settings.voice.holdMs = Number.isFinite(settings.voice.holdMs)
+    && settings.voice.holdMs >= MIN_HOLD_MS && settings.voice.holdMs <= MAX_HOLD_MS
     ? settings.voice.holdMs
     : DEFAULT_VOICE_SETTINGS.holdMs;
 
-  journey = normalizeJourney(savedJourney, reflections.length, oldState.nextVerseIndex || 0);
+  // nextVerseIndex must be a finite integer; normalizeJourney wraps it into range, but a
+  // non-integer fallback (a hand-edited state.json) could otherwise reach it as NaN, so it
+  // is coerced to 0 here before being handed over.
+  journey = normalizeJourney(savedJourney, reflections.length, Number.isInteger(safeState.nextVerseIndex) ? safeState.nextVerseIndex : 0);
 
   nextVerseIndex = journey.nextVerseIndex;
   if (config.provided?.verse) {
@@ -180,8 +204,8 @@ function readPersistentData() {
     }
     requestedVerseIndex = result.index;
   }
-  if (Number.isFinite(settings.restingPosition?.x) && Number.isFinite(settings.restingPosition?.y)) {
-    restingPosition = settings.restingPosition;
+  if (Number.isFinite(safeSettings.restingPosition?.x) && Number.isFinite(safeSettings.restingPosition?.y)) {
+    restingPosition = safeSettings.restingPosition;
   }
   saveSettings();
 }

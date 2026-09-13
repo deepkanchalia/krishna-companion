@@ -17,4 +17,13 @@ function safeLabel(value, max = 40) {
   return out.slice(0, max);
 }
 
-module.exports = { safeLabel };
+// A plain JSON object: not null, not an array, not a scalar. Every file the app persists
+// (state.json, journey.json, settings.json) is written as an object, so a parsed value of
+// any other shape (literal `null`, an array, a string, a number from a hand edit or a
+// truncated write) is not the data the app expects. Callers use this to fail closed to a
+// default rather than trusting the shape and crashing on a missing property.
+function isPlainObject(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+module.exports = { safeLabel, isPlainObject };
