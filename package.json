@@ -23,6 +23,7 @@
     "helpers",
     "!helpers/listen",
     "data/gita.json",
+    "data/gita.manifest.json",
     "scripts",
     "!scripts/darshan-preview",
     "!scripts/preview-darshan.js",
