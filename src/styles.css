@@ -20,11 +20,13 @@ button:disabled { cursor: default; opacity: .5; }
   /* No outlines: the card is one soft surface, and the sections inside it are separated by
      spacing and type, never by boxes within the box. */
   padding: 26px 28px 24px; border: 0; border-radius: 28px 28px 8px 28px;
-  /* Frosted glass: a sheen from the top-left, a warm glow at the top-right corner, a
-     translucent dark body that lets the desktop show faintly, and a thin bright rim. */
-  /* Opaque charcoal glass so scripture reads over any window: a white sheen from the
-     top-left, a faint corner light, and a dark neutral base. */
-  background: linear-gradient(135deg, #ffffff16, #ffffff05 38%, transparent 62%), radial-gradient(ellipse at 100% 0, #ffffff0c, transparent 60%), linear-gradient(150deg, #292a2dfb, #141516fd);
+  /* Our colour: the landing page's deep-blue artwork carried inside the card so it reads
+     the same over any desktop (the window is transparent, so the card cannot borrow the
+     blue by translucency — it must own it). Layers, front to back: a white sheen from the
+     top-left, a faint corner light, a landing-style darkening gradient that keeps scripture
+     readable, the downscaled landing image as an opaque cover base, and a solid blue floor
+     so nothing behind the transparent window can tint it. The faint grid rides on ::before. */
+  background: linear-gradient(135deg, #ffffff0e, #ffffff04 38%, transparent 62%), radial-gradient(ellipse at 100% 0, #ffffff08, transparent 60%), linear-gradient(180deg, rgba(4,6,14,.78) 0%, rgba(4,6,14,.8) 45%, rgba(4,6,14,.9) 100%), url("../assets/card-bg.jpg") center / cover no-repeat, #05060c;
   /* No outer drop shadow: on the transparent window it reads as a dark rectangle around
      the card. Only the inset rim and sheen keep the glass edge. */
   box-shadow: inset 0 1px #ffffff2e, inset 0 0 0 1px #ffffff0d, inset 0 -1px #ffffff08;
@@ -32,6 +34,17 @@ button:disabled { cursor: default; opacity: .5; }
   transition: opacity .3s ease, transform .5s var(--ease);
   pointer-events: none; scrollbar-width: thin; scrollbar-color: #a8946b66 transparent;
   -webkit-app-region: no-drag;
+}
+/* The faint landing grid, fading in from the top edge (mask), sitting above the blue
+   base image and below the text. Matches the landing card's grid: 38px cells, cool blue
+   hairlines at low alpha. Behind content (z-index -1), never interactive. */
+.card::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit;
+  opacity: .5; pointer-events: none;
+  background-image: linear-gradient(rgba(160,195,255,.09) 1px, transparent 1px), linear-gradient(90deg, rgba(160,195,255,.09) 1px, transparent 1px);
+  background-size: 38px 38px;
+  -webkit-mask: radial-gradient(135% 108% at 50% 0%, #000 48%, transparent 100%);
+  mask: radial-gradient(135% 108% at 50% 0%, #000 48%, transparent 100%);
 }
 /* The one-shot light that sweeps the glass on arrival. A positioned child of the card
    (it scrolls with the content, which does not matter for a 1.5 s sweep at arrival). */
