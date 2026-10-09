@@ -64,13 +64,13 @@
   "author": "Deep Kanchalia",
   "license": "MIT",
   "dependencies": {
-    "electron": "^44.2.0",
+    "electron": "^44.5.1",
     "uiohook-napi": "1.5.5"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.0",
     "@eslint/js": "9.39.5",
     "eslint": "9.39.5",
-    "globals": "^17.12.0"
+    "globals": "^17.13.0"
   }
 }
